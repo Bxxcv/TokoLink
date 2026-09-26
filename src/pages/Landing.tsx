@@ -1,13 +1,13 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, navigate } from "../lib/router";
 import { FAQ, SALES_30, DAY_LABELS } from "../lib/data";
 import { Logo, LogoMark, TagGlyph } from "../components/Logo";
 import { Badge, ButtonLink, Icon, PageShell, TagChip, cx } from "../components/ui";
 import { ChartFrame, Legend, LineChart } from "../components/charts";
 
-/* Video area: drop the final file into HERO_VIDEO_SRC (e.g. "videos/hero.mp4").
-   Until then the poster image keeps the exact same framing. */
-const HERO_VIDEO_SRC = "";
+/* Hero background video (local file, faststart, ~1,3 MB).
+   Poster image shows first / as fallback if video fails. */
+const HERO_VIDEO_SRC = "images/Hero_video/Hero_video.mp4";
 
 const SECTIONS = [
   { id: "produk", label: "Produk" },
@@ -44,6 +44,48 @@ const goTo = (id: string) => {
   if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
 };
 
+/* Lightweight scroll-reveal: a single shared IntersectionObserver toggles
+   `.is-visible` (opacity + translate only, no layout impact). Each element is
+   unobserved after its first reveal, so there is no ongoing scroll cost. */
+let revealObserver: IntersectionObserver | null = null;
+function getRevealObserver(): IntersectionObserver | null {
+  if (typeof IntersectionObserver === "undefined") return null;
+  if (!revealObserver) {
+    revealObserver = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) {
+            entry.target.classList.add("is-visible");
+            revealObserver?.unobserve(entry.target);
+          }
+        }
+      },
+      { threshold: 0.08, rootMargin: "0px 0px -5% 0px" },
+    );
+  }
+  return revealObserver;
+}
+
+function Reveal({ children, delay = 0 }: { children: React.ReactNode; delay?: number }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const obs = getRevealObserver();
+    if (!obs) {
+      el.classList.add("is-visible");
+      return;
+    }
+    obs.observe(el);
+    return () => obs.unobserve(el);
+  }, []);
+  return (
+    <div ref={ref} className="reveal" style={delay ? { transitionDelay: `${delay}ms` } : undefined}>
+      {children}
+    </div>
+  );
+}
+
 function Header() {
   const path = typeof window !== "undefined" ? window.location.hash : "";
   const active = useScrollspy(SECTIONS.map((s) => s.id));
@@ -57,28 +99,32 @@ function Header() {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
+  // Light header treatment whenever the bar sits on a light surface:
+  // scrolled state OR mobile menu open (the panel itself is white).
+  const tint = solid || open;
+
   return (
     <header
       className={cx(
         "fixed inset-x-0 top-0 z-50 transition-[background-color,border-color,box-shadow] duration-200",
-        solid ? "border-b border-line bg-white/95 backdrop-blur-sm shadow-xs" : "border-b border-white/10 bg-navy-900/25 backdrop-blur-[3px]",
+        tint ? "border-b border-line bg-white/95 backdrop-blur-sm shadow-xs" : "border-b border-white/10 bg-navy-900/25 backdrop-blur-[3px]",
         path.includes("login") && "bg-white",
       )}
     >
       <PageShell>
         <div className="flex h-[68px] items-center justify-between gap-6">
           <Link to="/" aria-label="TokoLink beranda">
-            <Logo size={30} tone={solid ? "light" : "dark"} wordClass={solid ? "text-navy-800" : "text-white"} />
+            <Logo size={30} tone={tint ? "light" : "dark"} wordClass={tint ? "text-navy-800" : "text-white"} />
           </Link>
 
-          <nav className="hidden items-center gap-1 lg:flex">
+          <nav className="hidden items-center gap-1 lg:flex" aria-label="Navigasi utama">
             {SECTIONS.map((s) => (
               <button
                 key={s.id}
                 onClick={() => goTo(s.id)}
                 className={cx(
                   "relative rounded-md px-3 py-2 text-[14px] font-semibold transition-colors duration-150",
-                  solid
+                  tint
                     ? active === s.id
                       ? "text-brand-700"
                       : "text-muted hover:text-ink"
@@ -103,7 +149,7 @@ function Header() {
               to="/login"
               className={cx(
                 "hidden rounded-md px-3 py-2 text-[14px] font-semibold transition-colors sm:block",
-                solid ? "text-muted hover:text-brand-700" : "text-white/80 hover:text-white",
+                tint ? "text-muted hover:text-brand-700" : "text-white/80 hover:text-white",
               )}
             >
               Masuk
@@ -112,8 +158,12 @@ function Header() {
               Buka toko gratis
             </ButtonLink>
             <button
-              className="rounded-md p-2 text-white lg:hidden"
-              aria-label="Buka menu"
+              className={cx(
+                "rounded-md p-2 transition-colors duration-150 lg:hidden",
+                tint ? "text-ink hover:bg-canvas active:bg-linesoft" : "text-white hover:bg-white/10 active:bg-white/15",
+              )}
+              aria-label={open ? "Tutup menu" : "Buka menu"}
+              aria-expanded={open}
               onClick={() => setOpen((o) => !o)}
             >
               <Icon name={open ? "x" : "menu"} size={20} />
@@ -122,8 +172,8 @@ function Header() {
         </div>
 
         {open && (
-          <div className="fade border-t border-line bg-white pb-4 lg:hidden">
-            <nav className="flex flex-col py-2">
+          <div className="fade border-t border-linesoft bg-white pb-4 lg:hidden">
+            <nav className="flex flex-col gap-1 py-3" aria-label="Navigasi seluler">
               {SECTIONS.map((s) => (
                 <button
                   key={s.id}
@@ -131,14 +181,20 @@ function Header() {
                     setOpen(false);
                     goTo(s.id);
                   }}
-                  className="flex items-center justify-between px-1 py-3 text-[15px] font-semibold text-ink"
+                  aria-current={active === s.id ? "true" : undefined}
+                  className={cx(
+                    "flex items-center justify-between rounded-md px-3 py-2.5 text-left text-[15px] transition-colors duration-150 active:scale-[0.995]",
+                    active === s.id
+                      ? "bg-brand-50 font-bold text-brand-700"
+                      : "font-semibold text-ink hover:bg-canvas active:bg-linesoft",
+                  )}
                 >
                   {s.label}
-                  <Icon name="right" size={16} className="text-faint" />
+                  <Icon name="right" size={16} className={active === s.id ? "text-brand-500" : "text-faint"} />
                 </button>
               ))}
             </nav>
-            <div className="flex gap-2 pt-2">
+            <div className="flex gap-2 pt-1">
               <ButtonLink to="/login" variant="secondary" className="flex-1">
                 Masuk
               </ButtonLink>
@@ -178,9 +234,11 @@ function Hero() {
           {HERO_VIDEO_SRC && <source src={HERO_VIDEO_SRC} />}
         </video>
       )}
-      <div className="absolute inset-0 bg-gradient-to-r from-navy-900 via-navy-900/88 to-navy-900/35" />
-      <div className="absolute inset-0 bg-gradient-to-t from-navy-900 via-transparent to-navy-900/60" />
-      <div className="blueprint absolute inset-0 opacity-70" />
+      {/* Keseimbangan akhir: video tetap dominan terlihat, tetapi zona teks
+          kiri diberi kanvas gelap yang cukup agar kontras terbaca. */}
+      <div className="absolute inset-0 bg-navy-900/10" />
+      <div className="absolute inset-0 bg-gradient-to-r from-navy-900/80 via-navy-900/35 to-transparent" />
+      <div className="absolute inset-0 bg-gradient-to-t from-navy-900/60 via-transparent to-transparent" />
 
       <PageShell className="relative">
         <div className="grid items-center gap-10 pb-16 pt-32 lg:min-h-[760px] lg:grid-cols-12 lg:pb-24 lg:pt-36">
@@ -189,7 +247,7 @@ function Hero() {
               <span className="text-brand-400">01</span> Untuk UMKM Indonesia
             </TagChip>
 
-            <h1 className="mt-6 text-[38px] font-extrabold leading-[1.04] tracking-[-0.035em] text-white sm:text-[52px] lg:text-[62px]">
+            <h1 className="mt-6 text-[38px] font-extrabold leading-[1.04] tracking-[-0.035em] text-white drop-shadow-[0_2px_12px_rgba(6,27,69,0.55)] sm:text-[52px] lg:text-[62px]">
               Satu tautan untuk
               <br />
               semua jualan{" "}
@@ -207,7 +265,7 @@ function Hero() {
               .
             </h1>
 
-            <p className="mt-6 max-w-[540px] text-[16.5px] leading-relaxed text-white/78 sm:text-[17.5px]">
+            <p className="mt-6 max-w-[540px] text-[16.5px] leading-relaxed text-white/85 drop-shadow-[0_1px_8px_rgba(6,27,69,0.5)] sm:text-[17.5px]">
               Buat halaman toko, unggah produk, terima bayaran lewat QRIS, dan atur pesanan dari satu
               tempat. Tidak perlu bisa bikin website, tidak perlu sewa siapa pun.
             </p>
@@ -768,7 +826,7 @@ function StorePreview() {
 
           <div className="order-1 flex justify-center lg:order-2 lg:col-span-6">
             <div className="relative w-full max-w-[330px]">
-              <div className="absolute -inset-6 -z-10 rounded-[42px] border border-line" />
+              <div className="absolute -inset-4 -z-10 rounded-[42px] border border-line" />
               <div className="overflow-hidden rounded-[34px] border-[7px] border-navy-900 bg-white shadow-lift">
                 <div className="relative h-[190px]">
                   <img src="images/store-cover.jpg" alt="" className="h-full w-full object-cover" />
@@ -882,7 +940,7 @@ function Pricing() {
             title="Jujur, tanpa biaya tersembunyi."
             lead="Tidak ada biaya pendaftaran dan tidak ada potongan tersembunyi selain biaya kanal pembayaran."
           />
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
             <span className={cx("text-[13.5px] font-semibold", !yearly ? "text-ink" : "text-faint")}>Bulanan</span>
             <ToggleLike on={yearly} onChange={setYearly} />
             <span className={cx("text-[13.5px] font-semibold", yearly ? "text-ink" : "text-faint")}>
@@ -975,14 +1033,16 @@ function ToggleLike({ on, onChange }: { on: boolean; onChange: (v: boolean) => v
       aria-label="Ganti periode tagihan"
       onClick={() => onChange(!on)}
       className={cx(
-        "relative h-6 w-11 rounded-full border transition-colors duration-150",
+        "relative h-6 w-11 shrink-0 cursor-pointer rounded-full border transition-colors duration-200",
         on ? "border-brand-600 bg-brand-600" : "border-line bg-[#E4EAF3]",
       )}
     >
+      {/* Track inner box is 42×22; knob 18px with a fixed 2px inset on all
+          sides, so travel is exactly 20px: left edge 2px (off) → 22px (on). */}
       <span
         className={cx(
-          "absolute top-[2px] h-[18px] w-[18px] rounded-full bg-white shadow-xs transition-transform duration-150",
-          on ? "translate-x-[22px]" : "translate-x-[2px]",
+          "absolute left-[2px] top-[2px] h-[18px] w-[18px] rounded-full bg-white shadow-xs transition-transform duration-200 ease-out",
+          on ? "translate-x-[20px]" : "translate-x-0",
         )}
       />
     </button>
@@ -1030,18 +1090,26 @@ function Faq() {
                     </span>
                     <span
                       className={cx(
-                        "mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md border transition-all duration-200",
+                        "mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md border transition-[background-color,border-color,color] duration-300 ease-out",
                         open === i
-                          ? "rotate-45 border-brand-600 bg-brand-600 text-white"
+                          ? "border-brand-600 bg-brand-600 text-white"
                           : "border-line text-muted",
                       )}
                     >
-                      <Icon name="plus" size={15} strokeWidth={2.2} />
+                      <Icon
+                        name="plus"
+                        size={15}
+                        strokeWidth={2.2}
+                        className={cx(
+                          "transition-transform duration-300 ease-out",
+                          open === i ? "rotate-45" : "rotate-0",
+                        )}
+                      />
                     </span>
                   </button>
                   <div
                     className={cx(
-                      "grid transition-[grid-template-rows,opacity] duration-200 ease-out",
+                      "grid transition-[grid-template-rows,opacity] duration-300 ease-out",
                       open === i ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0",
                     )}
                   >
@@ -1110,9 +1178,9 @@ function Footer() {
     { t: "Perusahaan", l: ["Tentang TokoLink", "Karier", "Blog", "Mitra agen", "Kontak"] },
   ];
   return (
-    <footer className="bg-navy-900 pt-14">
+    <footer className="bg-navy-900 pt-12">
       <PageShell>
-        <div className="grid gap-10 pb-12 lg:grid-cols-12">
+        <div className="grid gap-8 pb-10 lg:grid-cols-12">
           <div className="lg:col-span-4">
             <Logo size={32} tone="dark" wordClass="text-brand-500" />
             <p className="mt-4 max-w-xs text-[14px] leading-relaxed text-white/60">
@@ -1145,12 +1213,8 @@ function Footer() {
             </div>
           ))}
         </div>
-        <div className="flex flex-col gap-3 border-t border-white/12 py-6 sm:flex-row sm:items-center sm:justify-between">
-          <span className="micro text-white/60">© 2025 PT Toko Link Nusantara · Bandung, Indonesia</span>
-          <span className="micro flex items-center gap-2 text-white/60">
-            <span className="h-1.5 w-1.5 rounded-full bg-ok" />
-            Semua sistem normal
-          </span>
+        <div className="border-t border-white/12 py-5">
+          <span className="micro text-white/60">© 2026 TokoLink · All rights reserved</span>
         </div>
       </PageShell>
     </footer>
@@ -1159,18 +1223,36 @@ function Footer() {
 
 export default function Landing() {
   return (
-    <div className="bg-white">
+    <div className="overflow-x-clip bg-white">
       <Header />
       <Hero />
-      <Produk />
-      <CaraKerja />
-      <Fitur />
-      <Manfaat />
-      <Analitik />
-      <StorePreview />
-      <Pricing />
-      <Faq />
-      <CtaBand />
+      <Reveal>
+        <Produk />
+      </Reveal>
+      <Reveal>
+        <CaraKerja />
+      </Reveal>
+      <Reveal>
+        <Fitur />
+      </Reveal>
+      <Reveal>
+        <Manfaat />
+      </Reveal>
+      <Reveal>
+        <Analitik />
+      </Reveal>
+      <Reveal>
+        <StorePreview />
+      </Reveal>
+      <Reveal>
+        <Pricing />
+      </Reveal>
+      <Reveal>
+        <Faq />
+      </Reveal>
+      <Reveal>
+        <CtaBand />
+      </Reveal>
       <Footer />
     </div>
   );

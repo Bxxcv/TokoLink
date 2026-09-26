@@ -54,6 +54,14 @@
     scroll-padding-top: 76px;
     -webkit-text-size-adjust: 100%;
   }
+  /* Guard against accidental horizontal scroll on small viewports.
+     `clip` (unlike `hidden`) keeps position:sticky working. */
+  html,
+  body {
+    overflow-x: hidden;
+    overflow-x: clip;
+    max-width: 100%;
+  }
   body {
     background-color: var(--color-canvas);
     color: var(--color-ink);
@@ -200,6 +208,23 @@
 .fade {
   animation: tl-fade 200ms ease-out both;
 }
+
+/* ---------- scroll reveal: one-shot progressive entrance ----------
+   JS toggles .is-visible via a shared IntersectionObserver.
+   transform + opacity only: no layout impact, no jumping. */
+.reveal {
+  opacity: 0;
+  transform: translateY(14px);
+  transition:
+    opacity 560ms ease-out,
+    transform 560ms cubic-bezier(0.2, 0.7, 0.3, 1);
+  will-change: opacity, transform;
+}
+.reveal.is-visible {
+  opacity: 1;
+  transform: none;
+  will-change: auto;
+}
 .skeleton {
   position: relative;
   overflow: hidden;
@@ -252,5 +277,9 @@
     animation-iteration-count: 1 !important;
     transition-duration: 0.001ms !important;
     scroll-behavior: auto !important;
+  }
+  .reveal {
+    opacity: 1 !important;
+    transform: none !important;
   }
 }

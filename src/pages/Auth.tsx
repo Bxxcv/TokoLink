@@ -56,7 +56,7 @@ function AuthLayout({
         </div>
 
         <div className="relative mt-10 flex items-center justify-between">
-          <span className="micro text-white/55">© 2025 TokoLink</span>
+          <span className="micro text-white/55">© 2026 TokoLink · All rights reserved</span>
           <span className="micro flex items-center gap-2 text-white/55">
             <span className="h-1.5 w-1.5 rounded-full bg-ok" /> Sistem normal
           </span>

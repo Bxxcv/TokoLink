@@ -117,7 +117,7 @@ export function SystemPage() {
         </Card>
 
         <Card>
-          <CardHead title="Identitas logo" sub="Tag harga + cincin + sudut tajam" />
+          <CardHead title="Identitas logo" sub="Artwork resmi dari public/images/Icon" />
           <div className="flex flex-wrap items-center gap-5">
             <Logo size={44} />
             <Logo size={32} />
@@ -128,8 +128,8 @@ export function SystemPage() {
             <TagGlyph size={28} className="text-brand-500" />
           </div>
           <div className="mt-4 rounded-md bg-canvas p-3.5 text-[13px] leading-relaxed text-muted">
-            Logo tidak pernah diubah bentuknya. Di latar terang wordmark memakai navy-800 agar kontras
-            terbaca; di latar gelap memakai biru logo #1B9AE0 sesuai aslinya.
+            Logo memakai file artwork resmi (logo-mark / logo-lockup). Tidak diubah bentuk,
+            warna, atau proporsinya; cukup atur ukuran tampilannya.
           </div>
           <div className="mt-3 flex flex-wrap gap-2">
             <TagChip>01 / micro label</TagChip>
