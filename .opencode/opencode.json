@@ -1,0 +1,18 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "instructions": [".opencode/AGENTS.md", ".opencode/TASKS.md", "database/schema.sql"],
+  "permission": {
+    "edit": "ask",
+    "bash": "ask",
+    "webfetch": "ask"
+  },
+  "agent": {
+    "backend-builder": {
+      "description": "Menyambungkan UI TokoLink yang sudah jadi ke Supabase, satu fitur per sesi, sesuai .opencode/TASKS.md dan database/schema.sql. Tidak boleh redesign UI atau mengarang tabel/kolom baru.",
+      "mode": "primary",
+      "model": "GANTI_PROVIDER/muse-spark-1.3",
+      "reasoningEffort": "high",
+      "temperature": 0.2
+    }
+  }
+}
