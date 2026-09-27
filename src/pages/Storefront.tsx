@@ -3,6 +3,7 @@ import { Link, navigate } from "../lib/router";
 import { HOURS, PRODUCTS, rupiah, useApp, type Product } from "../lib/data";
 import { supabase } from "../lib/supabase";
 import { mapProduct, type DbProduct } from "../lib/products";
+import { normalizeWA } from "../lib/format";
 import { Logo, LogoMark } from "../components/Logo";
 import {
   Badge,
@@ -88,6 +89,19 @@ function usePublicStore(slug: string) {
 
   return { store, items, loading, notFound };
 }
+
+/** Bentuk baris `discount_codes` yang dibaca publik saat validasi promo. */
+type DiscountRow = {
+  seller_id: string;
+  code: string;
+  type: string;
+  value: number | string;
+  min_purchase: number | string;
+  usage_limit: number | null;
+  used_count: number;
+  valid_until: string | null;
+  is_active: boolean;
+};
 
 function StoreHeader({ crumb, store }: { crumb?: string; store?: StoreProfile | null }) {
   const { count } = useApp();
@@ -837,46 +851,95 @@ export function ProductDetail({ id, slug }: { id: string; slug: string }) {
 
 /* ---------------------------------- cart ---------------------------------- */
 /**
- * Sementara Fase 3: item keranjang di-resolve ke baris `products` asli
- * (publik, `aktif`). ID yang tidak dikenal (mis. sisa mock lama) dibuang
- * agar halaman tidak crash. Total/diskon/ongkir dihitung ulang di Fase 3.
+ * Item keranjang di-resolve ke baris `products` asli (publik, `aktif`).
+ * Kode promo divalidasi ke `discount_codes` milik seller (server akan cek
+ * ulang saat create-order).
  */
 function useTotals(promo: string | null) {
   const { cart } = useApp();
-  const [items, setItems] = useState<{ p: Product; qty: number }[]>([]);
+  const [items, setItems] = useState<{ p: Product; qty: number; sellerId: string }[]>([]);
+  const [discount, setDiscount] = useState(0);
+  const [shipDisc, setShipDisc] = useState(0);
+  const [promoNote, setPromoNote] = useState("");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     (async () => {
       if (cart.length === 0) {
         setItems([]);
+        setDiscount(0);
+        setShipDisc(0);
+        setPromoNote("");
         setLoading(false);
         return;
       }
       setLoading(true);
       const ids = [...new Set(cart.map((c) => c.id))];
       const { data } = await supabase.from("products").select("*").in("id", ids).eq("status", "aktif");
-      const byId = new Map(((data ?? []) as DbProduct[]).map((r) => [r.id, mapProduct(r)]));
-      setItems(
-        cart.flatMap((c) => {
-          const p = byId.get(c.id);
-          return p ? [{ p, qty: c.qty }] : [];
-        }),
-      );
+      const rows = ((data ?? []) as DbProduct[]);
+      const byId = new Map(rows.map((r) => [r.id, r]));
+      const resolved = cart.flatMap((c) => {
+        const r = byId.get(c.id);
+        return r && r.seller_id ? [{ p: mapProduct(r), qty: c.qty, sellerId: r.seller_id }] : [];
+      });
+      setItems(resolved);
+
+      // Kode promo milik seller — validasi: aktif, belum kedaluwarsa,
+      // kuota masih ada, subtotal seller tsb cukup (server cek ulang saat
+      // create-order; di sini hanya untuk tampilan total).
+      let disc = 0;
+      let sd = 0;
+      let note = "";
+      const code = (promo ?? "").trim();
+      if (code && resolved.length > 0) {
+        const sellerIds = [...new Set(resolved.map((i) => i.sellerId))];
+        const { data: codes } = await supabase
+          .from("discount_codes")
+          .select("seller_id,code,type,value,min_purchase,usage_limit,used_count,valid_until,is_active")
+          .in("seller_id", sellerIds)
+          .eq("is_active", true);
+        const match = ((codes ?? []) as DiscountRow[]).find((d) => d.code.toLowerCase() === code.toLowerCase());
+        if (!match) {
+          note = "Kode tidak dikenal di toko ini.";
+        } else {
+          const today = new Date().toISOString().slice(0, 10);
+          const sellerSubtotal = resolved
+            .filter((i) => i.sellerId === match.seller_id)
+            .reduce((s, i) => s + i.p.price * i.qty, 0);
+          if (match.valid_until && match.valid_until < today) note = "Kode sudah kedaluwarsa.";
+          else if (match.usage_limit != null && match.used_count >= match.usage_limit) note = "Kuota kode habis.";
+          else if (sellerSubtotal < Number(match.min_purchase))
+            note = `Belanja kurang dari ${rupiah(Number(match.min_purchase))}.`;
+          else if (match.type === "persen") {
+            disc = Math.round((sellerSubtotal * Number(match.value)) / 100);
+            note = `Potongan ${match.value}%.`;
+          } else if (match.type === "nominal") {
+            disc = Math.min(Math.round(Number(match.value)), sellerSubtotal);
+            note = `Potongan ${rupiah(Number(match.value))}.`;
+          } else {
+            sd = Math.round(Number(match.value));
+            note = "Potongan ongkir dipakai.";
+          }
+        }
+      }
+      setDiscount(disc);
+      setShipDisc(sd);
+      setPromoNote(note);
       setLoading(false);
     })();
-  }, [cart]);
+  }, [cart, promo]);
 
   const subtotal = items.reduce((s, i) => s + i.p.price * i.qty, 0);
-  const discount = promo === "HARIAN5" ? Math.round(subtotal * 0.05) : 0;
-  const shipping = subtotal === 0 ? 0 : subtotal >= 200000 ? 0 : SHIP;
+  const baseShipping = subtotal === 0 ? 0 : subtotal >= 200000 ? 0 : SHIP;
+  const shipping = Math.max(0, baseShipping - shipDisc);
   const total = subtotal - discount + shipping;
-  return { items, subtotal, discount, shipping, total, loading };
+  const promoValid = discount > 0 || shipDisc > 0;
+  return { items, subtotal, discount, shipping, total, promoNote, promoValid, loading };
 }
 
 export function Cart() {
   const { setQty, promo, setPromo, toast } = useApp();
-  const { items, subtotal, discount, shipping, total, loading } = useTotals(promo);
+  const { items, subtotal, discount, shipping, total, promoNote, promoValid, loading } = useTotals(promo);
   const [code, setCode] = useState("");
   const [remove, setRemove] = useState<{ id: string; name: string } | null>(null);
 
@@ -964,8 +1027,8 @@ export function Cart() {
                 <div className="flex gap-2">
                   <Input
                     value={code}
-                    onChange={(e) => setCode(e.target.value.toUpperCase())}
-                    placeholder="Contoh: HARIAN5"
+                    onChange={(e) => setCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ""))}
+                    placeholder="Contoh: HEMAT10"
                     className="h-10"
                   />
                   <Button
@@ -973,21 +1036,29 @@ export function Cart() {
                     size="sm"
                     className="h-10"
                     onClick={() => {
-                      if (code === "HARIAN5") {
-                        setPromo("HARIAN5");
-                        toast("Kode HARIAN5 dipakai. Potongan 5%.");
-                      } else {
-                        toast("Kode promo tidak dikenal atau kedaluwarsa.", "bad");
-                      }
+                      if (!code.trim()) return toast("Tulis dulu kode promonya.", "bad");
+                      setPromo(code.trim());
+                      setCode("");
                     }}
                   >
                     Pakai
                   </Button>
                 </div>
                 {promo && (
-                  <div className="mt-3 flex items-center justify-between rounded-md bg-oksoft px-3 py-2.5">
-                    <span className="flex items-center gap-2 text-[13px] font-bold text-[#0a7a55]">
-                      <Icon name="checkCircle" size={15} /> {promo} aktif
+                  <div
+                    className={cx(
+                      "mt-3 flex items-center justify-between rounded-md px-3 py-2.5",
+                      promoValid ? "bg-oksoft" : "bg-warnsoft",
+                    )}
+                  >
+                    <span
+                      className={cx(
+                        "flex items-center gap-2 text-[13px] font-bold",
+                        promoValid ? "text-[#0a7a55]" : "text-warn",
+                      )}
+                    >
+                      <Icon name={promoValid ? "checkCircle" : "alert"} size={15} /> {promo}{" "}
+                      {promoNote || "dicek…"}
                     </span>
                     <button
                       onClick={() => setPromo(null)}
@@ -1145,11 +1216,12 @@ export function Checkout() {
                     placeholder="Nama penerima"
                   />
                 </Field>
-                <Field label="Nomor WhatsApp" error={err.phone} required>
+                <Field label="Nomor WhatsApp" error={err.phone} required hint="Contoh: 0812xxxxxxx">
                   <Input
                     value={form.phone}
                     invalid={!!err.phone}
-                    onChange={(e) => set("phone", e.target.value)}
+                    inputMode="tel"
+                    onChange={(e) => set("phone", normalizeWA(e.target.value))}
                     placeholder="0812xxxxxxx"
                   />
                 </Field>
