@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "./supabase";
 import { navigate } from "./router";
@@ -30,6 +30,8 @@ type AuthState = {
   profile: Profile | null;
   role: Role | null;
   loading: boolean;
+  /** Muat ulang row `profiles` (dipakai setelah simpan pengaturan). */
+  refresh: () => Promise<void>;
 };
 
 const AuthCtx = createContext<AuthState>({
@@ -38,6 +40,7 @@ const AuthCtx = createContext<AuthState>({
   profile: null,
   role: null,
   loading: true,
+  refresh: async () => {},
 });
 
 export function useAuth() {
@@ -96,7 +99,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     profile: null,
     role: null,
     loading: true,
+    refresh: async () => {},
   });
+
+  const refresh = useCallback(async () => {
+    const { data } = await supabase.auth.getSession();
+    const session = data.session;
+    if (!session) return;
+    const profile = await ensureProfile(session.user.id, draftFromUser(session.user));
+    setState((prev) => ({ ...prev, profile, role: profile?.role ?? null }));
+  }, []);
 
   useEffect(() => {
     let alive = true;
@@ -104,13 +116,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const applySession = async (session: Session | null) => {
       if (!alive) return;
       if (!session) {
-        setState({ session: null, user: null, profile: null, role: null, loading: false });
+        setState((prev) => ({ session: null, user: null, profile: null, role: null, loading: false, refresh: prev.refresh }));
         return;
       }
       setState((prev) => ({ ...prev, session, user: session.user, loading: true }));
       const profile = await ensureProfile(session.user.id, draftFromUser(session.user));
       if (!alive) return;
-      setState({ session, user: session.user, profile, role: profile?.role ?? null, loading: false });
+      setState((prev) => ({ session, user: session.user, profile, role: profile?.role ?? null, loading: false, refresh: prev.refresh }));
     };
 
     supabase.auth.getSession().then(({ data }) => applySession(data.session));
@@ -122,6 +134,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       sub.subscription.unsubscribe();
     };
   }, []);
+
+  useEffect(() => {
+    setState((prev) => ({ ...prev, refresh }));
+  }, [refresh]);
 
   return <AuthCtx.Provider value={state}>{children}</AuthCtx.Provider>;
 }

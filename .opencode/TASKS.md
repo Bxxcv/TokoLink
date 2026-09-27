@@ -55,7 +55,8 @@ Lihat `database/schema.sql` untuk nama tabel/kolom yang benar dan `.opencode/AGE
       buka/tutup di `StoreHome` berdasarkan waktu sekarang
 - [ ] `StoreQR`: generate QR image dari URL `tokolink.id/s/{store_slug}` (client-side,
       tidak perlu backend baru)
-- [ ] `StoreSettings` & `AccountSettings`: update `profiles`
+- [x] `StoreSettings` & `AccountSettings`: update `profiles` (dikerjakan duluan
+      atas permintaan user; field tanpa kolom — kategori/bio/alamat/email — tetap lokal)
 
 ## Fase 6 — Admin Master
 - [ ] `AdminHome`, `AdminSellers`, `AdminAnalytics`: query agregat dari `profiles`,

@@ -1,6 +1,8 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { navigate } from "../lib/router";
+import { supabase } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
+import { digitsOnly, formatRibuan, isValidWA, normalizeWA } from "../lib/format";
 import {
   BALANCE_HISTORY,
   BIO_LINKS,
@@ -369,6 +371,9 @@ export function Withdraw() {
 /* ================================= BIO LINKS =============================== */
 export function BioLinks() {
   const { toast } = useApp();
+  const { profile } = useAuth();
+  const storeName = profile?.store_name || "Dapoer Bu Ani";
+  const storeSlug = profile?.store_slug || "dapoer-bu-ani";
   const [links, setLinks] = useState(BIO_LINKS);
   const [del, setDel] = useState<{ id: string; label: string } | null>(null);
 
@@ -383,14 +388,14 @@ export function BioLinks() {
         desc="Satu halaman berisi semua tautan penting. Taruh alamatnya di bio Instagram, WhatsApp, dan TikTok."
         actions={
           <>
-            <Button variant="secondary" onClick={() => toast("Tautan disalin: tokolink.id/dapoer-bu-ani")}>
+            <Button variant="secondary" onClick={() => toast(`Tautan disalin: tokolink.id/${storeSlug}`)}>
               <Icon name="copy" size={16} /> Salin tautan
             </Button>
             <Button
               onClick={() => {
                 setLinks((l) => [
                   ...l,
-                  { id: "b" + Date.now(), label: "Tautan baru", url: "tokolink.id/dapoer-bu-ani/baru", icon: "link", clicks: 0, on: true },
+                  { id: "b" + Date.now(), label: "Tautan baru", url: `tokolink.id/${storeSlug}/baru`, icon: "link", clicks: 0, on: true },
                 ]);
                 toast("Tautan baru ditambahkan.");
               }}
@@ -468,8 +473,8 @@ export function BioLinks() {
                 <span className="flex h-12 w-12 items-center justify-center rounded-md bg-navy-800">
                   <LogoMark size={32} />
                 </span>
-                <div className="mt-2 text-[14px] font-extrabold text-ink">Dapoer Bu Ani</div>
-                <div className="text-[11.5px] text-faint">@dapoer.buani</div>
+                <div className="mt-2 text-[14px] font-extrabold text-ink">{storeName}</div>
+                <div className="text-[11.5px] text-faint">@{storeSlug}</div>
               </div>
               <ul className="mt-3.5 space-y-2">
                 {links
@@ -871,13 +876,13 @@ export function Discount() {
             </Field>
             <Field label={form.type === "Persen" ? "Nilai (persen)" : "Nilai (rupiah)"} required>
               <Input
-                value={form.value}
+                value={form.type === "Persen" ? form.value : formatRibuan(form.value)}
                 inputMode="numeric"
                 onChange={(e) => {
-                  setForm((f) => ({ ...f, value: e.target.value.replace(/\D/g, "") }));
+                  setForm((f) => ({ ...f, value: digitsOnly(e.target.value) }));
                   setErr("");
                 }}
-                placeholder={form.type === "Persen" ? "5" : "10000"}
+                placeholder={form.type === "Persen" ? "5" : "10.000"}
                 className="tnum"
               />
             </Field>
@@ -885,10 +890,10 @@ export function Discount() {
           <FieldRow cols={3}>
             <Field label="Minimum belanja">
               <Input
-                value={form.min}
+                value={formatRibuan(form.min)}
                 inputMode="numeric"
-                onChange={(e) => setForm((f) => ({ ...f, min: e.target.value.replace(/\D/g, "") }))}
-                placeholder="50000"
+                onChange={(e) => setForm((f) => ({ ...f, min: digitsOnly(e.target.value) }))}
+                placeholder="50.000"
                 className="tnum"
               />
             </Field>
@@ -942,24 +947,24 @@ export function Hours() {
         <Card pad={false}>
           <ul className="divide-y divide-linesoft">
             {rows.map((h) => (
-              <li key={h.d} className={cx("flex items-center gap-4 px-4 py-3.5 sm:px-5", !h.on && "bg-canvas/60")}>
+              <li key={h.d} className={cx("flex flex-wrap items-center gap-x-4 gap-y-3 px-4 py-3.5 sm:flex-nowrap sm:px-5", !h.on && "bg-canvas/60")}>
                 <Toggle checked={h.on} onChange={(v) => set(h.d, "on", v)} label={`Buka ${h.d}`} />
                 <span className={cx("w-24 text-[14.5px] font-bold", h.on ? "text-ink" : "text-faint")}>{h.d}</span>
                 {h.on ? (
-                  <div className="flex flex-1 items-center gap-2">
+                  <div className="flex min-w-[200px] flex-1 basis-full items-center gap-2 sm:basis-auto">
                     <Input
                       type="time"
                       value={h.open}
                       onChange={(e) => set(h.d, "open", e.target.value)}
-                      className="tnum h-10 w-[110px]"
+                      className="tnum h-10 min-w-0 flex-1 sm:w-[110px] sm:flex-none"
                       aria-label={`Jam buka ${h.d}`}
                     />
-                    <span className="text-faint">–</span>
+                    <span className="shrink-0 text-faint">–</span>
                     <Input
                       type="time"
                       value={h.close}
                       onChange={(e) => set(h.d, "close", e.target.value)}
-                      className="tnum h-10 w-[110px]"
+                      className="tnum h-10 min-w-0 flex-1 sm:w-[110px] sm:flex-none"
                       aria-label={`Jam tutup ${h.d}`}
                     />
                   </div>
@@ -1025,6 +1030,9 @@ export function Hours() {
 /* ==================================== QR =================================== */
 export function StoreQR() {
   const { toast } = useApp();
+  const { profile } = useAuth();
+  const storeName = profile?.store_name || "Dapoer Bu Ani";
+  const storeSlug = profile?.store_slug || "dapoer-bu-ani";
   const [style, setStyle] = useState("Standar");
   const styles = ["Standar", "Bingkai toko", "Hitam putih"];
 
@@ -1060,7 +1068,7 @@ export function StoreQR() {
               <div className="mt-3 flex items-center justify-center gap-2">
                 <LogoMark size={26} />
                 <span className={cx("font-display text-[15px] font-bold", style === "Bingkai toko" ? "text-white" : "text-navy-800")}>
-                  Dapoer Bu Ani
+                  {storeName}
                 </span>
               </div>
             </div>
@@ -1085,7 +1093,7 @@ export function StoreQR() {
               <dl className="mt-5 space-y-3 border-t border-linesoft pt-4 text-[13.5px]">
                 <div className="flex justify-between">
                   <dt className="text-muted">Alamat</dt>
-                  <dd className="tnum font-semibold text-ink">tokolink.id/dapoer-bu-ani</dd>
+                  <dd className="tnum font-semibold text-ink">tokolink.id/{storeSlug}</dd>
                 </div>
                 <div className="flex justify-between">
                   <dt className="text-muted">Ukuran cetak</dt>
@@ -1148,23 +1156,81 @@ export function StoreQR() {
 /* ================================= SETTINGS ================================ */
 export function StoreSettings() {
   const { toast } = useApp();
+  const { user, profile, loading: authLoading, refresh } = useAuth();
   const [plan, setPlan] = useState("Bulanan");
   const [close, setClose] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const initialized = useRef(false);
+  const [f, setF] = useState({
+    name: "",
+    slug: "",
+    cat: "Kue & Snack",
+    city: "",
+    phone: "",
+    bio: "Masakan rumahan dan bumbu jadi, dimasak pagi hari dikirim siang.",
+    address: "Jl. Cihampelas No. 28, Bandung 40131",
+  });
+
+  // Muat sekali dari profiles. cat/bio/address belum ada kolomnya di schema
+  // → tetap lokal sampai diputuskan.
+  useEffect(() => {
+    if (authLoading || initialized.current) return;
+    initialized.current = true;
+    setF((x) => ({
+      ...x,
+      name: profile?.store_name ?? "",
+      slug: profile?.store_slug ?? "",
+      city: profile?.city ?? "",
+      phone: profile?.wa_number ?? "",
+    }));
+  }, [authLoading, profile]);
+
+  const save = async () => {
+    if (!user) {
+      toast("Sesi berakhir. Masuk lagi.", "bad");
+      return;
+    }
+    const slugNorm = f.slug.trim().toLowerCase().replace(/[^a-z0-9-]+/g, "").replace(/-+/g, "-").replace(/^-|-$/g, "");
+    if (f.name.trim().length < 3) {
+      toast("Nama toko minimal 3 karakter.", "bad");
+      return;
+    }
+    if (!slugNorm) {
+      toast("Alamat tautan tidak valid.", "bad");
+      return;
+    }
+    if (f.phone && !isValidWA(f.phone)) {
+      toast("Nomor WhatsApp tidak valid. Contoh: 0812xxxxxxx.", "bad");
+      return;
+    }
+    setSaving(true);
+    try {
+      const { error } = await supabase
+        .from("profiles")
+        .update({
+          store_name: f.name.trim(),
+          store_slug: slugNorm,
+          city: f.city || null,
+          wa_number: f.phone.trim() || null,
+        })
+        .eq("id", user.id);
+      if (error) {
+        toast(error.code === "23505" ? "Alamat tautan sudah dipakai toko lain." : "Gagal menyimpan.", "bad");
+        return;
+      }
+      setF((x) => ({ ...x, slug: slugNorm }));
+      await refresh();
+      toast("Pengaturan toko disimpan.");
+    } finally {
+      setSaving(false);
+    }
+  };
   const [notifs, setNotifs] = useState([
     { t: "Pesanan baru", d: "WhatsApp + notifikasi aplikasi", on: true },
     { t: "Pembayaran diterima", d: "Notifikasi aplikasi", on: true },
     { t: "Stok hampir habis", d: "WhatsApp", on: true },
     { t: "Ringkasan jualan mingguan", d: "Email setiap Senin", on: false },
   ]);
-  const [f, setF] = useState({
-    name: "Dapoer Bu Ani",
-    slug: "dapoer-bu-ani",
-    cat: "Kue & Snack",
-    city: "Bandung",
-    phone: "0812-3456-7890",
-    bio: "Masakan rumahan dan bumbu jadi, dimasak pagi hari dikirim siang.",
-    address: "Jl. Cihampelas No. 28, Bandung 40131",
-  });
 
   return (
     <AppShell>
@@ -1173,7 +1239,7 @@ export function StoreSettings() {
         kicker="Pengaturan"
         title="Pengaturan toko"
         desc="Informasi yang tampil di halaman publik dan dipakai untuk keperluan pengiriman."
-        actions={<Button onClick={() => toast("Pengaturan toko disimpan.")}>Simpan perubahan</Button>}
+        actions={<Button onClick={save} loading={saving}>Simpan perubahan</Button>}
       />
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
@@ -1204,6 +1270,7 @@ export function StoreSettings() {
                 </Field>
                 <Field label="Kota asal" required>
                   <Select value={f.city} onChange={(e) => setF({ ...f, city: e.target.value })}>
+                    <option value="">Pilih kota…</option>
                     {["Bandung", "Cimahi", "Jakarta Selatan", "Surabaya", "Yogyakarta"].map((c) => (
                       <option key={c}>{option(c)}</option>
                     ))}
@@ -1214,8 +1281,13 @@ export function StoreSettings() {
                 <Textarea value={f.bio} onChange={(e) => setF({ ...f, bio: e.target.value })} rows={3} />
               </Field>
               <FieldRow cols={2}>
-                <Field label="Nomor WhatsApp" required>
-                  <Input value={f.phone} onChange={(e) => setF({ ...f, phone: e.target.value })} />
+                <Field label="Nomor WhatsApp" required hint="Contoh: 0812xxxxxxx">
+                  <Input
+                    value={f.phone}
+                    inputMode="tel"
+                    onChange={(e) => setF({ ...f, phone: normalizeWA(e.target.value) })}
+                    placeholder="0812xxxxxxx"
+                  />
                 </Field>
                 <Field label="Alamat lengkap toko">
                   <Input value={f.address} onChange={(e) => setF({ ...f, address: e.target.value })} />
@@ -1289,7 +1361,7 @@ export function StoreSettings() {
           <Card>
             <CardHead title="Tautan penting" icon="link" />
             <div className="space-y-2">
-              <ButtonLink to="/s/dapoer-bu-ani" variant="secondary" className="w-full justify-start">
+              <ButtonLink to={`/s/${f.slug || "dapoer-bu-ani"}`} variant="secondary" className="w-full justify-start">
                 <Icon name="external" size={16} /> Lihat halaman toko
               </ButtonLink>
               <ButtonLink to="/app/qr" variant="secondary" className="w-full justify-start">
@@ -1322,8 +1394,52 @@ function option(c: string) {
 /* ================================== ACCOUNT ================================ */
 export function AccountSettings() {
   const { toast } = useApp();
+  const { user, profile, loading: authLoading, refresh } = useAuth();
   const [twoFA, setTwoFA] = useState(true);
   const [del, setDel] = useState(false);
+  const [owner, setOwner] = useState("");
+  const [phone, setPhone] = useState("");
+  const [saving, setSaving] = useState(false);
+  const initialized = useRef(false);
+
+  useEffect(() => {
+    if (authLoading || initialized.current) return;
+    initialized.current = true;
+    setOwner(profile?.owner_name ?? "");
+    setPhone(profile?.wa_number ?? "");
+  }, [authLoading, profile]);
+
+  const initials = (owner.trim() || "S").split(/\s+/).map((w) => w[0]).slice(0, 2).join("").toUpperCase();
+
+  const save = async () => {
+    if (!user) {
+      toast("Sesi berakhir. Masuk lagi.", "bad");
+      return;
+    }
+    if (owner.trim().length < 3) {
+      toast("Nama lengkap minimal 3 karakter.", "bad");
+      return;
+    }
+    if (!isValidWA(phone)) {
+      toast("Nomor WhatsApp tidak valid. Contoh: 0812xxxxxxx.", "bad");
+      return;
+    }
+    setSaving(true);
+    try {
+      const { error } = await supabase
+        .from("profiles")
+        .update({ owner_name: owner.trim(), wa_number: phone.trim() || null })
+        .eq("id", user.id);
+      if (error) {
+        toast("Gagal menyimpan profil.", "bad");
+        return;
+      }
+      await refresh();
+      toast("Profil akun disimpan.");
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <AppShell>
@@ -1332,7 +1448,7 @@ export function AccountSettings() {
         kicker="Akun"
         title="Profil & keamanan"
         desc="Data pemilik akun. Tidak tampil di halaman toko kecuali nama yang Anda tulis di profil."
-        actions={<Button onClick={() => toast("Profil akun disimpan.")}>Simpan profil</Button>}
+        actions={<Button onClick={save} loading={saving}>Simpan profil</Button>}
       />
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
@@ -1342,7 +1458,7 @@ export function AccountSettings() {
             <div className="flex flex-col gap-5 sm:flex-row">
               <div className="flex items-start gap-4">
                 <span className="flex h-20 w-20 shrink-0 items-center justify-center rounded-lg bg-navy-800 text-[26px] font-bold text-brand-300">
-                  AR
+                  {initials}
                 </span>
                 <Button variant="secondary" size="sm" onClick={() => toast("Pilih foto profil baru.", "info")}>
                   Ganti foto
@@ -1351,7 +1467,7 @@ export function AccountSettings() {
               <div className="flex-1 space-y-4">
                 <FieldRow cols={2}>
                   <Field label="Nama lengkap" required>
-                    <Input defaultValue="Ani Rahayu" />
+                    <Input value={owner} onChange={(e) => setOwner(e.target.value)} placeholder="Nama Anda" />
                   </Field>
                   <Field label="Nama tampilan" hint="Muncul di pesanan dan chat.">
                     <Input defaultValue="Bu Ani" />
@@ -1361,8 +1477,13 @@ export function AccountSettings() {
                   <Field label="Email" required>
                     <Input defaultValue="ani@dapoerbuani.id" type="email" />
                   </Field>
-                  <Field label="Nomor WhatsApp" required>
-                    <Input defaultValue="0812-3456-7890" />
+                  <Field label="Nomor WhatsApp" required hint="Contoh: 0812xxxxxxx">
+                    <Input
+                      value={phone}
+                      inputMode="tel"
+                      onChange={(e) => setPhone(normalizeWA(e.target.value))}
+                      placeholder="0812xxxxxxx"
+                    />
                   </Field>
                 </FieldRow>
               </div>

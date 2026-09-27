@@ -61,6 +61,7 @@ import {
   useFakeLoad,
 } from "../components/charts";
 import { CATEGORIES, type Product } from "../lib/data";
+import { digitsOnly, formatRibuan } from "../lib/format";
 import { mapProduct, type DbProduct } from "../lib/products";
 
 /* -------------------------------- stat card -------------------------------- */
@@ -1048,19 +1049,19 @@ export function ProductForm({ id }: { id?: string }) {
           <Card>
             <CardHead title="Harga & stok" sub="Angka yang menentukan pesanan masuk" icon="wallet" />
             <FieldRow cols={3}>
-              <Field label="Harga jual" required error={err.price}>
-                <div className="relative">
-                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[14px] font-semibold text-faint">Rp</span>
-                  <Input
-                    value={f.price}
-                    invalid={!!err.price}
-                    inputMode="numeric"
-                    onChange={(e) => set("price", e.target.value.replace(/\D/g, ""))}
-                    placeholder="85000"
-                    className="tnum pl-9"
-                  />
-                </div>
-              </Field>
+                <Field label="Harga jual" required error={err.price}>
+                  <div className="relative">
+                    <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[14px] font-semibold text-faint">Rp</span>
+                    <Input
+                      value={formatRibuan(f.price)}
+                      invalid={!!err.price}
+                      inputMode="numeric"
+                      onChange={(e) => set("price", digitsOnly(e.target.value))}
+                      placeholder="85.000"
+                      className="tnum pl-9"
+                    />
+                  </div>
+                </Field>
               <Field label="Stok tersedia" required error={err.stock}>
                 <Input
                   value={f.stock}
@@ -1242,7 +1243,10 @@ export function Orders() {
             />
           </div>
         ) : (
-          <TableWrap>
+          <>
+            {/* desktop table */}
+            <div className="hidden sm:block">
+              <TableWrap>
             <thead>
               <tr>
                 <Th>Nomor pesanan</Th>
@@ -1304,9 +1308,51 @@ export function Orders() {
                     </div>
                   </Td>
                 </tr>
+                ))}
+              </tbody>
+            </TableWrap>
+            </div>
+
+            {/* mobile cards */}
+            <ul className="divide-y divide-linesoft sm:hidden">
+              {rows.map((o) => (
+                <li key={o.id}>
+                  <button
+                    onClick={() => navigate(`/app/orders/${o.id}`)}
+                    className="flex w-full items-center gap-3 p-4 text-left"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="tnum text-[13.5px] font-bold text-ink">{o.id}</div>
+                      <div className="truncate text-[12px] text-faint">
+                        {o.date} · {o.customer}
+                      </div>
+                      <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                        <Badge
+                          tone={
+                            o.status === "selesai"
+                              ? "green"
+                              : o.status === "menunggu"
+                                ? "amber"
+                                : o.status === "batal"
+                                  ? "red"
+                                  : "blue"
+                          }
+                          dot
+                        >
+                          {STATUS_LABEL[o.status]}
+                        </Badge>
+                        <Badge tone={o.channel === "QRIS" ? "blue" : "gray"}>{o.channel}</Badge>
+                      </div>
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <div className="tnum text-[14.5px] font-bold text-ink">{rupiah(o.total)}</div>
+                      <Icon name="right" size={14} className="ml-auto mt-1 text-faint" />
+                    </div>
+                  </button>
+                </li>
               ))}
-            </tbody>
-          </TableWrap>
+            </ul>
+          </>
         )}
 
         <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3.5 text-[13px] text-muted sm:px-5">
