@@ -275,7 +275,7 @@ function Hero() {
                 Buka toko sekarang <Icon name="arrowRight" size={17} />
               </ButtonLink>
               <button
-                onClick={() => navigate("/s/dapoer-bu-ani")}
+                onClick={() => navigate("/s/demo-account")}
                 className="inline-flex h-12 items-center justify-center gap-2 rounded-md border border-white/30 px-6 text-[15px] font-semibold text-white transition-colors duration-150 hover:border-white/60 hover:bg-white/10"
               >
                 <Icon name="eye" size={17} /> Lihat contoh toko
@@ -429,7 +429,7 @@ function Produk() {
                 lead="Selama ini pesanan masuk lewat chat, dibayar lewat transfer, dan dicatat manual. TokoLink merapikan semuanya jadi satu alur yang bisa diikuti siapa pun."
               />
               <div className="mt-7 flex flex-wrap gap-2">
-                <ButtonLink to="/s/dapoer-bu-ani" variant="secondary">
+                <ButtonLink to="/s/demo-account" variant="secondary">
                   <Icon name="eye" size={16} /> Buka contoh toko
                 </ButtonLink>
                 <ButtonLink to="/register">Coba gratis</ButtonLink>
@@ -818,7 +818,7 @@ function StorePreview() {
               ))}
             </div>
             <div className="mt-7">
-              <ButtonLink to="/s/dapoer-bu-ani" variant="secondary">
+              <ButtonLink to="/s/demo-account" variant="secondary">
                 Buka contoh toko <Icon name="arrowRight" size={16} />
               </ButtonLink>
             </div>
@@ -1154,7 +1154,7 @@ function CtaBand() {
               Buka toko gratis <Icon name="arrowRight" size={17} />
             </ButtonLink>
             <ButtonLink
-              to="/s/dapoer-bu-ani"
+              to="/s/demo-account"
               variant="secondary"
               size="lg"
               className="border-white/30! bg-transparent! text-white! hover:border-white/60 hover:bg-white/10 hover:text-white"

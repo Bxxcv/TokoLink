@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, navigate } from "../lib/router";
-import { HOURS, PRODUCTS, rupiah, useApp, type Product } from "../lib/data";
+import { HOURS, rupiah, useApp, type Product } from "../lib/data";
 import { supabase } from "../lib/supabase";
 import { mapProduct, type DbProduct } from "../lib/products";
 import { normalizeWA } from "../lib/format";
@@ -940,6 +940,15 @@ function useTotals(promo: string | null) {
 }
 
 /** Toko pemilik item pertama di keranjang (untuk header + link kembali). */
+let lastStore: StoreProfile | null = null;
+
+/** Toko terakhir yang terlihat (dipakai halaman bayar/sukses/lacak mock
+ *  sampai create-order backend datang di 3.2). */
+function useLastStore() {
+  const [s] = useState(lastStore);
+  return s;
+}
+
 function useCartStore(items: { sellerId: string }[]) {
   const [store, setStore] = useState<StoreProfile | null>(null);
   const sellerId = items.length > 0 ? items[0].sellerId : null;
@@ -954,7 +963,9 @@ function useCartStore(items: { sellerId: string }[]) {
         .select("id,store_name,store_slug,city,owner_name,wa_number")
         .eq("id", sellerId)
         .maybeSingle();
-      setStore((data as StoreProfile | null) ?? null);
+      const resolved = (data as StoreProfile | null) ?? null;
+      lastStore = resolved;
+      setStore(resolved);
     })();
   }, [sellerId]);
   return store;
@@ -1414,6 +1425,9 @@ export function Checkout() {
 export function Qris() {
   const { toast } = useApp();
   const { total } = useTotals(null);
+  const store = useLastStore();
+  const merchant = store?.store_name || "Dapoer Bu Ani";
+  const storeSlug = store?.store_slug || "dapoer-bu-ani";
   const [left, setLeft] = useState(300);
   const [confirmCancel, setConfirmCancel] = useState(false);
 
@@ -1447,7 +1461,7 @@ export function Qris() {
           <TagChip tone="white">03 / Menunggu pembayaran</TagChip>
           <div className="tnum mt-5 text-[40px] font-bold leading-none text-white">{rupiah(total)}</div>
           <div className="mt-2 text-[13.5px] text-white/60">
-            Dapoer Bu Ani · pesanan <span className="tnum text-white/85">TL-2502-0193</span>
+            {merchant} · pesanan <span className="tnum text-white/85">TL-2502-0193</span>
           </div>
         </div>
 
@@ -1462,7 +1476,7 @@ export function Qris() {
             <div className="mt-4 w-full space-y-1.5 border-t border-linesoft pt-4 text-[13.5px]">
               <div className="flex justify-between">
                 <span className="text-muted">Merchant</span>
-                <span className="font-semibold text-ink">Dapoer Bu Ani</span>
+                <span className="font-semibold text-ink">{merchant}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-muted">Nomor rekening sumber</span>
@@ -1523,7 +1537,7 @@ export function Qris() {
         confirmLabel="Ya, batalkan"
         onConfirm={() => {
           toast("Pesanan dibatalkan.", "warn");
-          navigate("/s/dapoer-bu-ani");
+          navigate(`/s/${storeSlug}`);
         }}
       />
     </div>
@@ -1533,10 +1547,12 @@ export function Qris() {
 /* ----------------------------- payment status ----------------------------- */
 export function PaymentStatus() {
   const [step, setStep] = useState(0);
+  const store = useLastStore();
+  const merchant = store?.store_name || "Dapoer Bu Ani";
   const steps = [
     { t: "Menunggu pembayaran", d: "QRIS dipindai, transaksi dibuat." },
     { t: "Pembayaran diterima", d: "Dana masuk ke saldo penjual." },
-    { t: "Pesanan dikemas", d: "Dapoer Bu Ani menyiapkan barang." },
+    { t: "Pesanan dikemas", d: `${merchant} menyiapkan barang.` },
     { t: "Siap dikirim", d: "Menunggu kurir menjemput paket." },
   ];
 
@@ -1551,7 +1567,7 @@ export function PaymentStatus() {
 
   return (
     <div className="min-h-screen bg-canvas">
-      <StoreHeader crumb="Status pembayaran" />
+      <StoreHeader crumb="Status pembayaran" store={store} />
       <PageShell className="py-8">
         <div className="mx-auto max-w-[560px]">
           <div className="notch rounded-xl border border-line bg-white p-6 text-center shadow-card">
@@ -1644,13 +1660,16 @@ function Spinner() {
 /* -------------------------------- success --------------------------------- */
 export function OrderSuccess() {
   const { toast, clear } = useApp();
+  const store = useLastStore();
+  const merchant = store?.store_name || "Dapoer Bu Ani";
+  const storeSlug = store?.store_slug || "dapoer-bu-ani";
   useEffect(() => {
     clear();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   return (
     <div className="min-h-screen bg-canvas pb-16">
-      <StoreHeader crumb="Pembayaran berhasil" />
+      <StoreHeader crumb="Pembayaran berhasil" store={store} />
       <PageShell className="py-8">
         <div className="mx-auto max-w-[600px]">
           <div className="notch rounded-xl border border-line bg-white p-6 text-center shadow-card sm:p-8">
@@ -1663,7 +1682,7 @@ export function OrderSuccess() {
             </h1>
             <p className="mx-auto mt-2 max-w-md text-[14.5px] leading-relaxed text-muted">
               Pesanan <span className="tnum font-bold text-ink">TL-2502-0193</span> sudah diteruskan ke
-              Dapoer Bu Ani. Nota dikirim ke WhatsApp Anda.
+              {merchant}. Nota dikirim ke WhatsApp Anda.
             </p>
 
             <div className="mt-6 rounded-lg border border-line bg-canvas p-4 text-left">
@@ -1703,31 +1722,15 @@ export function OrderSuccess() {
               </Button>
             </div>
             <Link
-              to="/s/dapoer-bu-ani"
+              to={`/s/${storeSlug}`}
               className="mt-4 inline-block text-[13.5px] font-semibold text-muted hover:text-brand-700"
             >
               Kembali ke toko
             </Link>
           </div>
 
-          <div className="mt-4 rounded-xl border border-line bg-white p-5">
-            <div className="micro mb-3 text-brand-600">Baru belanja lagi?</div>
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              {PRODUCTS.slice(0, 4).map((p) => (
-                <Link
-                  key={p.id}
-                  to={`/s/dapoer-bu-ani/p/${p.id}`}
-                  className="group overflow-hidden rounded-md border border-line transition-colors hover:border-brand-300"
-                >
-                  <img src={p.img} alt={p.name} className="aspect-[4/3] w-full object-cover" loading="lazy" />
-                  <div className="p-2">
-                    <div className="truncate text-[12px] font-semibold text-ink">{p.name}</div>
-                    <div className="tnum text-[12.5px] font-bold text-brand-700">{rupiah(p.price)}</div>
-                  </div>
-                </Link>
-              ))}
-            </div>
-          </div>
+          {/* Cross-sell mock disembunyikan: produk contoh + link Bu Ani.
+              Dikembalikan di 3.5 dengan produk terkait asli dari order. */}
         </div>
       </PageShell>
     </div>
@@ -1737,11 +1740,13 @@ export function OrderSuccess() {
 /* -------------------------------- tracking -------------------------------- */
 export function OrderTracking({ id }: { id: string }) {
   const { toast } = useApp();
+  const store = useLastStore();
+  const merchant = store?.store_name || "Dapoer Bu Ani";
   const [copied, setCopied] = useState(false);
   const timeline = [
     { t: "Pesanan dibuat", d: "12 Feb 2025, 09:41", done: true, note: "Menunggu pembayaran QRIS." },
     { t: "Pembayaran diterima", d: "12 Feb 2025, 09:44", done: true, note: "Rp143.000 diterima lewat QRIS." },
-    { t: "Dikemas penjual", d: "12 Feb 2025, 10:20", done: true, note: "Dikemas di Dapoer Bu Ani, Bandung." },
+    { t: "Dikemas penjual", d: "12 Feb 2025, 10:20", done: true, note: `Dikemas di ${merchant}.` },
     { t: "Diserahkan ke kurir", d: "12 Feb 2025, 13:05", done: true, note: "JNE REG · resi JT8891204471." },
     { t: "Sedang dikirim", d: "Perkiraan 13 Feb", done: false, note: "Paket menuju alamat penerima." },
     { t: "Selesai", d: "Perkiraan 14 Feb", done: false, note: "Konfirmasi setelah barang diterima." },
@@ -1749,7 +1754,7 @@ export function OrderTracking({ id }: { id: string }) {
 
   return (
     <div className="min-h-screen bg-canvas pb-16">
-      <StoreHeader crumb={`Pesanan ${id}`} />
+      <StoreHeader crumb={`Pesanan ${id}`} store={store} />
       <PageShell className="py-6">
         <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
           <div>
@@ -1846,7 +1851,7 @@ export function OrderTracking({ id }: { id: string }) {
                   <LogoMark size={26} />
                 </span>
                 <div className="leading-tight">
-                  <div className="text-[14px] font-bold text-ink">Dapoer Bu Ani</div>
+                  <div className="text-[14px] font-bold text-ink">{merchant}</div>
                   <div className="text-[12.5px] text-faint">Balas chat ≤ 10 menit</div>
                 </div>
               </div>

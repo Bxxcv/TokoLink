@@ -61,7 +61,7 @@ function NotFound({ path }: { path: string }) {
             Kembali ke beranda
           </ButtonLink>
           <ButtonLink
-            to="/s/dapoer-bu-ani"
+            to="/s/demo-account"
             variant="secondary"
             size="lg"
             className="border-white/30! bg-transparent! text-white! hover:border-white/60 hover:bg-white/10 hover:text-white"
