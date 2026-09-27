@@ -137,6 +137,12 @@ const PATHS: Record<string, ReactNode> = {
       <circle cx="12" cy="12" r="2.6" />
     </>
   ),
+  eyeOff: (
+    <>
+      <path d="M10.7 5.4A9.8 9.8 0 0 1 12 5.3c5.5.6 8.7 6.7 8.7 6.7a18.4 18.4 0 0 1-2.2 3M6.8 6.5A18 18 0 0 0 3.3 12s3.2 6.2 8.7 6.7c2 .2 3.8-.1 5.3-.8" />
+      <path d="M4 4l16 16" />
+    </>
+  ),
   copy: (
     <>
       <rect x="8.5" y="8.5" width="11" height="11" rx="2" />
@@ -571,14 +577,14 @@ export function Toggle({
       aria-label={label}
       onClick={() => onChange(!checked)}
       className={cx(
-        "relative h-6 w-11 shrink-0 rounded-full border transition-colors duration-150",
+        "relative h-6 w-11 shrink-0 rounded-full border transition-colors duration-300 ease-in-out",
         checked ? "border-brand-600 bg-brand-600" : "border-line bg-[#E4EAF3]",
       )}
     >
       <span
         className={cx(
-          "absolute top-[2px] h-[18px] w-[18px] rounded-full bg-white shadow-xs transition-transform duration-150",
-          checked ? "translate-x-[22px]" : "translate-x-[2px]",
+          "absolute left-0 top-[2px] h-[18px] w-[18px] rounded-full bg-white shadow-xs transition-transform duration-300 ease-in-out",
+          checked ? "translate-x-[23px]" : "translate-x-[3px]",
         )}
       />
     </button>

@@ -1,5 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { navigate } from "../lib/router";
+import { supabase } from "../lib/supabase";
+import { useAuth } from "../lib/auth";
 import {
   DAY_LABELS,
   FUNNEL,
@@ -59,6 +61,7 @@ import {
   useFakeLoad,
 } from "../components/charts";
 import { CATEGORIES, type Product } from "../lib/data";
+import { mapProduct, type DbProduct } from "../lib/products";
 
 /* -------------------------------- stat card -------------------------------- */
 export function StatCard({
@@ -106,6 +109,9 @@ export function StatCard({
 /* ================================ OVERVIEW ================================ */
 export function DashboardHome() {
   const { toast } = useApp();
+  const { profile } = useAuth();
+  const firstName = profile?.owner_name?.trim().split(" ")[0] || "Seller";
+  const storeSlug = profile?.store_slug || "dapoer-bu-ani";
   const loading = useFakeLoad([], 700);
   const [check, setCheck] = useState([true, true, false, false]);
   const done = check.filter(Boolean).length;
@@ -115,11 +121,11 @@ export function DashboardHome() {
       <PageHeader
         index="01"
         kicker="Beranda"
-        title="Selamat pagi, Bu Ani."
+        title={`Selamat pagi, ${firstName}.`}
         desc="Ringkasan toko 30 hari terakhir. Diperbarui 12 Feb 2025, 09:44 WIB."
         actions={
           <>
-            <ButtonLink to="/s/dapoer-bu-ani" variant="secondary">
+            <ButtonLink to={`/s/${storeSlug}`} variant="secondary">
               <Icon name="external" size={16} /> Lihat toko
             </ButtonLink>
             <ButtonLink to="/app/products/new">
@@ -544,17 +550,84 @@ export function Traffic() {
 /* ================================ PRODUCTS ================================ */
 export function Products() {
   const { toast } = useApp();
+  const { user, profile } = useAuth();
+  const slug = profile?.store_slug ?? "dapoer-bu-ani";
   const [q, setQ] = useState("");
   const [cat, setCat] = useState("Semua");
   const [status, setStatus] = useState("Semua status");
   const [del, setDel] = useState<Product | null>(null);
+  const [items, setItems] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
 
-  const rows = PRODUCTS.filter(
+  const load = async () => {
+    if (!user) return;
+    setLoading(true);
+    setLoadError(false);
+    const { data, error } = await supabase
+      .from("products")
+      .select("*")
+      .eq("seller_id", user.id)
+      .order("created_at", { ascending: false });
+    setLoading(false);
+    if (error) {
+      setLoadError(true);
+      return;
+    }
+    setItems(((data ?? []) as DbProduct[]).map(mapProduct));
+  };
+
+  useEffect(() => {
+    load();
+  }, [user?.id]);
+
+  const duplicate = async (p: Product) => {
+    if (!user) return;
+    const { data, error } = await supabase
+      .from("products")
+      .insert({
+        seller_id: user.id,
+        name: `${p.name} (salinan)`,
+        category: p.cat,
+        price: p.price,
+        unit: p.unit || null,
+        image_url: p.img.startsWith("images/") ? null : p.img,
+        stock: p.stock,
+        sku: p.sku || null,
+        status: "nonaktif",
+        weight_gram: p.weight,
+        description: p.desc || null,
+      })
+      .select("*")
+      .single();
+    if (error || !data) {
+      toast("Gagal menduplikat produk.", "bad");
+      return;
+    }
+    setItems((xs) => [mapProduct(data as DbProduct), ...xs]);
+    toast(`“${p.name}” diduplikat sebagai draf.`);
+  };
+
+  const confirmDelete = async () => {
+    if (!del) return;
+    const target = del;
+    setDel(null);
+    const { error } = await supabase.from("products").delete().eq("id", target.id);
+    if (error) {
+      toast("Produk gagal dihapus.", "bad");
+      return;
+    }
+    setItems((xs) => xs.filter((p) => p.id !== target.id));
+    toast("Produk dihapus.", "warn");
+  };
+
+  const rows = items.filter(
     (p) =>
       (cat === "Semua" || p.cat === cat) &&
       (status === "Semua status" || (status === "Aktif" ? p.status === "aktif" : p.status === "nonaktif")) &&
-      p.name.toLowerCase().includes(q.toLowerCase()),
+      (p.name.toLowerCase().includes(q.toLowerCase()) || p.sku.toLowerCase().includes(q.toLowerCase())),
   );
+  const isPristine = items.length === 0 && q === "" && cat === "Semua" && status === "Semua status";
 
   return (
     <AppShell>
@@ -562,7 +635,7 @@ export function Products() {
         index="04"
         kicker="Produk"
         title="Produk"
-        desc={`${PRODUCTS.length} produk di toko Anda, ${PRODUCTS.filter((p) => p.stock === 0).length} di antaranya stok habis.`}
+        desc={`${items.length} produk di toko Anda, ${items.filter((p) => p.stock === 0).length} di antaranya stok habis.`}
         actions={
           <>
             <Button variant="secondary" onClick={() => toast("Impor produk dari CSV belum aktif di prototipe.", "info")}>
@@ -595,23 +668,43 @@ export function Products() {
           </div>
         </div>
 
-        {rows.length === 0 ? (
+        {loading ? (
+          <div className="space-y-3 p-4 sm:p-5">
+            <Skeleton className="h-12 w-full" />
+            <Skeleton className="h-12 w-full" />
+            <Skeleton className="h-12 w-2/3" />
+          </div>
+        ) : loadError ? (
+          <div className="p-4 sm:p-5">
+            <ErrorState onRetry={load} />
+          </div>
+        ) : rows.length === 0 ? (
           <div className="p-4 sm:p-5">
             <EmptyState
-              icon="search"
-              title="Tidak ada produk yang cocok"
-              desc={`Pencarian “${q}” pada kategori ${cat} tidak menemukan apa pun. Ubah kata kunci atau filternya.`}
+              icon={isPristine ? "box" : "search"}
+              title={isPristine ? "Belum ada produk" : "Tidak ada produk yang cocok"}
+              desc={
+                isPristine
+                  ? "Tambahkan produk pertama agar toko Anda bisa mulai menerima pesanan."
+                  : `Pencarian “${q}” pada kategori ${cat} tidak menemukan apa pun. Ubah kata kunci atau filternya.`
+              }
               action={
-                <Button
-                  variant="secondary"
-                  onClick={() => {
-                    setQ("");
-                    setCat("Semua");
-                    setStatus("Semua status");
-                  }}
-                >
-                  Reset filter
-                </Button>
+                isPristine ? (
+                  <ButtonLink to="/app/products/new">
+                    <Icon name="plus" size={16} /> Tambah produk pertama
+                  </ButtonLink>
+                ) : (
+                  <Button
+                    variant="secondary"
+                    onClick={() => {
+                      setQ("");
+                      setCat("Semua");
+                      setStatus("Semua status");
+                    }}
+                  >
+                    Reset filter
+                  </Button>
+                )
               }
             />
           </div>
@@ -665,9 +758,9 @@ export function Products() {
                       <Td>
                         <div className="flex justify-end gap-1">
                           {[
-                            { i: "eye", label: "Lihat di toko", go: () => navigate(`/s/dapoer-bu-ani/p/${p.id}`) },
+                            { i: "eye", label: "Lihat di toko", go: () => navigate(`/s/${slug}/p/${p.id}`) },
                             { i: "edit", label: "Edit produk", go: () => navigate(`/app/products/${p.id}/edit`) },
-                            { i: "copy", label: "Duplikat produk", go: () => toast(`“${p.name}” diduplikat.`) },
+                            { i: "copy", label: "Duplikat produk", go: () => duplicate(p) },
                             { i: "trash", label: "Hapus produk", go: () => setDel(p) },
                           ].map((a) => (
                             <button
@@ -715,7 +808,7 @@ export function Products() {
                         )}
                         items={[
                           { label: "Edit produk", icon: "edit", onClick: () => navigate(`/app/products/${p.id}/edit`) },
-                          { label: "Lihat di toko", icon: "eye", onClick: () => navigate(`/s/dapoer-bu-ani/p/${p.id}`) },
+                          { label: "Lihat di toko", icon: "eye", onClick: () => navigate(`/s/${slug}/p/${p.id}`) },
                           { label: "Hapus produk", icon: "trash", danger: true, sep: true, onClick: () => setDel(p) },
                         ]}
                       />
@@ -735,7 +828,7 @@ export function Products() {
         <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3.5 text-[13px] text-muted sm:px-5">
           <span>
             Menampilkan <span className="tnum font-semibold text-ink">{rows.length}</span> dari{" "}
-            <span className="tnum">{PRODUCTS.length}</span> produk
+            <span className="tnum">{items.length}</span> produk
           </span>
           <div className="flex items-center gap-1.5">
             <button disabled className="rounded-md border border-line px-2.5 py-1.5 text-faint disabled:opacity-45">
@@ -755,7 +848,7 @@ export function Products() {
         title={`Hapus “${del?.name ?? ""}”?`}
         body="Produk akan dihapus permanen beserta riwayat tampilannya. Pesanan lama tetap tersimpan. Tindakan ini tidak bisa dibatalkan."
         confirmLabel="Hapus permanen"
-        onConfirm={() => toast("Produk dihapus.", "warn")}
+        onConfirm={confirmDelete}
       />
     </AppShell>
   );
@@ -764,24 +857,52 @@ export function Products() {
 /* ============================== PRODUCT FORM ============================== */
 export function ProductForm({ id }: { id?: string }) {
   const { toast } = useApp();
+  const { user } = useAuth();
   const editing = !!id;
-  const existing = PRODUCTS.find((p) => p.id === id);
+  const [existing, setExisting] = useState<Product | null>(null);
+  const [loading, setLoading] = useState(editing);
   const [f, setF] = useState({
-    name: existing?.name ?? "",
-    cat: existing?.cat ?? "Kue & Snack",
-    price: existing ? String(existing.price) : "",
-    stock: existing ? String(existing.stock) : "",
-    sku: existing?.sku ?? "",
-    weight: existing ? String(existing.weight) : "500",
-    desc: existing?.desc ?? "",
-    active: existing?.status !== "nonaktif",
+    name: "",
+    cat: "Kue & Snack",
+    price: "",
+    stock: "",
+    sku: "",
+    weight: "500",
+    desc: "",
+    active: true,
     showStock: true,
   });
   const [err, setErr] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const set = (k: keyof typeof f, v: string | boolean) => setF((x) => ({ ...x, [k]: v }));
 
-  const save = () => {
+  useEffect(() => {
+    if (!id) return;
+    (async () => {
+      const { data, error } = await supabase.from("products").select("*").eq("id", id).maybeSingle();
+      setLoading(false);
+      if (error || !data) {
+        toast("Produk tidak ditemukan.", "bad");
+        navigate("/app/products");
+        return;
+      }
+      const mapped = mapProduct(data as DbProduct);
+      setExisting(mapped);
+      setF({
+        name: mapped.name,
+        cat: mapped.cat,
+        price: String(mapped.price),
+        stock: String(mapped.stock),
+        sku: mapped.sku,
+        weight: String(mapped.weight),
+        desc: mapped.desc,
+        active: mapped.status !== "nonaktif",
+        showStock: true,
+      });
+    })();
+  }, [id]);
+
+  const save = async () => {
     const e: Record<string, string> = {};
     if (f.name.trim().length < 4) e.name = "Nama produk minimal 4 karakter.";
     if (!f.price || Number(f.price) <= 0) e.price = "Masukkan harga jual.";
@@ -791,13 +912,49 @@ export function ProductForm({ id }: { id?: string }) {
       toast("Lengkapi isian yang ditandai merah.", "bad");
       return;
     }
+    if (!user) {
+      toast("Sesi berakhir. Masuk lagi.", "bad");
+      return;
+    }
     setSaving(true);
-    setTimeout(() => {
-      setSaving(false);
+    try {
+      const payload = {
+        seller_id: user.id,
+        name: f.name.trim(),
+        category: f.cat,
+        price: Number(f.price),
+        stock: Number(f.stock),
+        sku: f.sku.trim() || null,
+        weight_gram: f.weight === "" ? null : Number(f.weight),
+        description: f.desc.trim() || null,
+        status: f.active ? "aktif" : "nonaktif",
+        ...(editing ? {} : { unit: null, image_url: null }),
+      };
+      const { error } = editing
+        ? await supabase.from("products").update(payload).eq("id", id)
+        : await supabase.from("products").insert(payload);
+      if (error) {
+        toast("Gagal menyimpan produk.", "bad");
+        return;
+      }
       toast(editing ? "Perubahan produk disimpan." : "Produk baru berhasil ditambahkan.");
       navigate("/app/products");
-    }, 900);
+    } finally {
+      setSaving(false);
+    }
   };
+
+  if (loading) {
+    return (
+      <AppShell>
+        <div className="mx-auto max-w-xl space-y-3 py-10">
+          <Skeleton className="h-8 w-48" />
+          <Skeleton className="h-24 w-full" />
+          <Skeleton className="h-24 w-full" />
+        </div>
+      </AppShell>
+    );
+  }
 
   return (
     <AppShell>
@@ -999,6 +1156,8 @@ export function ProductForm({ id }: { id?: string }) {
 export function Orders() {
   const [tab, setTab] = useState("semua");
   const [q, setQ] = useState("");
+  const { profile } = useAuth();
+  const storeSlug = profile?.store_slug || "dapoer-bu-ani";
 
   const counts = {
     semua: ORDERS.length,
@@ -1026,7 +1185,7 @@ export function Orders() {
             <Button variant="secondary" onClick={() => window.print()}>
               <Icon name="download" size={16} /> Cetak daftar
             </Button>
-            <ButtonLink to="/s/dapoer-bu-ani" variant="secondary">
+            <ButtonLink to={`/s/${storeSlug}`} variant="secondary">
               <Icon name="external" size={16} /> Lihat toko
             </ButtonLink>
           </>

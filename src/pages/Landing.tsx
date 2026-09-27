@@ -1033,7 +1033,7 @@ function ToggleLike({ on, onChange }: { on: boolean; onChange: (v: boolean) => v
       aria-label="Ganti periode tagihan"
       onClick={() => onChange(!on)}
       className={cx(
-        "relative h-6 w-11 shrink-0 cursor-pointer rounded-full border transition-colors duration-200",
+        "relative h-6 w-11 shrink-0 cursor-pointer rounded-full border transition-colors duration-300 ease-in-out",
         on ? "border-brand-600 bg-brand-600" : "border-line bg-[#E4EAF3]",
       )}
     >
@@ -1041,7 +1041,7 @@ function ToggleLike({ on, onChange }: { on: boolean; onChange: (v: boolean) => v
           sides, so travel is exactly 20px: left edge 2px (off) → 22px (on). */}
       <span
         className={cx(
-          "absolute left-[2px] top-[2px] h-[18px] w-[18px] rounded-full bg-white shadow-xs transition-transform duration-200 ease-out",
+          "absolute left-[2px] top-[2px] h-[18px] w-[18px] rounded-full bg-white shadow-xs transition-transform duration-300 ease-in-out",
           on ? "translate-x-[20px]" : "translate-x-0",
         )}
       />

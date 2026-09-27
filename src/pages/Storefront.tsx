@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, navigate } from "../lib/router";
-import { CATEGORIES, HOURS, PRODUCTS, rupiah, useApp, type Product } from "../lib/data";
+import { HOURS, PRODUCTS, rupiah, useApp, type Product } from "../lib/data";
+import { supabase } from "../lib/supabase";
+import { mapProduct, type DbProduct } from "../lib/products";
 import { Logo, LogoMark } from "../components/Logo";
 import {
   Badge,
@@ -14,6 +16,7 @@ import {
   Modal,
   PageShell,
   Select,
+  Skeleton,
   TagChip,
   Textarea,
   cx,
@@ -36,25 +39,78 @@ const STORE = {
 const SHIP = 10000;
 
 /* ------------------------------ shared chrome ----------------------------- */
-function StoreHeader({ crumb }: { crumb?: string }) {
+export type StoreProfile = {
+  id: string;
+  store_name: string | null;
+  store_slug: string | null;
+  city: string | null;
+  owner_name: string | null;
+  wa_number: string | null;
+};
+
+/**
+ * Profil toko + katalog publik berdasarkan `store_slug`.
+ * Hanya memakai policy publik: profil storefront + produk `aktif`.
+ */
+function usePublicStore(slug: string) {
+  const [store, setStore] = useState<StoreProfile | null>(null);
+  const [items, setItems] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [notFound, setNotFound] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      setLoading(true);
+      setNotFound(false);
+      const { data: prof } = await supabase
+        .from("profiles")
+        .select("id,store_name,store_slug,city,owner_name,wa_number")
+        .eq("store_slug", slug)
+        .maybeSingle();
+      if (!prof) {
+        setStore(null);
+        setItems([]);
+        setNotFound(true);
+        setLoading(false);
+        return;
+      }
+      setStore(prof as StoreProfile);
+      const { data: prods } = await supabase
+        .from("products")
+        .select("*")
+        .eq("seller_id", (prof as StoreProfile).id)
+        .eq("status", "aktif")
+        .order("created_at", { ascending: false });
+      setItems(((prods ?? []) as DbProduct[]).map(mapProduct));
+      setLoading(false);
+    })();
+  }, [slug]);
+
+  return { store, items, loading, notFound };
+}
+
+function StoreHeader({ crumb, store }: { crumb?: string; store?: StoreProfile | null }) {
   const { count } = useApp();
+  const name = store?.store_name || STORE.name;
+  const slug = store?.store_slug || STORE.slug;
+  const city = store?.city || STORE.city;
   return (
     <header className="sticky top-0 z-40 border-b border-line bg-white/96 backdrop-blur-sm">
       <PageShell>
         <div className="flex h-16 items-center gap-3">
-          <Link to="/s/dapoer-bu-ani" className="flex min-w-0 items-center gap-2.5">
+          <Link to={`/s/${slug}`} className="flex min-w-0 items-center gap-2.5">
             <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-navy-800">
               <LogoMark size={24} />
             </span>
             <span className="min-w-0 leading-tight">
-              <span className="block truncate text-[15px] font-extrabold text-ink">{STORE.name}</span>
-              <span className="micro text-faint">{crumb ?? `${STORE.city} · Kue & bumbu`}</span>
+              <span className="block truncate text-[15px] font-extrabold text-ink">{name}</span>
+              <span className="micro text-faint">{crumb ?? `${city} · Kue & bumbu`}</span>
             </span>
           </Link>
 
           <div className="ml-auto flex items-center gap-2">
             <Link
-              to="/s/dapoer-bu-ani"
+              to={`/s/${slug}`}
               aria-label="Cari produk"
               className="rounded-md border border-line p-2 text-muted transition-colors hover:bg-canvas hover:text-brand-700"
             >
@@ -79,7 +135,9 @@ function StoreHeader({ crumb }: { crumb?: string }) {
   );
 }
 
-function StoreFooter() {
+function StoreFooter({ store }: { store?: StoreProfile | null }) {
+  const name = store?.store_name || STORE.name;
+  const city = store?.city || STORE.city;
   return (
     <footer className="border-t border-line bg-white py-8">
       <PageShell>
@@ -89,9 +147,9 @@ function StoreFooter() {
               <LogoMark size={24} />
             </span>
             <div className="leading-tight">
-              <div className="text-[14px] font-bold text-ink">{STORE.name}</div>
+              <div className="text-[14px] font-bold text-ink">{name}</div>
               <div className="text-[12.5px] text-faint">
-                {STORE.city} · {STORE.since}
+                {city} · {STORE.since}
               </div>
             </div>
           </div>
@@ -205,20 +263,44 @@ function ProductCard({ p, onAdd }: { p: Product; onAdd: (p: Product) => void }) 
 }
 
 /* ------------------------------- store home ------------------------------- */
-export function StoreHome() {
+export function StoreHome({ slug }: { slug: string }) {
   const { add, toast, count } = useApp();
+  const { store, items, loading, notFound } = usePublicStore(slug);
   const [cat, setCat] = useState("Semua");
   const [q, setQ] = useState("");
   const [qrOpen, setQrOpen] = useState(false);
   const [shared, setShared] = useState(false);
 
+  const cats = useMemo(() => ["Semua", ...Array.from(new Set(items.map((p) => p.cat)))], [items]);
   const list = useMemo(
     () =>
-      PRODUCTS.filter((p) => (cat === "Semua" ? true : p.cat === cat)).filter((p) =>
+      items.filter((p) => (cat === "Semua" ? true : p.cat === cat)).filter((p) =>
         p.name.toLowerCase().includes(q.toLowerCase()),
       ),
-    [cat, q],
+    [items, cat, q],
   );
+  const name = store?.store_name || STORE.name;
+  const city = store?.city || STORE.city;
+  const wa = store?.wa_number || STORE.wa;
+
+  if (notFound) {
+    return (
+      <div className="min-h-screen bg-canvas pb-24">
+        <StoreHeader />
+        <PageShell className="py-10">
+          <EmptyState
+            icon="store"
+            title="Toko tidak ditemukan"
+            desc={`Alamat “tokolink.id/${slug}” tidak terdaftar. Cek lagi ejaannya.`}
+            action={<ButtonLink to="/">Kembali ke beranda</ButtonLink>}
+          />
+        </PageShell>
+        <div className="mt-10">
+          <StoreFooter />
+        </div>
+      </div>
+    );
+  }
 
   const onAdd = (p: Product) => {
     add(p.id);
@@ -227,7 +309,7 @@ export function StoreHome() {
 
   return (
     <div className="min-h-screen bg-canvas pb-24">
-      <StoreHeader />
+      <StoreHeader store={store} />
 
       {/* cover */}
       <div className="relative h-[190px] overflow-hidden bg-navy-900 sm:h-[240px]">
@@ -242,12 +324,12 @@ export function StoreHome() {
             >
               <Icon name="left" size={15} /> TokoLink
             </Link>
-            <button
-              onClick={() => {
-                setShared(true);
-                toast("Tautan toko disalin: tokolink.id/dapoer-bu-ani", "info");
-                setTimeout(() => setShared(false), 1600);
-              }}
+              <button
+                onClick={() => {
+                  setShared(true);
+                  toast(`Tautan toko disalin: tokolink.id/${slug}`, "info");
+                  setTimeout(() => setShared(false), 1600);
+                }}
               className="inline-flex items-center gap-2 rounded-md border border-white/25 px-3 py-1.5 text-[13px] font-semibold text-white backdrop-blur-sm transition-colors hover:bg-white/15"
             >
               <Icon name={shared ? "check" : "external"} size={15} /> {shared ? "Tersalin" : "Bagikan"}
@@ -265,12 +347,12 @@ export function StoreHome() {
             </span>
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2.5">
-                <h1 className="text-[22px] font-extrabold tracking-[-0.02em] text-ink">{STORE.name}</h1>
+                <h1 className="text-[22px] font-extrabold tracking-[-0.02em] text-ink">{name}</h1>
                 <Badge tone="blue">Premium</Badge>
               </div>
               <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px] text-muted">
                 <span className="flex items-center gap-1.5">
-                  <Icon name="pin" size={14} className="text-faint" /> {STORE.city}
+                  <Icon name="pin" size={14} className="text-faint" /> {city}
                 </span>
                 <span className="flex items-center gap-1.5">
                   <Icon name="star" size={14} className="text-warn" />{" "}
@@ -287,7 +369,7 @@ export function StoreHome() {
             <div className="flex w-full flex-wrap gap-2 sm:w-auto">
               <button
                 className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-md bg-[#0a7a56] px-4 text-[13.5px] font-bold text-white transition-colors hover:bg-[#0b6b4b] sm:flex-none"
-                onClick={() => toast("Membuka chat WhatsApp " + STORE.wa, "info")}
+                onClick={() => toast("Membuka chat WhatsApp " + wa, "info")}
               >
                 <Icon name="wa" size={17} /> Chat WhatsApp
               </button>
@@ -359,7 +441,7 @@ export function StoreHome() {
           </div>
 
           <div className="tl-scroll -mx-4 mt-4 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:px-0">
-            {CATEGORIES.map((c) => (
+            {cats.map((c) => (
               <button
                 key={c}
                 onClick={() => setCat(c)}
@@ -376,7 +458,17 @@ export function StoreHome() {
           </div>
 
           <div className="mt-5">
-            {list.length === 0 ? (
+            {loading ? (
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+                {[0, 1, 2, 3].map((i) => (
+                  <div key={i} className="rounded-xl border border-line bg-white p-3">
+                    <Skeleton className="aspect-[4/3] w-full" />
+                    <Skeleton className="mt-3 h-4 w-3/4" />
+                    <Skeleton className="mt-2 h-4 w-1/2" />
+                  </div>
+                ))}
+              </div>
+            ) : list.length === 0 ? (
               <EmptyState
                 icon="search"
                 title="Produk tidak ditemukan"
@@ -458,10 +550,10 @@ export function StoreHome() {
       </PageShell>
 
       <div className="mt-10">
-        <StoreFooter />
+        <StoreFooter store={store} />
       </div>
 
-      <Modal open={qrOpen} onClose={() => setQrOpen(false)} title="QR TokoLink" eyebrow={STORE.name} width="max-w-sm">
+      <Modal open={qrOpen} onClose={() => setQrOpen(false)} title="QR TokoLink" eyebrow={name} width="max-w-sm">
         <div className="flex flex-col items-center gap-4 text-center">
           <div className="relative rounded-lg border border-line bg-white p-4">
             <QRMark size={176} />
@@ -470,7 +562,7 @@ export function StoreHome() {
             </span>
           </div>
           <div>
-            <div className="tnum text-[15px] font-bold text-ink">tokolink.id/dapoer-bu-ani</div>
+            <div className="tnum text-[15px] font-bold text-ink">tokolink.id/{slug}</div>
             <p className="mt-1 text-[13px] text-muted">
               Pindai untuk membuka toko. Aman dicetak hitam putih.
             </p>
@@ -490,23 +582,95 @@ export function StoreHome() {
 }
 
 /* ----------------------------- product detail ----------------------------- */
-export function ProductDetail({ id }: { id: string }) {
+export function ProductDetail({ id, slug }: { id: string; slug: string }) {
   const { add, toast } = useApp();
-  const p = PRODUCTS.find((x) => x.id === id) ?? PRODUCTS[0];
+  const [p, setP] = useState<Product | null>(null);
+  const [related, setRelated] = useState<Product[]>([]);
+  const [store, setStore] = useState<StoreProfile | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [notFound, setNotFound] = useState(false);
   const [qty, setQty] = useState(1);
   const [shot, setShot] = useState(0);
+
+  useEffect(() => {
+    (async () => {
+      setLoading(true);
+      setNotFound(false);
+      const { data } = await supabase.from("products").select("*").eq("id", id).eq("status", "aktif").maybeSingle();
+      if (!data) {
+        setP(null);
+        setRelated([]);
+        setNotFound(true);
+        setLoading(false);
+        return;
+      }
+      const mapped = mapProduct(data as DbProduct);
+      setP(mapped);
+      const sellerId = (data as DbProduct).seller_id;
+      const { data: prof } = await supabase
+        .from("profiles")
+        .select("id,store_name,store_slug,city,owner_name,wa_number")
+        .eq("id", sellerId)
+        .maybeSingle();
+      setStore((prof as StoreProfile | null) ?? null);
+      const { data: rel } = await supabase
+        .from("products")
+        .select("*")
+        .eq("seller_id", (data as DbProduct).seller_id)
+        .eq("status", "aktif")
+        .neq("id", id)
+        .limit(4);
+      setRelated(((rel ?? []) as DbProduct[]).map(mapProduct));
+      setLoading(false);
+    })();
+  }, [id]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-canvas pb-32 lg:pb-16">
+        <StoreHeader />
+        <PageShell className="py-5">
+          <Skeleton className="h-5 w-56" />
+          <div className="mt-4 grid gap-6 lg:grid-cols-2 lg:gap-10">
+            <Skeleton className="aspect-[4/3] w-full" />
+            <div className="space-y-3">
+              <Skeleton className="h-8 w-3/4" />
+              <Skeleton className="h-5 w-1/2" />
+              <Skeleton className="h-24 w-full" />
+            </div>
+          </div>
+        </PageShell>
+      </div>
+    );
+  }
+
+  if (notFound || !p) {
+    return (
+      <div className="min-h-screen bg-canvas pb-32 lg:pb-16">
+        <StoreHeader />
+        <PageShell className="py-10">
+          <EmptyState
+            icon="search"
+            title="Produk tidak ditemukan"
+            desc="Produk ini sudah tidak dijual atau tautannya salah."
+            action={<ButtonLink to={`/s/${slug}`}>Kembali ke toko</ButtonLink>}
+          />
+        </PageShell>
+      </div>
+    );
+  }
+
   const out = p.stock === 0;
-  const related = PRODUCTS.filter((x) => x.id !== p.id).slice(0, 4);
   const positions = ["50% 50%", "20% 30%", "80% 70%"];
 
   return (
     <div className="min-h-screen bg-canvas pb-32 lg:pb-16">
-      <StoreHeader crumb={`Katalog / ${p.cat}`} />
+      <StoreHeader crumb={`Katalog / ${p.cat}`} store={store} />
 
       <PageShell className="py-5">
         <nav className="mb-4 flex flex-wrap items-center gap-1.5 text-[13px] text-faint">
-          <Link to="/s/dapoer-bu-ani" className="hover:text-brand-700">
-            {STORE.name}
+          <Link to={`/s/${slug}`} className="hover:text-brand-700">
+            Kembali ke toko
           </Link>
           <Icon name="right" size={13} />
           <span>{p.cat}</span>
@@ -672,21 +836,47 @@ export function ProductDetail({ id }: { id: string }) {
 }
 
 /* ---------------------------------- cart ---------------------------------- */
+/**
+ * Sementara Fase 3: item keranjang di-resolve ke baris `products` asli
+ * (publik, `aktif`). ID yang tidak dikenal (mis. sisa mock lama) dibuang
+ * agar halaman tidak crash. Total/diskon/ongkir dihitung ulang di Fase 3.
+ */
 function useTotals(promo: string | null) {
   const { cart } = useApp();
-  const items = cart
-    .map((c) => ({ p: PRODUCTS.find((x) => x.id === c.id)!, qty: c.qty }))
-    .filter((x) => x.p);
+  const [items, setItems] = useState<{ p: Product; qty: number }[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    (async () => {
+      if (cart.length === 0) {
+        setItems([]);
+        setLoading(false);
+        return;
+      }
+      setLoading(true);
+      const ids = [...new Set(cart.map((c) => c.id))];
+      const { data } = await supabase.from("products").select("*").in("id", ids).eq("status", "aktif");
+      const byId = new Map(((data ?? []) as DbProduct[]).map((r) => [r.id, mapProduct(r)]));
+      setItems(
+        cart.flatMap((c) => {
+          const p = byId.get(c.id);
+          return p ? [{ p, qty: c.qty }] : [];
+        }),
+      );
+      setLoading(false);
+    })();
+  }, [cart]);
+
   const subtotal = items.reduce((s, i) => s + i.p.price * i.qty, 0);
   const discount = promo === "HARIAN5" ? Math.round(subtotal * 0.05) : 0;
   const shipping = subtotal === 0 ? 0 : subtotal >= 200000 ? 0 : SHIP;
   const total = subtotal - discount + shipping;
-  return { items, subtotal, discount, shipping, total };
+  return { items, subtotal, discount, shipping, total, loading };
 }
 
 export function Cart() {
   const { setQty, promo, setPromo, toast } = useApp();
-  const { items, subtotal, discount, shipping, total } = useTotals(promo);
+  const { items, subtotal, discount, shipping, total, loading } = useTotals(promo);
   const [code, setCode] = useState("");
   const [remove, setRemove] = useState<{ id: string; name: string } | null>(null);
 
@@ -704,7 +894,12 @@ export function Cart() {
           </Link>
         </div>
 
-        {items.length === 0 ? (
+        {loading ? (
+          <div className="space-y-3">
+            <Skeleton className="h-28 w-full" />
+            <Skeleton className="h-28 w-full" />
+          </div>
+        ) : items.length === 0 ? (
           <EmptyState
             icon="box"
             title="Keranjang masih kosong"

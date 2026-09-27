@@ -927,6 +927,12 @@ export function AdminSystem() {
   const [fee, setFee] = useState("0,7");
   const [minWithdraw, setMinWithdraw] = useState("50000");
   const [close, setClose] = useState(false);
+  const [channels, setChannels] = useState([
+    { t: "QRIS", d: "Semua e-wallet dan m-banking", on: true },
+    { t: "Transfer bank manual", d: "Verifikasi otomatis via rekening bersama", on: true },
+    { t: "Dompet digital (GoPay, OVO, DANA)", d: "Sedang uji coba", on: false },
+    { t: "Bayar di tempat (COD)", d: "Baru untuk Jawa & Bali", on: false },
+  ]);
 
   return (
     <AppShell group="admin">
@@ -974,18 +980,20 @@ export function AdminSystem() {
           <Card>
             <CardHead title="Kanal pembayaran aktif" sub="Pilihan yang dilihat pembeli saat checkout" icon="qr" />
             <ul className="divide-y divide-linesoft">
-              {[
-                ["QRIS", "Semua e-wallet dan m-banking", true],
-                ["Transfer bank manual", "Verifikasi otomatis via rekening bersama", true],
-                ["Dompet digital (GoPay, OVO, DANA)", "Sedang uji coba", false],
-                ["Bayar di tempat (COD)", "Baru untuk Jawa & Bali", false],
-              ].map(([t, d, on]) => (
-                <li key={String(t)} className="flex items-center justify-between gap-4 py-3.5">
+              {channels.map((c) => (
+                <li key={c.t} className="flex items-center justify-between gap-4 py-3.5">
                   <div>
-                    <div className="text-[14.5px] font-bold text-ink">{t}</div>
-                    <div className="text-[13px] text-muted">{d}</div>
+                    <div className="text-[14.5px] font-bold text-ink">{c.t}</div>
+                    <div className="text-[13px] text-muted">{c.d}</div>
                   </div>
-                  <Toggle checked={Boolean(on)} onChange={() => toast("Kanal pembayaran diperbarui.", "info")} label={String(t)} />
+                  <Toggle
+                    checked={c.on}
+                    onChange={(v) => {
+                      setChannels((xs) => xs.map((x) => (x.t === c.t ? { ...x, on: v } : x)));
+                      toast("Kanal pembayaran diperbarui.", "info");
+                    }}
+                    label={c.t}
+                  />
                 </li>
               ))}
             </ul>

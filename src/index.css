@@ -94,6 +94,15 @@
   button {
     font: inherit;
   }
+  /* Ikon di dalam elemen interaktif selalu bertransisi halus di semua halaman.
+     Rule ini di layer base, jadi utility Tailwind tetap bisa menimpanya. */
+  button svg,
+  a svg {
+    transition:
+      transform 0.2s ease-out,
+      opacity 0.2s ease-out,
+      color 0.2s ease-out;
+  }
 }
 
 /* ---------- signature: chamfered price-tag corner ---------- */

@@ -1,0 +1,7 @@
+# Env — JANGAN commit file .env berisi key asli
+.env
+.env.local
+
+# Dependencies & build output
+node_modules/
+dist/

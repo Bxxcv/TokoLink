@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { navigate } from "../lib/router";
+import { useAuth } from "../lib/auth";
 import {
   BALANCE_HISTORY,
   BIO_LINKS,
@@ -293,7 +294,7 @@ export function Withdraw() {
             </div>
 
             <div className="flex flex-col gap-2.5 sm:flex-row">
-              <Button size="lg" loading={loading} onClick={submit} className="flex-1">
+              <Button size="lg" loading={loading} onClick={submit} className="flex-1 h-14! text-[16px]!">
                 Tarik dana sekarang
               </Button>
               <Button size="lg" variant="secondary" onClick={() => navigate("/app/wallet")}>
@@ -514,6 +515,8 @@ export function BioLinks() {
 /* ================================== THEME ================================== */
 export function Theme() {
   const { toast } = useApp();
+  const { profile } = useAuth();
+  const storeName = profile?.store_name || "Dapoer Bu Ani";
   const [accent, setAccent] = useState("Biru");
   const [layout, setLayout] = useState("Kisi");
   const [sections, setSections] = useState({ hours: true, qr: true, reviews: false, cart: true });
@@ -673,7 +676,7 @@ export function Theme() {
               </div>
               <div className="p-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-[13.5px] font-extrabold text-ink">Dapoer Bu Ani</span>
+                  <span className="text-[13.5px] font-extrabold text-ink">{storeName}</span>
                   <span className="rounded-sm bg-oksoft px-1.5 py-0.5 text-[10.5px] font-bold text-[#0a7a55]">
                     Buka
                   </span>
@@ -1147,6 +1150,12 @@ export function StoreSettings() {
   const { toast } = useApp();
   const [plan, setPlan] = useState("Bulanan");
   const [close, setClose] = useState(false);
+  const [notifs, setNotifs] = useState([
+    { t: "Pesanan baru", d: "WhatsApp + notifikasi aplikasi", on: true },
+    { t: "Pembayaran diterima", d: "Notifikasi aplikasi", on: true },
+    { t: "Stok hampir habis", d: "WhatsApp", on: true },
+    { t: "Ringkasan jualan mingguan", d: "Email setiap Senin", on: false },
+  ]);
   const [f, setF] = useState({
     name: "Dapoer Bu Ani",
     slug: "dapoer-bu-ani",
@@ -1218,18 +1227,20 @@ export function StoreSettings() {
           <Card>
             <CardHead title="Notifikasi" sub="Kapan TokoLink menghubungi Anda" icon="bell" />
             <ul className="divide-y divide-linesoft">
-              {[
-                ["Pesanan baru", "WhatsApp + notifikasi aplikasi", true],
-                ["Pembayaran diterima", "Notifikasi aplikasi", true],
-                ["Stok hampir habis", "WhatsApp", true],
-                ["Ringkasan jualan mingguan", "Email setiap Senin", false],
-              ].map(([t, d, on]) => (
-                <li key={String(t)} className="flex items-center justify-between gap-4 py-3.5">
+              {notifs.map((n) => (
+                <li key={n.t} className="flex items-center justify-between gap-4 py-3.5">
                   <div>
-                    <div className="text-[14.5px] font-bold text-ink">{t}</div>
-                    <div className="text-[13px] text-muted">{d}</div>
+                    <div className="text-[14.5px] font-bold text-ink">{n.t}</div>
+                    <div className="text-[13px] text-muted">{n.d}</div>
                   </div>
-                  <Toggle checked={Boolean(on)} onChange={() => toast("Preferensi notifikasi diperbarui.", "info")} label={String(t)} />
+                  <Toggle
+                    checked={n.on}
+                    onChange={(v) => {
+                      setNotifs((xs) => xs.map((x) => (x.t === n.t ? { ...x, on: v } : x)));
+                      toast("Preferensi notifikasi diperbarui.", "info");
+                    }}
+                    label={n.t}
+                  />
                 </li>
               ))}
             </ul>

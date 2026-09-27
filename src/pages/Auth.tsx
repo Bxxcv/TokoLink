@@ -1,5 +1,7 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Link, navigate } from "../lib/router";
+import { supabase, prepareSessionPersistence, purgePersistedSessions } from "../lib/supabase";
+import { ensureProfile, friendlyAuthError, useAuth } from "../lib/auth";
 import { Logo, LogoMark, TagGlyph } from "../components/Logo";
 import { Button, ButtonLink, Checkbox, Field, Icon, Input, cx } from "../components/ui";
 
@@ -94,6 +96,38 @@ function AuthLayout({
   );
 }
 
+/* -------- tombol mata password: mata tercoret ⇄ terbuka, animasi morph -------- */
+function EyeButton({ open, onToggle }: { open: boolean; onToggle: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-label={open ? "Sembunyikan kata sandi" : "Tampilkan kata sandi"}
+      aria-pressed={open}
+      className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1.5 text-faint transition-all duration-200 hover:text-brand-700 active:scale-90"
+    >
+      <span className="relative block h-[17px] w-[17px]">
+        <Icon
+          name="eyeOff"
+          size={17}
+          className={cx(
+            "absolute inset-0 transition-all duration-200",
+            open ? "rotate-90 scale-75 opacity-0" : "rotate-0 scale-100 opacity-100",
+          )}
+        />
+        <Icon
+          name="eye"
+          size={17}
+          className={cx(
+            "absolute inset-0 transition-all duration-200",
+            open ? "rotate-0 scale-100 text-brand-600 opacity-100" : "-rotate-90 scale-75 opacity-0",
+          )}
+        />
+      </span>
+    </button>
+  );
+}
+
 /* ---------------------------------- login --------------------------------- */
 export function Login() {
   const [email, setEmail] = useState("ani@dapoerbuani.id");
@@ -103,17 +137,31 @@ export function Login() {
   const [loading, setLoading] = useState(false);
   const [remember, setRemember] = useState(true);
 
-  const submit = (e: React.FormEvent) => {
+  const { session, loading: authLoading, role } = useAuth();
+  useEffect(() => {
+    if (!authLoading && session) navigate(role === "admin" ? "/admin" : "/app");
+  }, [authLoading, session, role]);
+
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErr("");
-    if (!email.includes("@")) return setErr("Masukkan alamat email yang benar.");
+    if (!email.includes("@")) return setErr("Masuk memakai alamat email yang terdaftar.");
     if (pass.length < 6) return setErr("Kata sandi minimal 6 karakter.");
     setLoading(true);
-    setTimeout(() => {
+    try {
+      prepareSessionPersistence(remember);
+      const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password: pass });
+      if (error) return setErr(friendlyAuthError(error.message));
+      if (!remember) purgePersistedSessions();
+      const { data } = await supabase.auth.getUser();
+      const profile = data.user ? await ensureProfile(data.user.id) : null;
+      navigate(profile?.role === "admin" ? "/admin" : "/app");
+    } finally {
       setLoading(false);
-      navigate("/app");
-    }, 900);
+    }
   };
+
+  const whatsappSoon = () => setErr("Masuk via WhatsApp belum tersedia. Pakai email dulu ya.");
 
   return (
     <AuthLayout
@@ -159,14 +207,7 @@ export function Login() {
               placeholder="Minimal 6 karakter"
               className="pr-11"
             />
-            <button
-              type="button"
-              onClick={() => setShow((s) => !s)}
-              aria-label={show ? "Sembunyikan kata sandi" : "Tampilkan kata sandi"}
-              className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1.5 text-faint hover:text-brand-700"
-            >
-              <Icon name="eye" size={17} />
-            </button>
+            <EyeButton open={show} onToggle={() => setShow((s) => !s)} />
           </div>
         </Field>
 
@@ -196,14 +237,9 @@ export function Login() {
           <span className="h-px flex-1 bg-line" />
         </div>
 
-        <ButtonLink to="/app" variant="secondary" size="lg" className="w-full">
+        <Button type="button" variant="secondary" size="lg" className="w-full" onClick={whatsappSoon}>
           <Icon name="wa" size={17} className="text-[#0a7a55]" /> Masuk lewat WhatsApp
-        </ButtonLink>
-
-        <p className="pt-1 text-center text-[12.5px] leading-relaxed text-faint">
-          Demo prototipe: tekan <span className="font-semibold text-muted">Masuk ke dasbor</span> langsung
-          untuk melihat halaman penjual.
-        </p>
+        </Button>
       </form>
     </AuthLayout>
   );
@@ -217,7 +253,15 @@ export function Register() {
   const [pass, setPass] = useState("");
   const [agree, setAgree] = useState(false);
   const [err, setErr] = useState<Record<string, string>>({});
+  const [formErr, setFormErr] = useState("");
+  const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [sent, setSent] = useState("");
+
+  const { session, loading: authLoading, role } = useAuth();
+  useEffect(() => {
+    if (!authLoading && session) navigate(role === "admin" ? "/admin" : "/app");
+  }, [authLoading, session, role]);
 
   const slug =
     store
@@ -227,30 +271,63 @@ export function Register() {
       .replace(/\s+/g, "-")
       .slice(0, 28) || "nama-toko";
 
-  const submit = (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     const next: Record<string, string> = {};
     if (name.trim().length < 3) next.name = "Tulis nama lengkap Anda.";
     if (store.trim().length < 3) next.store = "Nama toko minimal 3 karakter.";
-    if (!contact.includes("@") && contact.replace(/\D/g, "").length < 9)
-      next.contact = "Masukkan email atau nomor WhatsApp yang aktif.";
+    if (!contact.includes("@"))
+      next.contact = "Pendaftaran memakai email aktif. Nomor WhatsApp bisa ditambahkan di pengaturan toko.";
     if (pass.length < 8) next.pass = "Kata sandi minimal 8 karakter.";
     if (!agree) next.agree = "Centang persetujuan untuk melanjutkan.";
     setErr(next);
+    setFormErr("");
     if (Object.keys(next).length) return;
     setLoading(true);
-    setTimeout(() => {
+    try {
+      prepareSessionPersistence(true);
+      const { data, error } = await supabase.auth.signUp({
+        email: contact.trim(),
+        password: pass,
+        options: {
+          data: { owner_name: name.trim(), store_name: store.trim(), store_slug: slug },
+        },
+      });
+      if (error) {
+        const msg = friendlyAuthError(error.message);
+        if (error.message.toLowerCase().includes("already registered"))
+          setErr((x) => ({ ...x, contact: msg }));
+        else setFormErr(msg);
+        return;
+      }
+      // Kalau verifikasi email AKTIF, tidak ada session → minta user cek email.
+      if (!data.session) {
+        setSent(contact.trim());
+        return;
+      }
+      if (data.user) {
+        const profile = await ensureProfile(data.user.id, {
+          owner_name: name.trim(),
+          store_name: store.trim(),
+          store_slug: slug,
+        });
+        navigate(profile?.role === "admin" ? "/admin" : "/app");
+      }
+    } finally {
       setLoading(false);
-      navigate("/app");
-    }, 1000);
+    }
   };
 
   return (
     <AuthLayout
       index="02"
       kicker="Daftar"
-      title="Buka toko Anda hari ini."
-      lead="Gratis, tanpa kartu kredit. Cuma perlu nama toko dan nomor yang bisa dihubungi."
+      title={sent ? "Cek email Anda." : "Buka toko Anda hari ini."}
+      lead={
+        sent
+          ? "Satu langkah lagi: klik tautan verifikasi yang kami kirim, lalu masuk."
+          : "Gratis, tanpa kartu kredit. Cuma perlu nama toko dan email yang aktif."
+      }
       footer={
         <>
           Sudah punya akun?{" "}
@@ -260,6 +337,22 @@ export function Register() {
         </>
       }
     >
+      {sent ? (
+        <div className="text-center">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-lg bg-oksoft text-ok">
+            <Icon name="mail" size={26} />
+          </div>
+          <p className="mt-5 text-[15px] leading-relaxed text-ink">
+            Kami mengirim tautan verifikasi ke <span className="font-bold">{sent}</span>. Klik tautan itu,
+            lalu masuk untuk membuka dasbor toko Anda.
+          </p>
+          <div className="mt-6">
+            <ButtonLink to="/login" className="w-full">
+              Ke halaman masuk
+            </ButtonLink>
+          </div>
+        </div>
+      ) : (
       <form onSubmit={submit} className="space-y-4" noValidate>
         <Field label="Nama lengkap" error={err.name} required>
           <Input
@@ -308,16 +401,21 @@ export function Register() {
         </Field>
 
         <Field label="Kata sandi" error={err.pass} required hint="Minimal 8 karakter, campur angka dan huruf.">
-          <Input
-            type="password"
-            value={pass}
-            invalid={!!err.pass}
-            onChange={(e) => {
-              setPass(e.target.value);
-              setErr((x) => ({ ...x, pass: "" }));
-            }}
-            placeholder="••••••••"
-          />
+          <div className="relative">
+            <Input
+              type={showPass ? "text" : "password"}
+              value={pass}
+              autoComplete="new-password"
+              invalid={!!err.pass}
+              onChange={(e) => {
+                setPass(e.target.value);
+                setErr((x) => ({ ...x, pass: "" }));
+              }}
+              placeholder="••••••••"
+              className="pr-11"
+            />
+            <EyeButton open={showPass} onToggle={() => setShowPass((s) => !s)} />
+          </div>
         </Field>
 
         <div className={cx("rounded-md p-1", err.agree && "bg-badsoft")}>
@@ -327,14 +425,22 @@ export function Register() {
           {err.agree && <div className="mt-1.5 pl-[28px] text-[12.5px] text-bad">{err.agree}</div>}
         </div>
 
+        {formErr && (
+          <div className="flex items-start gap-2.5 rounded-md border border-[#F6CFCF] bg-badsoft px-3.5 py-2.5 text-[13px] text-bad">
+            <Icon name="alert" size={15} className="mt-0.5 shrink-0" />
+            {formErr}
+          </div>
+        )}
+
         <Button type="submit" size="lg" loading={loading} className="w-full">
           {loading ? "Menyiapkan toko…" : "Buat toko gratis"}
         </Button>
 
         <p className="text-center text-[12.5px] leading-relaxed text-faint">
-          Dengan mendaftar, nomor Anda hanya dipakai untuk notifikasi pesanan dan keamanan akun.
+          Dengan mendaftar, email Anda hanya dipakai untuk notifikasi pesanan dan keamanan akun.
         </p>
       </form>
+      )}
     </AuthLayout>
   );
 }
@@ -346,15 +452,20 @@ export function Forgot() {
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
 
-  const submit = (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email.includes("@")) return setErr("Masukkan alamat email yang terdaftar.");
     setErr("");
     setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+        redirectTo: window.location.origin + "/",
+      });
+      if (error) return setErr(friendlyAuthError(error.message));
       setSent(true);
-    }, 900);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (

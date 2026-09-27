@@ -1,4 +1,5 @@
 import { AppProvider } from "./lib/data";
+import { AuthProvider, RequireAdmin, RequireAuth } from "./lib/auth";
 import { useRoute, Link } from "./lib/router";
 import { ToastHost, ButtonLink } from "./components/ui";
 
@@ -96,8 +97,8 @@ function RouteView({ path }: { path: string }) {
 
   /* ---- phase 2: storefront ---- */
   if (seg[0] === "s" && seg[1]) {
-    if (seg[2] === "p" && seg[3]) return <ProductDetail id={seg[3]} />;
-    return <StoreHome />;
+    if (seg[2] === "p" && seg[3]) return <ProductDetail id={seg[3]} slug={seg[1]} />;
+    return <StoreHome slug={seg[1]} />;
   }
   if (path === "/cart") return <Cart />;
   if (path === "/checkout") return <Checkout />;
@@ -182,11 +183,22 @@ function RouteView({ path }: { path: string }) {
 }
 
 export default function App() {
-  const path = useRoute();
   return (
-    <AppProvider>
-      <RouteView path={path} />
-      <ToastHost />
-    </AppProvider>
+    <AuthProvider>
+      <AppProvider>
+        <Shell />
+        <ToastHost />
+      </AppProvider>
+    </AuthProvider>
   );
+}
+
+function Shell() {
+  const path = useRoute();
+  const seg = path.split("/").filter(Boolean);
+  let view = <RouteView path={path} />;
+  // Fase 1: /app/* wajib login, /admin/* wajib login + role admin.
+  if (seg[0] === "app") view = <RequireAuth>{view}</RequireAuth>;
+  else if (seg[0] === "admin") view = <RequireAdmin>{view}</RequireAdmin>;
+  return view;
 }

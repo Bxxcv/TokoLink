@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from "react";
 import clsx from "clsx";
 import { Link, navigate, useRoute } from "../lib/router";
+import { signOut, useAuth } from "../lib/auth";
 import { useApp } from "../lib/data";
 import { Logo, LogoMark } from "./Logo";
 import { Avatar, Badge, ButtonLink, Dropdown, Icon, cx } from "./ui";
@@ -134,16 +135,17 @@ function NavList({ groups, path, onNavigate }: { groups: NavGroup[]; path: strin
 }
 
 function StoreSwitcher({ admin = false }: { admin?: boolean }) {
+  const { profile } = useAuth();
+  const storeName = admin ? "TokoLink Indonesia" : profile?.store_name || "Dapoer Bu Ani";
+  const storeSub = admin ? "Admin Master" : `tokolink.id/${profile?.store_slug || "dapoer-bu-ani"}`;
   return (
     <div className="flex items-center gap-2.5">
       <span className="flex h-9 w-9 items-center justify-center rounded-md bg-navy-800 text-brand-300">
         <LogoMark size={22} />
       </span>
       <span className="hidden leading-tight sm:block">
-        <span className="block text-[14px] font-extrabold text-ink">
-          {admin ? "TokoLink Indonesia" : "Dapoer Bu Ani"}
-        </span>
-        <span className="micro text-faint">{admin ? "Admin Master" : "tokolink.id/dapoer-bu-ani"}</span>
+        <span className="block text-[14px] font-extrabold text-ink">{storeName}</span>
+        <span className="micro text-faint">{storeSub}</span>
       </span>
     </div>
   );
@@ -161,6 +163,10 @@ export function AppShell({
   const groups = admin ? ADMIN_NAV : SELLER_NAV;
   const [sheet, setSheet] = useState(false);
   const { toast } = useApp();
+  const { profile } = useAuth();
+  // Nama & toko ikut profil yang login; admin tetap pakai label mock sampai Fase 6.
+  const sellerName = profile?.owner_name || "Ani Rahayu";
+  const storeSlug = profile?.store_slug || "dapoer-bu-ani";
 
   const mobileItems = (admin ? ADMIN_NAV[1].items : [
     SELLER_NAV[0].items[0],
@@ -206,16 +212,21 @@ export function AppShell({
             </div>
           )}
           <div className="flex items-center gap-2.5 px-1.5">
-            <Avatar name={admin ? "Dwi Handoko" : "Ani Rahayu"} size={34} />
+            <Avatar name={admin ? "Dwi Handoko" : sellerName} size={34} />
             <div className="min-w-0 flex-1 leading-tight">
               <div className="truncate text-[13.5px] font-bold text-ink">
-                {admin ? "Dwi Handoko" : "Ani Rahayu"}
+                {admin ? "Dwi Handoko" : sellerName}
               </div>
               <div className="truncate text-[11.5px] text-faint">{admin ? "Super admin" : "Pemilik toko"}</div>
             </div>
-            <Link to="/login" aria-label="Keluar" className="rounded-md p-1.5 text-faint hover:bg-canvas hover:text-bad">
+            <button
+              type="button"
+              onClick={() => signOut()}
+              aria-label="Keluar"
+              className="rounded-md p-1.5 text-faint hover:bg-canvas hover:text-bad"
+            >
               <Icon name="logout" size={17} />
-            </Link>
+            </button>
           </div>
         </div>
       </aside>
@@ -224,11 +235,29 @@ export function AppShell({
       <div className="lg:pl-[248px]">
         <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-line bg-white/95 px-4 backdrop-blur-sm sm:px-6 lg:px-8">
           <button
-            onClick={() => setSheet(true)}
+            onClick={() => setSheet((s) => !s)}
             className="rounded-md border border-line p-2 text-muted transition-colors hover:bg-canvas hover:text-ink lg:hidden"
-            aria-label="Buka menu"
+            aria-label={sheet ? "Tutup menu" : "Buka menu"}
+            aria-expanded={sheet}
           >
-            <Icon name="menu" size={18} />
+            <span className="relative block h-[18px] w-[18px]">
+              <Icon
+                name="menu"
+                size={18}
+                className={cx(
+                  "absolute inset-0 transition-all duration-200",
+                  sheet ? "rotate-90 opacity-0" : "rotate-0 opacity-100",
+                )}
+              />
+              <Icon
+                name="x"
+                size={18}
+                className={cx(
+                  "absolute inset-0 transition-all duration-200",
+                  sheet ? "rotate-0 opacity-100" : "-rotate-90 opacity-0",
+                )}
+              />
+            </span>
           </button>
 
           <div className="lg:hidden">
@@ -251,7 +280,7 @@ export function AppShell({
             </div>
 
             {!admin && (
-              <ButtonLink to="/s/dapoer-bu-ani" variant="secondary" size="sm" className="hidden sm:inline-flex">
+              <ButtonLink to={`/s/${storeSlug}`} variant="secondary" size="sm" className="hidden sm:inline-flex">
                 <Icon name="external" size={15} /> Lihat toko
               </ButtonLink>
             )}
@@ -269,25 +298,25 @@ export function AppShell({
 
             <span className="hidden sm:block">
               <Dropdown
-                trigger={() => (
-                  <span className="rounded-md p-1 transition-colors hover:bg-canvas">
-                    <Avatar name={admin ? "Dwi Handoko" : "Ani Rahayu"} size={34} />
-                  </span>
-                )}
+                  trigger={() => (
+                    <span className="rounded-md p-1 transition-colors hover:bg-canvas">
+                      <Avatar name={admin ? "Dwi Handoko" : sellerName} size={34} />
+                    </span>
+                  )}
                 items={[
                   { label: admin ? "Profil admin" : "Profil & akun", icon: "user", onClick: () => navigate(admin ? "/admin/users" : "/app/account") },
                   { label: "Pengaturan toko", icon: "settings", onClick: () => navigate(admin ? "/admin/system" : "/app/settings") },
                   ...(admin
                     ? [{ label: "Halaman publik", icon: "home", onClick: () => navigate("/") }]
-                    : [{ label: "Lihat toko publik", icon: "external", onClick: () => navigate("/s/dapoer-bu-ani") }]),
-                  { label: "Keluar", icon: "logout", danger: true, sep: true, onClick: () => navigate("/login") },
+                    : [{ label: "Lihat toko publik", icon: "external", onClick: () => navigate(`/s/${storeSlug}`) }]),
+                  { label: "Keluar", icon: "logout", danger: true, sep: true, onClick: () => signOut() },
                 ]}
               />
             </span>
           </div>
         </header>
 
-        <main className="px-4 pb-12 pt-6 sm:px-6 lg:px-8">{children}</main>
+        <main className="px-4 pb-24 pt-6 sm:px-6 lg:px-8 lg:pb-12">{children}</main>
       </div>
 
       {/* ---------------- mobile bottom nav ---------------- */}
@@ -328,39 +357,59 @@ export function AppShell({
         </ul>
       </nav>
 
-      {/* ---------------- mobile sheet ---------------- */}
-      {sheet && (
-        <div className="fixed inset-0 z-[80] lg:hidden">
-          <div className="fade absolute inset-0 bg-navy-900/45" onClick={() => setSheet(false)} />
-          <div className="rise absolute inset-x-0 bottom-0 max-h-[86vh] overflow-y-auto rounded-t-xl border-t border-line bg-white pb-6">
-            <div className="sticky top-0 flex items-center justify-between border-b border-linesoft bg-white px-5 py-4">
+      {/* ---------------- mobile drawer (kiri) ---------------- */}
+      <div className={cx("fixed inset-0 z-[80] lg:hidden", !sheet && "pointer-events-none")}>
+        <div
+          className={cx(
+            "absolute inset-0 bg-navy-900/45 transition-opacity duration-300",
+            sheet ? "opacity-100" : "opacity-0",
+          )}
+          onClick={() => setSheet(false)}
+        />
+        <aside
+          className={cx(
+            "absolute inset-y-0 left-0 flex w-[300px] max-w-[85vw] flex-col bg-white shadow-lift transition-transform duration-300 ease-out",
+            sheet ? "translate-x-0" : "-translate-x-full",
+          )}
+        >
+          <div className="flex h-16 shrink-0 items-center justify-between border-b border-line px-5">
+            <Link to={admin ? "/admin" : "/app"} aria-label="TokoLink" onClick={() => setSheet(false)}>
               <Logo size={28} />
-              <button
-                onClick={() => setSheet(false)}
-                aria-label="Tutup menu"
-                className="rounded-md p-1.5 text-faint hover:bg-canvas hover:text-ink"
-              >
-                <Icon name="x" size={18} />
-              </button>
-            </div>
-            <NavList groups={groups} path={path} onNavigate={() => setSheet(false)} />
-            <div className="px-5">
-              <div className="border-t border-linesoft pt-4">
-                <div className="flex items-center gap-2.5">
-                  <Avatar name={admin ? "Dwi Handoko" : "Ani Rahayu"} size={36} />
-                  <div className="flex-1 leading-tight">
-                    <div className="text-[14px] font-bold text-ink">{admin ? "Dwi Handoko" : "Ani Rahayu"}</div>
-                    <div className="text-[12px] text-faint">{admin ? "Super admin" : "Pemilik toko"}</div>
-                  </div>
-                  <Badge tone="blue" dot>
-                    {admin ? "Admin" : "Premium"}
-                  </Badge>
-                </div>
-              </div>
-            </div>
+            </Link>
+            <button
+              onClick={() => setSheet(false)}
+              aria-label="Tutup menu"
+              className="rounded-md p-1.5 text-faint hover:bg-canvas hover:text-ink"
+            >
+              <Icon name="x" size={18} />
+            </button>
           </div>
-        </div>
-      )}
+          <div className="tl-scroll flex-1 overflow-y-auto">
+            <NavList groups={groups} path={path} onNavigate={() => setSheet(false)} />
+          </div>
+          <div className="shrink-0 border-t border-line p-4">
+            <div className="flex items-center gap-2.5 px-1">
+              <Avatar name={admin ? "Dwi Handoko" : sellerName} size={36} />
+              <div className="min-w-0 flex-1 leading-tight">
+                <div className="truncate text-[14px] font-bold text-ink">
+                  {admin ? "Dwi Handoko" : sellerName}
+                </div>
+                <div className="truncate text-[12px] text-faint">{admin ? "Super admin" : "Pemilik toko"}</div>
+              </div>
+              <Badge tone="blue" dot>
+                {admin ? "Admin" : "Premium"}
+              </Badge>
+            </div>
+            <button
+              type="button"
+              onClick={() => signOut()}
+              className="mt-3 flex w-full items-center justify-center gap-2 rounded-md border border-line px-3 py-2.5 text-[13.5px] font-bold text-bad transition-colors hover:bg-badsoft"
+            >
+              <Icon name="logout" size={16} /> Keluar
+            </button>
+          </div>
+        </aside>
+      </div>
 
     </div>
   );
