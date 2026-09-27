@@ -7,7 +7,6 @@ import {
   FUNNEL,
   HOURLY,
   ORDERS,
-  PRODUCTS,
   SALES_30,
   SOURCES,
   STATUS_LABEL,
@@ -17,6 +16,8 @@ import {
   rupiah,
   rupiahShort,
   useApp,
+  type Order,
+  type OrderStatus,
 } from "../lib/data";
 import { AppShell } from "../components/layout";
 import {
@@ -1157,22 +1158,79 @@ export function ProductForm({ id }: { id?: string }) {
 export function Orders() {
   const [tab, setTab] = useState("semua");
   const [q, setQ] = useState("");
-  const { profile } = useAuth();
+  const { user, profile } = useAuth();
   const storeSlug = profile?.store_slug || "dapoer-bu-ani";
+  const [rows, setRows] = useState<Order[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+
+  const load = async () => {
+    if (!user) return;
+    setLoading(true);
+    setLoadError(false);
+    const { data: orders, error } = await supabase
+      .from("orders")
+      .select("id,buyer_name,buyer_city,total,status,channel,created_at")
+      .eq("seller_id", user.id)
+      .order("created_at", { ascending: false });
+    if (error || !orders) {
+      setLoading(false);
+      setLoadError(true);
+      return;
+    }
+    const ids = orders.map((o) => o.id);
+    const { data: items } = ids.length
+      ? await supabase.from("order_items").select("order_id,product_name_snapshot,qty").in("order_id", ids)
+      : { data: [] as { order_id: string; product_name_snapshot: string; qty: number }[] };
+    const byOrder = new Map<string, { product_name_snapshot: string; qty: number }[]>();
+    ((items ?? []) as { order_id: string; product_name_snapshot: string; qty: number }[]).forEach((it) => {
+      const arr = byOrder.get(it.order_id) ?? [];
+      arr.push(it);
+      byOrder.set(it.order_id, arr);
+    });
+    setRows(
+      orders.map((o) => {
+        const list = byOrder.get(o.id) ?? [];
+        return {
+          id: o.id,
+          customer: o.buyer_name,
+          city: o.buyer_city ?? "",
+          items: list.map((i) => `${i.product_name_snapshot} ×${i.qty}`).join(", ") || "—",
+          qty: list.reduce((s, i) => s + i.qty, 0),
+          total: Number(o.total),
+          status: o.status as OrderStatus,
+          date: new Date(o.created_at).toLocaleString("id-ID", {
+            day: "numeric",
+            month: "short",
+            year: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+          }),
+          channel: o.channel ?? "—",
+        };
+      }),
+    );
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    load();
+  }, [user?.id]);
 
   const counts = {
-    semua: ORDERS.length,
-    menunggu: ORDERS.filter((o) => o.status === "menunggu").length,
-    dikemas: ORDERS.filter((o) => o.status === "dikemas").length,
-    dikirim: ORDERS.filter((o) => o.status === "dikirim").length,
-    selesai: ORDERS.filter((o) => o.status === "selesai").length,
-    refund: 0,
+    semua: rows.length,
+    menunggu: rows.filter((o) => o.status === "menunggu").length,
+    dikemas: rows.filter((o) => o.status === "dikemas").length,
+    dikirim: rows.filter((o) => o.status === "dikirim").length,
+    selesai: rows.filter((o) => o.status === "selesai").length,
+    refund: rows.filter((o) => o.status === "batal").length,
   };
-  const rows = ORDERS.filter(
+  const filtered = rows.filter(
     (o) =>
-      (tab === "semua" || o.status === tab) &&
+      (tab === "semua" || o.status === tab || (tab === "refund" && o.status === "batal")) &&
       (o.customer.toLowerCase().includes(q.toLowerCase()) || o.id.toLowerCase().includes(q.toLowerCase())),
   );
+  const isPristine = rows.length === 0 && q === "" && tab === "semua";
 
   return (
     <AppShell>
@@ -1203,7 +1261,7 @@ export function Orders() {
           { id: "dikemas", label: "Dikemas", count: counts.dikemas },
           { id: "dikirim", label: "Dikirim", count: counts.dikirim },
           { id: "selesai", label: "Selesai", count: counts.selesai },
-          { id: "refund", label: "Refund", count: 0 },
+          { id: "refund", label: "Refund", count: counts.refund },
         ]}
       />
 
@@ -1223,18 +1281,30 @@ export function Orders() {
           </div>
         </div>
 
-        {rows.length === 0 ? (
+        {loading ? (
+          <div className="space-y-3 p-4 sm:p-5">
+            <Skeleton className="h-14 w-full" />
+            <Skeleton className="h-14 w-full" />
+            <Skeleton className="h-14 w-2/3" />
+          </div>
+        ) : loadError ? (
+          <div className="p-4 sm:p-5">
+            <ErrorState onRetry={load} />
+          </div>
+        ) : filtered.length === 0 ? (
           <div className="p-4 sm:p-5">
             <EmptyState
               icon="receipt"
-              title={tab === "refund" ? "Belum ada pengembalian dana" : "Tidak ada pesanan di sini"}
+              title={isPristine ? "Belum ada pesanan" : tab === "refund" ? "Belum ada pengembalian dana" : "Tidak ada pesanan di sini"}
               desc={
-                tab === "refund"
-                  ? "Kalau ada pembeli yang minta uang kembali, permintaannya akan muncul di sini beserta alasannya."
-                  : `Tidak ada pesanan yang cocok dengan “${q}”. Coba ubah kata kunci atau pilih tab lain.`
+                isPristine
+                  ? "Pesanan masuk otomatis setelah pembeli membayar. Bagikan tautan tokomu untuk mulai berjualan."
+                  : tab === "refund"
+                    ? "Kalau ada pembeli yang minta uang kembali, permintaannya akan muncul di sini beserta alasannya."
+                    : `Tidak ada pesanan yang cocok dengan “${q}”. Coba ubah kata kunci atau pilih tab lain.`
               }
               action={
-                tab === "refund" ? undefined : (
+                tab === "refund" || isPristine ? undefined : (
                   <Button variant="secondary" onClick={() => { setQ(""); setTab("semua"); }}>
                     Tampilkan semua
                   </Button>
@@ -1259,7 +1329,7 @@ export function Orders() {
               </tr>
             </thead>
             <tbody>
-              {rows.map((o) => (
+              {filtered.map((o) => (
                 <tr key={o.id} className="cursor-pointer transition-colors hover:bg-canvas/70" onClick={() => navigate(`/app/orders/${o.id}`)}>
                   <Td>
                     <div className="tnum text-[13.5px] font-bold text-ink">{o.id}</div>
@@ -1315,7 +1385,7 @@ export function Orders() {
 
             {/* mobile cards */}
             <ul className="divide-y divide-linesoft sm:hidden">
-              {rows.map((o) => (
+              {filtered.map((o) => (
                 <li key={o.id}>
                   <button
                     onClick={() => navigate(`/app/orders/${o.id}`)}
@@ -1357,7 +1427,7 @@ export function Orders() {
 
         <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3.5 text-[13px] text-muted sm:px-5">
           <span>
-            Menampilkan <span className="tnum font-semibold text-ink">{rows.length}</span> pesanan
+            Menampilkan <span className="tnum font-semibold text-ink">{filtered.length}</span> pesanan
           </span>
           <span className="micro">Halaman 1 dari 1</span>
         </div>
@@ -1369,10 +1439,113 @@ export function Orders() {
 /* =============================== ORDER DETAIL ============================= */
 export function OrderDetail({ id }: { id: string }) {
   const { toast } = useApp();
-  const o = ORDERS.find((x) => x.id === id) ?? ORDERS[0];
+  const [o, setO] = useState<Order | null>(null);
+  const [lines, setLines] = useState<{ name: string; qty: number; price: number }[]>([]);
+  const [pay, setPay] = useState<{ channel: string; fee: number; status: string } | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [notFound, setNotFound] = useState(false);
   const [confirmShip, setConfirmShip] = useState(false);
   const [cancel, setCancel] = useState(false);
 
+  useEffect(() => {
+    (async () => {
+      setLoading(true);
+      setNotFound(false);
+      const { data: order } = await supabase
+        .from("orders")
+        .select("id,buyer_name,buyer_city,total,status,channel,created_at")
+        .eq("id", id)
+        .maybeSingle();
+      if (!order) {
+        setNotFound(true);
+        setLoading(false);
+        return;
+      }
+      const { data: items } = await supabase
+        .from("order_items")
+        .select("product_name_snapshot,qty,price_snapshot")
+        .eq("order_id", id);
+      const { data: pays } = await supabase
+        .from("payments")
+        .select("channel,fee,status,created_at")
+        .eq("order_id", id)
+        .order("created_at", { ascending: false })
+        .limit(1);
+      setO({
+        id: order.id,
+        customer: order.buyer_name,
+        city: order.buyer_city ?? "",
+        items: "",
+        qty: 0,
+        total: Number(order.total),
+        status: order.status as OrderStatus,
+        date: new Date(order.created_at).toLocaleString("id-ID", {
+          day: "numeric",
+          month: "short",
+          year: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
+        channel: order.channel ?? "—",
+      });
+      setLines(
+        ((items ?? []) as { product_name_snapshot: string; qty: number; price_snapshot: number | string }[]).map(
+          (i) => ({ name: i.product_name_snapshot, qty: i.qty, price: Number(i.price_snapshot) }),
+        ),
+      );
+      const latest = (pays ?? [])[0] as { channel: string; fee: number | string; status: string } | undefined;
+      setPay(latest ? { channel: latest.channel, fee: Number(latest.fee), status: latest.status } : null);
+      setLoading(false);
+    })();
+  }, [id]);
+
+  const setStatus = async (next: OrderStatus, okMsg: string) => {
+    if (!o) return;
+    const prev = o.status;
+    setO({ ...o, status: next });
+    setConfirmShip(false);
+    setCancel(false);
+    const { error } = await supabase.from("orders").update({ status: next }).eq("id", o.id);
+    if (error) {
+      setO({ ...o, status: prev });
+      toast("Gagal mengubah status.", "bad");
+      return;
+    }
+    toast(okMsg);
+  };
+
+  if (loading) {
+    return (
+      <AppShell>
+        <div className="space-y-3 py-6">
+          <Skeleton className="h-8 w-56" />
+          <Skeleton className="h-24 w-full" />
+          <Skeleton className="h-24 w-full" />
+        </div>
+      </AppShell>
+    );
+  }
+
+  if (notFound || !o) {
+    return (
+      <AppShell>
+        <div className="py-6">
+          <EmptyState
+            icon="receipt"
+            title="Pesanan tidak ditemukan"
+            desc="Pesanan ini sudah dihapus atau bukan milik tokomu."
+            action={
+              <Button variant="secondary" onClick={() => navigate("/app/orders")}>
+                Kembali ke pesanan
+              </Button>
+            }
+          />
+        </div>
+      </AppShell>
+    );
+  }
+
+  const nextLabel = o.status === "dikemas" ? "Tandai dikirim" : o.status === "dikirim" ? "Tandai selesai" : null;
   const steps = ["Menunggu bayar", "Dikemas", "Dikirim", "Selesai"];
   const stepIndex = o.status === "selesai" ? 3 : o.status === "dikirim" ? 2 : o.status === "dikemas" ? 1 : 0;
 
@@ -1389,7 +1562,7 @@ export function OrderDetail({ id }: { id: string }) {
           index="05"
           kicker={`Pesanan ${o.date}`}
           title={o.id}
-          desc={`${o.customer} · ${o.city} · ${o.qty} barang`}
+          desc={`${o.customer} · ${o.city} · ${lines.reduce((s, l) => s + l.qty, 0)} barang`}
           actions={
             <>
               <Button variant="secondary" onClick={() => toast("Membuka chat WhatsApp pembeli…", "info")}>
@@ -1398,8 +1571,11 @@ export function OrderDetail({ id }: { id: string }) {
               <Button variant="secondary" onClick={() => window.print()}>
                 <Icon name="receipt" size={16} /> Cetak nota
               </Button>
-              <Button onClick={() => setConfirmShip(true)} disabled={o.status === "selesai" || o.status === "batal"}>
-                <Icon name="truck" size={16} /> Tandai dikirim
+              <Button
+                onClick={() => setConfirmShip(true)}
+                disabled={!nextLabel}
+              >
+                <Icon name="truck" size={16} /> {nextLabel ?? "Tandai dikirim"}
               </Button>
             </>
           }
@@ -1461,38 +1637,23 @@ export function OrderDetail({ id }: { id: string }) {
                 </tr>
               </thead>
               <tbody>
-              {([
-                { prod: PRODUCTS[0], qty: 1 },
-                { prod: PRODUCTS[4], qty: 2 },
-              ] as { prod: Product; qty: number }[]).map(({ prod, qty }) => {
-                return (
-                    <tr key={prod.id}>
-                      <Td>
-                        <div className="flex items-center gap-3">
-                          <img src={prod.img} alt="" className="h-10 w-10 rounded-md border border-line object-cover" />
-                          <div>
-                            <div className="text-[13.5px] font-semibold text-ink">{prod.name}</div>
-                            <div className="tnum text-[12px] text-faint">{prod.sku}</div>
-                          </div>
-                        </div>
-                      </Td>
-                      <Td className="tnum text-center">{qty}</Td>
-                      <Td className="tnum text-right">{rupiah(prod.price)}</Td>
-                      <Td className="tnum text-right font-semibold">{rupiah(prod.price * Number(qty))}</Td>
-                    </tr>
-                  );
-                })}
+                {lines.map((l) => (
+                  <tr key={l.name}>
+                    <Td>
+                      <div className="text-[13.5px] font-semibold text-ink">{l.name}</div>
+                    </Td>
+                    <Td className="tnum text-center">{l.qty}</Td>
+                    <Td className="tnum text-right">{rupiah(l.price)}</Td>
+                    <Td className="tnum text-right font-semibold">{rupiah(l.price * l.qty)}</Td>
+                  </tr>
+                ))}
               </tbody>
             </TableWrap>
             <div className="flex justify-end gap-6 px-4 py-4 sm:px-5">
               <dl className="w-full max-w-xs space-y-2 text-[13.5px]">
                 <div className="flex justify-between">
-                  <dt className="text-muted">Subtotal</dt>
-                  <dd className="tnum font-semibold">{rupiah(133000)}</dd>
-                </div>
-                <div className="flex justify-between">
-                  <dt className="text-muted">Ongkos kirim</dt>
-                  <dd className="tnum font-semibold">{rupiah(37000)}</dd>
+                  <dt className="text-muted">Subtotal barang</dt>
+                  <dd className="tnum font-semibold">{rupiah(lines.reduce((s, l) => s + l.price * l.qty, 0))}</dd>
                 </div>
                 <div className="flex justify-between border-t border-linesoft pt-2 text-[15px]">
                   <dt className="font-bold text-ink">Total</dt>
@@ -1506,38 +1667,34 @@ export function OrderDetail({ id }: { id: string }) {
             <Card>
               <CardHead title="Data pembeli" icon="user" />
               <dl className="space-y-2.5 text-[13.5px]">
-                {[
-                  ["Nama", o.customer],
-                  ["WhatsApp", "0812 3456 7890"],
-                  ["Alamat", "Jl. Merdeka No. 12, RT 03/RW 05"],
-                  ["Kecamatan", "Sukajadi, Bandung"],
-                  ["Catatan", "Tolong dipacking aman"],
-                ].map(([k, v]) => (
-                  <div key={k}>
-                    <dt className="micro text-faint">{k}</dt>
-                    <dd className="text-ink">{v}</dd>
-                  </div>
-                ))}
+                <div>
+                  <dt className="micro text-faint">Nama</dt>
+                  <dd className="text-ink">{o.customer}</dd>
+                </div>
+                <div>
+                  <dt className="micro text-faint">Kota</dt>
+                  <dd className="text-ink">{o.city || "—"}</dd>
+                </div>
               </dl>
+              <p className="mt-3 text-[12.5px] leading-relaxed text-faint">
+                WA & alamat pembeli mulai tersimpan otomatis untuk pesanan baru (create-order, 3.2).
+              </p>
             </Card>
             <Card>
               <CardHead title="Pengiriman" icon="truck" />
               <dl className="space-y-2.5 text-[13.5px]">
-                {[
-                  ["Layanan", "JNE Reguler"],
-                  ["Nomor resi", "JT8891204471"],
-                  ["Perkiraan tiba", "14 Feb 2025"],
-                  ["Biaya", rupiah(37000)],
-                ].map(([k, v]) => (
-                  <div key={k}>
-                    <dt className="micro text-faint">{k}</dt>
-                    <dd className="tnum text-ink">{v}</dd>
-                  </div>
-                ))}
+                <div>
+                  <dt className="micro text-faint">Status</dt>
+                  <dd className="text-ink">{STATUS_LABEL[o.status]}</dd>
+                </div>
+                <div>
+                  <dt className="micro text-faint">Nomor resi</dt>
+                  <dd className="tnum text-ink">Belum diisi</dd>
+                </div>
               </dl>
-              <Button variant="secondary" size="sm" className="mt-4" onClick={() => toast("Nomor resi disalin.")}>
-                <Icon name="copy" size={15} /> Salin resi
-              </Button>
+              <p className="mt-3 text-[12.5px] leading-relaxed text-faint">
+                Input resi menyusul setelah alur pesanan backend selesai.
+              </p>
             </Card>
           </div>
         </div>
@@ -1546,21 +1703,21 @@ export function OrderDetail({ id }: { id: string }) {
           <div className="notch rounded-xl border border-line bg-white p-5 shadow-card">
             <div className="micro mb-3 text-brand-600">Pembayaran</div>
             <div className="tnum text-[26px] font-bold leading-none text-ink">{rupiah(o.total)}</div>
-            <div className="mt-1.5 text-[13px] text-muted">{o.channel}</div>
+            <div className="mt-1.5 text-[13px] text-muted">{pay?.channel ?? o.channel}</div>
             <div className="mt-4 space-y-2.5 border-t border-linesoft pt-4 text-[13.5px]">
               <div className="flex justify-between">
                 <span className="text-muted">Status</span>
-                <Badge tone={o.status === "selesai" ? "green" : o.status === "menunggu" ? "amber" : "blue"}>
-                  {o.status === "menunggu" ? "Belum dibayar" : "Lunas"}
+                <Badge tone={pay?.status === "berhasil" ? "green" : o.status === "menunggu" ? "amber" : "blue"}>
+                  {pay?.status === "berhasil" ? "Lunas" : o.status === "menunggu" ? "Belum dibayar" : STATUS_LABEL[o.status]}
                 </Badge>
               </div>
               <div className="flex justify-between">
                 <span className="text-muted">Biaya layanan</span>
-                <span className="tnum font-semibold">−{rupiah(Math.round(o.total * 0.007))}</span>
+                <span className="tnum font-semibold">−{rupiah(pay?.fee ?? 0)}</span>
               </div>
               <div className="flex justify-between border-t border-linesoft pt-2.5">
                 <span className="font-bold text-ink">Masuk saldo</span>
-                <span className="tnum font-bold text-ok">{rupiah(o.total - Math.round(o.total * 0.007))}</span>
+                <span className="tnum font-bold text-ok">{rupiah(o.total - (pay?.fee ?? 0))}</span>
               </div>
             </div>
             <ButtonLink to="/app/wallet" variant="secondary" className="mt-4 w-full">
@@ -1590,11 +1747,20 @@ export function OrderDetail({ id }: { id: string }) {
       <ConfirmDialog
         open={confirmShip}
         onClose={() => setConfirmShip(false)}
-        title="Tandai pesanan sudah dikirim?"
-        body="Pembeli akan menerima notifikasi beserta nomor resi. Pastikan paket sudah diserahkan ke kurir."
-        confirmLabel="Ya, kirim notifikasi"
+        title={o.status === "dikirim" ? "Tandai pesanan selesai?" : "Tandai pesanan sudah dikirim?"}
+        body={
+          o.status === "dikirim"
+            ? "Pesanan selesai dan arsip tersimpan."
+            : "Pembeli akan menerima notifikasi beserta nomor resi. Pastikan paket sudah diserahkan ke kurir."
+        }
+        confirmLabel={o.status === "dikirim" ? "Ya, selesaikan" : "Ya, kirim notifikasi"}
         tone="primary"
-        onConfirm={() => toast("Pesanan ditandai dikirim. Notifikasi terkirim ke pembeli.")}
+        onConfirm={() =>
+          setStatus(
+            o.status === "dikirim" ? "selesai" : "dikirim",
+            o.status === "dikirim" ? "Pesanan selesai." : "Pesanan ditandai dikirim.",
+          )
+        }
       />
       <ConfirmDialog
         open={cancel}
@@ -1602,7 +1768,7 @@ export function OrderDetail({ id }: { id: string }) {
         title={`Batalkan pesanan ${o.id}?`}
         body="Pembeli akan diberi tahu dan dana dikembalikan penuh. Riwayat pembatalan tetap tersimpan untuk laporan Anda."
         confirmLabel="Batalkan pesanan"
-        onConfirm={() => toast("Pesanan dibatalkan dan dana dikembalikan.", "warn")}
+        onConfirm={() => setStatus("batal", "Pesanan dibatalkan dan dana dikembalikan.")}
       />
     </AppShell>
   );

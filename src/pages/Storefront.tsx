@@ -939,7 +939,64 @@ function useTotals(promo: string | null) {
   return { items, subtotal, discount, shipping, total, promoNote, promoValid, loading };
 }
 
-/** Toko pemilik item pertama di keranjang (untuk header + link kembali). */
+/** Polling status order via RPC aman (id + token). Dipakai halaman
+ *  status & sukses — auto-update begitu webhook mengubah status. */
+type TrackedOrder = {
+  id: string;
+  status: string;
+  total: number | string;
+  channel: string | null;
+  created_at: string;
+  buyer: string;
+  city: string | null;
+  store: string | null;
+  slug: string | null;
+  items: { name: string; qty: number; price: number | string }[];
+};
+
+function useOrderStatus(orderId: string, token: string) {
+  const [order, setOrder] = useState<TrackedOrder | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [notFound, setNotFound] = useState(false);
+  const [waitingLong, setWaitingLong] = useState(false);
+
+  useEffect(() => {
+    if (!orderId || !token) {
+      setLoading(false);
+      setNotFound(true);
+      return;
+    }
+    let alive = true;
+    const longTimer = window.setTimeout(() => {
+      if (alive) setWaitingLong(true);
+    }, 90000);
+    const fetchOnce = async () => {
+      const { data } = await supabase.rpc("track_order", { p_id: orderId, p_token: token });
+      if (!alive) return;
+      if (!data) {
+        setNotFound(true);
+        setLoading(false);
+        return;
+      }
+      setOrder(data as TrackedOrder);
+      setLoading(false);
+    };
+    fetchOnce();
+    const poll = window.setInterval(fetchOnce, 3000);
+    return () => {
+      alive = false;
+      window.clearInterval(poll);
+      window.clearTimeout(longTimer);
+    };
+  }, [orderId, token]);
+
+  return { order, loading, notFound, waitingLong };
+}
+
+function orderStore(o: TrackedOrder | null): StoreProfile | null {
+  if (!o) return null;
+  return { id: "", store_name: o.store, store_slug: o.slug, city: null, owner_name: null, wa_number: null };
+}
 let lastStore: StoreProfile | null = null;
 
 /** Toko terakhir yang terlihat (dipakai halaman bayar/sukses/lacak mock
@@ -1545,25 +1602,52 @@ export function Qris() {
 }
 
 /* ----------------------------- payment status ----------------------------- */
-export function PaymentStatus() {
-  const [step, setStep] = useState(0);
-  const store = useLastStore();
-  const merchant = store?.store_name || "Dapoer Bu Ani";
+export function PaymentStatus({ orderId, token }: { orderId: string; token: string }) {
+  const { order, loading, notFound, waitingLong } = useOrderStatus(orderId, token);
+  const store = orderStore(order);
+  // menunggu→0, dikemas→2 (bayar otomatis lunas), dikirim/selesai→3
+  const step = !order ? 0 : order.status === "menunggu" ? 0 : order.status === "dikemas" ? 2 : 3;
+  const finished = order?.status === "selesai";
   const steps = [
     { t: "Menunggu pembayaran", d: "QRIS dipindai, transaksi dibuat." },
     { t: "Pembayaran diterima", d: "Dana masuk ke saldo penjual." },
-    { t: "Pesanan dikemas", d: `${merchant} menyiapkan barang.` },
+    { t: "Pesanan dikemas", d: `${order?.store ?? "Toko"} menyiapkan barang.` },
     { t: "Siap dikirim", d: "Menunggu kurir menjemput paket." },
   ];
 
-  useEffect(() => {
-    const timers = [
-      window.setTimeout(() => setStep(1), 1600),
-      window.setTimeout(() => setStep(2), 3400),
-      window.setTimeout(() => setStep(3), 5200),
-    ];
-    return () => timers.forEach(clearTimeout);
-  }, []);
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-canvas">
+        <StoreHeader crumb="Status pembayaran" />
+        <PageShell className="py-8">
+          <div className="mx-auto max-w-[560px] space-y-3">
+            <Skeleton className="h-40 w-full" />
+            <Skeleton className="h-24 w-full" />
+          </div>
+        </PageShell>
+      </div>
+    );
+  }
+
+  if (notFound || !order) {
+    return (
+      <div className="min-h-screen bg-canvas">
+        <StoreHeader crumb="Status pembayaran" />
+        <PageShell className="py-10">
+          <EmptyState
+            icon="search"
+            title="Tidak ada pesanan aktif"
+            desc="Halaman ini dibuka dari tombol bayar setelah pesanan dibuat."
+            action={
+              <ButtonLink to="/cart">
+                Kembali ke keranjang <Icon name="arrowRight" size={16} />
+              </ButtonLink>
+            }
+          />
+        </PageShell>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-canvas">
@@ -1577,20 +1661,28 @@ export function PaymentStatus() {
             </div>
             <div className="micro mt-5 text-brand-600">04 / Memeriksa pembayaran</div>
             <h1 className="mt-2 text-[24px] font-extrabold tracking-[-0.02em] text-ink">
-              Sedang mengonfirmasi ke bank…
+              {finished ? "Pembayaran lunas!" : "Sedang mengonfirmasi ke bank…"}
             </h1>
             <p className="mx-auto mt-2 max-w-sm text-[14px] leading-relaxed text-muted">
-              Biasanya selesai dalam beberapa detik. Jangan tutup layar ini.
+              {finished
+                ? "Dana sudah masuk ke saldo penjual."
+                : waitingLong && order.status === "menunggu"
+                  ? "Sudah lebih dari 90 detik tapi pembayaran belum masuk. Kalau kamu sudah bayar, tunggu sebentar lagi atau hubungi penjual."
+                  : "Biasanya selesai dalam beberapa detik. Jangan tutup layar ini."}
             </p>
 
             <div className="mt-6 rounded-lg bg-canvas p-4 text-left">
               <div className="flex items-center justify-between text-[13.5px]">
                 <span className="text-muted">Nomor pesanan</span>
-                <span className="tnum font-bold text-ink">TL-2502-0193</span>
+                <span className="tnum font-bold text-ink">{order.id}</span>
               </div>
               <div className="mt-2 flex items-center justify-between text-[13.5px]">
                 <span className="text-muted">Metode</span>
-                <span className="font-semibold text-ink">QRIS</span>
+                <span className="font-semibold text-ink">{order.channel ?? "QRIS"}</span>
+              </div>
+              <div className="mt-2 flex items-center justify-between text-[13.5px]">
+                <span className="text-muted">Total</span>
+                <span className="tnum font-bold text-ink">{rupiah(Number(order.total))}</span>
               </div>
             </div>
           </div>
@@ -1632,12 +1724,12 @@ export function PaymentStatus() {
             </ol>
           </div>
 
-          {step >= 3 && (
+          {step >= 2 && (
             <div className="rise mt-4 flex flex-col gap-2.5 sm:flex-row">
-              <ButtonLink to="/checkout/success" className="flex-1" size="lg">
+              <ButtonLink to={`/checkout/success?id=${order.id}&token=${token}`} className="flex-1" size="lg">
                 Lihat konfirmasi <Icon name="arrowRight" size={16} />
               </ButtonLink>
-              <ButtonLink to="/order/TL-2502-0193" variant="secondary" size="lg" className="flex-1">
+              <ButtonLink to={`/order/${order.id}?token=${token}`} variant="secondary" size="lg" className="flex-1">
                 Lacak pesanan
               </ButtonLink>
             </div>
@@ -1658,15 +1750,48 @@ function Spinner() {
 }
 
 /* -------------------------------- success --------------------------------- */
-export function OrderSuccess() {
+export function OrderSuccess({ orderId, token }: { orderId: string; token: string }) {
   const { toast, clear } = useApp();
-  const store = useLastStore();
-  const merchant = store?.store_name || "Dapoer Bu Ani";
-  const storeSlug = store?.store_slug || "dapoer-bu-ani";
+  const { order, loading, notFound } = useOrderStatus(orderId, token);
+  const store = orderStore(order);
   useEffect(() => {
     clear();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-canvas pb-16">
+        <StoreHeader crumb="Pembayaran berhasil" />
+        <PageShell className="py-8">
+          <div className="mx-auto max-w-[600px] space-y-3">
+            <Skeleton className="h-48 w-full" />
+          </div>
+        </PageShell>
+      </div>
+    );
+  }
+
+  if (notFound || !order) {
+    return (
+      <div className="min-h-screen bg-canvas pb-16">
+        <StoreHeader crumb="Pembayaran berhasil" />
+        <PageShell className="py-10">
+          <EmptyState
+            icon="search"
+            title="Pesanan tidak ditemukan"
+            desc="Link konfirmasi salah atau tidak lengkap."
+            action={
+              <ButtonLink to="/cart">
+                Kembali ke keranjang <Icon name="arrowRight" size={16} />
+              </ButtonLink>
+            }
+          />
+        </PageShell>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-canvas pb-16">
       <StoreHeader crumb="Pembayaran berhasil" store={store} />
@@ -1681,35 +1806,33 @@ export function OrderSuccess() {
               Pembayaran berhasil!
             </h1>
             <p className="mx-auto mt-2 max-w-md text-[14.5px] leading-relaxed text-muted">
-              Pesanan <span className="tnum font-bold text-ink">TL-2502-0193</span> sudah diteruskan ke
-              {merchant}. Nota dikirim ke WhatsApp Anda.
+              Pesanan <span className="tnum font-bold text-ink">{order.id}</span> sudah diteruskan ke
+              {order.store ?? "toko"}. Nota dikirim ke WhatsApp Anda.
             </p>
 
             <div className="mt-6 rounded-lg border border-line bg-canvas p-4 text-left">
               <div className="flex items-center justify-between border-b border-linesoft pb-3">
                 <span className="micro text-faint">Total dibayar</span>
-                <span className="tnum text-[19px] font-bold text-brand-700">Rp143.000</span>
+                <span className="tnum text-[19px] font-bold text-brand-700">{rupiah(Number(order.total))}</span>
               </div>
               <ul className="mt-3 space-y-2.5">
-                {[
-                  ["Kue Lapis Legit 380g", "1 × Rp85.000"],
-                  ["Keripik Singkong Balado", "2 × Rp24.000"],
-                  ["Ongkos kirim Reguler", "Rp10.000"],
-                ].map(([n, v]) => (
-                  <li key={n} className="flex items-center justify-between gap-3 text-[13.5px]">
-                    <span className="truncate text-muted">{n}</span>
-                    <span className="tnum shrink-0 font-semibold text-ink">{v}</span>
+                {order.items.map((it) => (
+                  <li key={it.name} className="flex items-center justify-between gap-3 text-[13.5px]">
+                    <span className="truncate text-muted">
+                      {it.qty} × {it.name}
+                    </span>
+                    <span className="tnum shrink-0 font-semibold text-ink">{rupiah(Number(it.price) * it.qty)}</span>
                   </li>
                 ))}
               </ul>
               <div className="mt-3 flex items-center justify-between border-t border-linesoft pt-3 text-[13.5px]">
                 <span className="text-muted">Metode pembayaran</span>
-                <span className="font-semibold text-ink">QRIS · Lunas</span>
+                <span className="font-semibold text-ink">{order.channel ?? "QRIS"} · Lunas</span>
               </div>
             </div>
 
             <div className="mt-6 flex flex-col gap-2.5 sm:flex-row">
-              <ButtonLink to="/order/TL-2502-0193" className="flex-1" size="lg">
+              <ButtonLink to={`/order/${order.id}?token=${token}`} className="flex-1" size="lg">
                 <Icon name="truck" size={17} /> Lacak pesanan
               </ButtonLink>
               <Button
@@ -1722,7 +1845,7 @@ export function OrderSuccess() {
               </Button>
             </div>
             <Link
-              to={`/s/${storeSlug}`}
+              to={order.slug ? `/s/${order.slug}` : "/"}
               className="mt-4 inline-block text-[13.5px] font-semibold text-muted hover:text-brand-700"
             >
               Kembali ke toko
@@ -1740,29 +1863,104 @@ export function OrderSuccess() {
 /* -------------------------------- tracking -------------------------------- */
 export function OrderTracking({ id }: { id: string }) {
   const { toast } = useApp();
-  const store = useLastStore();
-  const merchant = store?.store_name || "Dapoer Bu Ani";
+  // Route "#/order/TL-xxxx?token=uuid" — id & token dipisah di sini.
+  const [orderId, query] = id.split("?");
+  const token = new URLSearchParams(query ?? "").get("token") ?? "";
+
+  type Tracked = {
+    id: string; status: string; total: number | string; channel: string | null;
+    created_at: string; buyer: string; city: string | null;
+    store: string | null; slug: string | null;
+    items: { name: string; qty: number; price: number | string }[];
+  };
+  const [order, setOrder] = useState<Tracked | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [notFound, setNotFound] = useState(false);
   const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      setLoading(true);
+      setNotFound(false);
+      if (!token) {
+        setLoading(false);
+        setNotFound(true);
+        return;
+      }
+      const { data, error } = await supabase.rpc("track_order", { p_id: orderId, p_token: token });
+      if (error || !data) {
+        setLoading(false);
+        setNotFound(true);
+        return;
+      }
+      setOrder(data as Tracked);
+      setLoading(false);
+    })();
+  }, [orderId, token]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-canvas pb-16">
+        <StoreHeader crumb="Lacak pesanan" />
+        <PageShell className="py-6">
+          <div className="space-y-3">
+            <Skeleton className="h-8 w-56" />
+            <Skeleton className="h-40 w-full" />
+            <Skeleton className="h-24 w-full" />
+          </div>
+        </PageShell>
+      </div>
+    );
+  }
+
+  if (notFound || !order) {
+    return (
+      <div className="min-h-screen bg-canvas pb-16">
+        <StoreHeader crumb="Lacak pesanan" />
+        <PageShell className="py-10">
+          <EmptyState
+            icon="search"
+            title="Pesanan tidak ditemukan"
+            desc="Link lacak salah atau tidak lengkap. Minta link baru ke penjual lewat WhatsApp."
+          />
+        </PageShell>
+      </div>
+    );
+  }
+
+  const doneMap: Record<string, boolean[]> = {
+    menunggu: [true, false, false, false, false],
+    dikemas: [true, true, true, false, false],
+    dikirim: [true, true, true, true, false],
+    selesai: [true, true, true, true, true],
+    batal: [true, false, false, false, false],
+  };
+  const done = doneMap[order.status] ?? doneMap.menunggu;
+  const made = new Date(order.created_at).toLocaleString("id-ID", {
+    day: "numeric", month: "short", hour: "2-digit", minute: "2-digit",
+  });
   const timeline = [
-    { t: "Pesanan dibuat", d: "12 Feb 2025, 09:41", done: true, note: "Menunggu pembayaran QRIS." },
-    { t: "Pembayaran diterima", d: "12 Feb 2025, 09:44", done: true, note: "Rp143.000 diterima lewat QRIS." },
-    { t: "Dikemas penjual", d: "12 Feb 2025, 10:20", done: true, note: `Dikemas di ${merchant}.` },
-    { t: "Diserahkan ke kurir", d: "12 Feb 2025, 13:05", done: true, note: "JNE REG · resi JT8891204471." },
-    { t: "Sedang dikirim", d: "Perkiraan 13 Feb", done: false, note: "Paket menuju alamat penerima." },
-    { t: "Selesai", d: "Perkiraan 14 Feb", done: false, note: "Konfirmasi setelah barang diterima." },
+    { t: "Pesanan dibuat", d: made, note: `Oleh ${order.buyer}${order.city ? `, ${order.city}` : ""}.` },
+    { t: "Pembayaran diterima", d: done[1] ? made : "—", note: done[1] ? `Rp${Number(order.total).toLocaleString("id-ID")} lewat ${order.channel ?? "QRIS"}.` : "Menunggu pembayaran." },
+    { t: "Dikemas penjual", d: done[2] ? made : "—", note: done[2] ? `Dikemas di ${order.store ?? "toko"}.` : "Menunggu pengemasan." },
+    { t: "Sedang dikirim", d: done[3] ? made : "—", note: done[3] ? "Paket menuju alamat penerima." : "Belum dikirim." },
+    { t: "Selesai", d: done[4] ? made : "—", note: done[4] ? "Barang sudah diterima." : "Konfirmasi setelah barang diterima." },
   ];
+  const badgeTone = order.status === "selesai" ? "green" : order.status === "batal" ? "red" : order.status === "menunggu" ? "amber" : "blue";
+  const badgeLabel =
+    order.status === "selesai" ? "Selesai" : order.status === "batal" ? "Dibatalkan" : order.status === "menunggu" ? "Menunggu bayar" : "Diproses";
 
   return (
     <div className="min-h-screen bg-canvas pb-16">
-      <StoreHeader crumb={`Pesanan ${id}`} store={store} />
+      <StoreHeader crumb={`Pesanan ${orderId}`} />
       <PageShell className="py-6">
         <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
           <div>
             <div className="micro mb-2 text-brand-600">Lacak pesanan</div>
-            <h1 className="tnum text-[26px] font-extrabold tracking-[-0.03em] text-ink">{id}</h1>
+            <h1 className="tnum text-[26px] font-extrabold tracking-[-0.03em] text-ink">{orderId}</h1>
           </div>
-          <Badge tone="blue" dot>
-            Dalam pengiriman
+          <Badge tone={badgeTone} dot>
+            {badgeLabel}
           </Badge>
         </div>
 
@@ -1772,22 +1970,22 @@ export function OrderTracking({ id }: { id: string }) {
               <div className="micro mb-4 text-faint">Riwayat pengiriman</div>
               <ol className="relative space-y-6 pl-9">
                 <span className="absolute left-[13px] top-2 h-[calc(100%-16px)] w-px bg-line" />
-                {timeline.map((s) => (
+                {timeline.map((s, i) => (
                   <li key={s.t} className="relative">
                     <span
                       className={cx(
                         "absolute -left-9 top-0 grid h-7 w-7 place-items-center rounded-full border-2 bg-white",
-                        s.done ? "border-ok text-ok" : "border-line text-faint",
+                        done[i] ? "border-ok text-ok" : "border-line text-faint",
                       )}
                     >
-                      {s.done ? (
+                      {done[i] ? (
                         <Icon name="check" size={14} strokeWidth={3} />
                       ) : (
                         <span className="h-1.5 w-1.5 rounded-full bg-current" />
                       )}
                     </span>
                     <div className="flex flex-wrap items-baseline justify-between gap-2">
-                      <span className={cx("text-[14.5px] font-bold", s.done ? "text-ink" : "text-faint")}>
+                      <span className={cx("text-[14.5px] font-bold", done[i] ? "text-ink" : "text-faint")}>
                         {s.t}
                       </span>
                       <span className="tnum text-[12.5px] text-faint">{s.d}</span>
@@ -1801,46 +1999,40 @@ export function OrderTracking({ id }: { id: string }) {
             <div className="rounded-xl border border-line bg-white p-5">
               <div className="micro mb-3 text-faint">Isi pesanan</div>
               <ul className="space-y-3">
-                {[
-                  ["Kue Lapis Legit 380g", 1, 85000],
-                  ["Keripik Singkong Balado 200g", 2, 24000],
-                  ["Ongkos kirim Reguler", 1, 10000],
-                ].map(([n, q, price]) => (
-                  <li key={String(n)} className="flex items-center justify-between gap-3 text-[14px]">
+                {order.items.map((it) => (
+                  <li key={it.name} className="flex items-center justify-between gap-3 text-[14px]">
                     <span className="text-ink">
-                      <span className="tnum text-muted">{q} ×</span> {n}
+                      <span className="tnum text-muted">{it.qty} ×</span> {it.name}
                     </span>
-                    <span className="tnum font-semibold text-ink">{rupiah(Number(price) * Number(q))}</span>
+                    <span className="tnum font-semibold text-ink">{rupiah(Number(it.price) * it.qty)}</span>
                   </li>
                 ))}
               </ul>
               <div className="mt-4 flex items-center justify-between border-t border-linesoft pt-4">
                 <span className="text-[14px] font-bold text-ink">Total dibayar</span>
-                <span className="tnum text-[19px] font-bold text-brand-700">Rp143.000</span>
+                <span className="tnum text-[19px] font-bold text-brand-700">{rupiah(Number(order.total))}</span>
               </div>
             </div>
           </div>
 
           <aside className="space-y-4">
             <div className="rounded-xl border border-line bg-white p-5">
-              <div className="micro mb-3 text-faint">Resi pengiriman</div>
-              <div className="rounded-md bg-canvas p-3">
-                <div className="text-[13px] text-muted">JNE Reguler</div>
-                <div className="tnum text-[15px] font-bold text-ink">JT8891204471</div>
-              </div>
+              <div className="micro mb-3 text-faint">Bagikan link lacak</div>
+              <p className="text-[13px] leading-relaxed text-muted">
+                Kirim link halaman ini ke pembeli via WhatsApp agar bisa cek status sendiri.
+              </p>
               <Button
                 variant="secondary"
                 className="mt-3 w-full"
                 onClick={() => {
                   setCopied(true);
-                  toast("Nomor resi disalin.");
+                  const url = window.location.href;
+                  if (navigator.clipboard) navigator.clipboard.writeText(url).catch(() => {});
+                  toast("Link lacak disalin.");
                   setTimeout(() => setCopied(false), 1500);
                 }}
               >
-                <Icon name={copied ? "check" : "copy"} size={16} /> {copied ? "Tersalin" : "Salin nomor resi"}
-              </Button>
-              <Button variant="secondary" className="mt-2 w-full" onClick={() => toast("Membuka pelacakan JNE…", "info")}>
-                <Icon name="truck" size={16} /> Lacak di kurir
+                <Icon name={copied ? "check" : "copy"} size={16} /> {copied ? "Tersalin" : "Salin link lacak"}
               </Button>
             </div>
 
@@ -1851,13 +2043,19 @@ export function OrderTracking({ id }: { id: string }) {
                   <LogoMark size={26} />
                 </span>
                 <div className="leading-tight">
-                  <div className="text-[14px] font-bold text-ink">{merchant}</div>
+                  <div className="text-[14px] font-bold text-ink">{order.store ?? "Toko"}</div>
                   <div className="text-[12.5px] text-faint">Balas chat ≤ 10 menit</div>
                 </div>
               </div>
-              <Button className="mt-4 w-full" variant="secondary" onClick={() => toast("Membuka chat WhatsApp…", "info")}>
-                <Icon name="wa" size={16} className="text-[#0a7a56]" /> Butuh bantuan
-              </Button>
+              {order.slug ? (
+                <ButtonLink to={`/s/${order.slug}`} variant="secondary" className="mt-4 w-full">
+                  <Icon name="store" size={16} /> Kunjungi toko
+                </ButtonLink>
+              ) : (
+                <Button className="mt-4 w-full" variant="secondary" onClick={() => toast("Membuka chat WhatsApp…", "info")}>
+                  <Icon name="wa" size={16} className="text-[#0a7a56]" /> Butuh bantuan
+                </Button>
+              )}
             </div>
 
             <Link

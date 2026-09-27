@@ -4,10 +4,6 @@ import { supabase } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
 import { digitsOnly, formatRibuan, isValidWA, normalizeWA } from "../lib/format";
 import {
-  BALANCE_HISTORY,
-  BIO_LINKS,
-  DISCOUNTS,
-  HOURS,
   NOTIFS,
   rupiah,
   useApp,
@@ -22,6 +18,7 @@ import {
   CardHead,
   ConfirmDialog,
   EmptyState,
+  ErrorState,
   Field,
   FieldRow,
   Icon,
@@ -31,6 +28,7 @@ import {
   Progress,
   Segmented,
   Select,
+  Skeleton,
   TableWrap,
   Tabs,
   Td,
@@ -44,11 +42,86 @@ import { StatCard } from "./DashboardA";
 import { QRMark } from "./Landing";
 
 /* ================================== WALLET ================================= */
+/* ============================ LEDGER (Fase 4) ============================= */
+type LedgerRow = {
+  id: string;
+  label: string;
+  amount: number | string;
+  type: string;
+  ref_order_id: string | null;
+  created_at: string;
+};
+
+/** Riwayat + saldo seller dari tabel `ledger` (saldo = jumlah semua amount). */
+function useLedger() {
+  const { user } = useAuth();
+  const [rows, setRows] = useState<LedgerRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+
+  const load = async () => {
+    if (!user) return;
+    setLoading(true);
+    setLoadError(false);
+    const { data, error } = await supabase
+      .from("ledger")
+      .select("id,label,amount,type,ref_order_id,created_at")
+      .eq("seller_id", user.id)
+      .order("created_at", { ascending: false });
+    setLoading(false);
+    if (error) {
+      setLoadError(true);
+      return;
+    }
+    setRows((data ?? []) as LedgerRow[]);
+  };
+
+  useEffect(() => {
+    load();
+  }, [user?.id]);
+
+  const balance = rows.reduce((s, r) => s + Number(r.amount), 0);
+  return { rows, balance, loading, loadError, load };
+}
+
 export function Wallet() {
   const [tab, setTab] = useState("semua");
-  const rows = BALANCE_HISTORY.filter((r) =>
-    tab === "semua" ? true : tab === "masuk" ? r.amount > 0 : r.amount < 0,
-  );
+  const { user } = useAuth();
+  const { rows, balance, loading, loadError, load } = useLedger();
+  const [pending, setPending] = useState(0);
+
+  useEffect(() => {
+    if (!user) return;
+    (async () => {
+      const { data } = await supabase.from("orders").select("total").eq("seller_id", user.id).eq("status", "menunggu");
+      setPending(((data ?? []) as { total: number | string }[]).reduce((s, o) => s + Number(o.total), 0));
+    })();
+  }, [user?.id]);
+  const filtered = rows.filter((r) => (tab === "semua" ? true : tab === "masuk" ? r.type === "masuk" : r.type === "keluar"));
+  const monthStart = new Date();
+  monthStart.setDate(1);
+  monthStart.setHours(0, 0, 0, 0);
+  const thisMonth = rows.filter((r) => new Date(r.created_at) >= monthStart);
+  const inMonth = thisMonth.filter((r) => r.type === "masuk").reduce((s, r) => s + Number(r.amount), 0);
+  const outMonth = thisMonth.filter((r) => r.type === "keluar").reduce((s, r) => s + Math.abs(Number(r.amount)), 0);
+  // Saldo berjalan per baris (dari terlama): untuk kolom "Saldo".
+  const running = new Map<string, number>();
+  [...rows].reverse().forEach((r) => {
+    const prev = [...running.values()].pop() ?? 0;
+    running.set(r.id, prev + Number(r.amount));
+  });
+  // Seri grafik: bucket harian 14 hari terakhir (net per hari, ribuan Rp).
+  const days: { key: string; net: number }[] = [];
+  for (let i = 13; i >= 0; i--) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    days.push({ key: d.toISOString().slice(0, 10), net: 0 });
+  }
+  rows.forEach((r) => {
+    const k = new Date(r.created_at).toISOString().slice(0, 10);
+    const b = days.find((d) => d.key === k);
+    if (b) b.net += Number(r.amount);
+  });
 
   return (
     <AppShell>
@@ -76,7 +149,7 @@ export function Wallet() {
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
                 <div className="micro text-brand-300">Saldo tersedia</div>
-                <div className="tnum mt-2 text-[38px] font-bold leading-none sm:text-[44px]">Rp4.280.000</div>
+                <div className="tnum mt-2 text-[38px] font-bold leading-none sm:text-[44px]">{rupiah(balance)}</div>
                 <div className="mt-2.5 flex items-center gap-3 text-[13px] text-white/60">
                   <span className="flex items-center gap-1.5">
                     <span className="h-1.5 w-1.5 rounded-full bg-ok" /> Siap ditarik
@@ -86,7 +159,7 @@ export function Wallet() {
               </div>
               <div className="text-right">
                 <div className="micro text-white/62">Menunggu cair</div>
-                <div className="tnum mt-1.5 text-[20px] font-bold">Rp1.250.000</div>
+                <div className="tnum mt-1.5 text-[20px] font-bold">{rupiah(pending)}</div>
                 <div className="mt-2.5">
                   <Badge tone="blue" dot>
                     Diproses 1 hari kerja
@@ -110,8 +183,8 @@ export function Wallet() {
         </div>
 
         <div className="space-y-4">
-          <StatCard label="Masuk bulan ini" value="Rp38.420.000" delta={18} hint="142 transaksi" />
-          <StatCard label="Ditarik tahun ini" value="Rp58.400.000" hint="12 kali penarikan" spark={[12, 18, 15, 24, 22, 30, 28]} />
+          <StatCard label="Masuk bulan ini" value={rupiah(inMonth)} hint={`${thisMonth.filter((r) => r.type === "masuk").length} transaksi`} />
+          <StatCard label="Keluar bulan ini" value={rupiah(outMonth)} hint={`${thisMonth.filter((r) => r.type === "keluar").length} transaksi`} />
         </div>
       </div>
 
@@ -131,8 +204,8 @@ export function Wallet() {
           }
         >
           <LineChart
-            series={[280, 310, 260, 420, 480, 430, 520, 610, 540, 680, 720, 640, 780, 810, 760, 900, 840, 960, 1020, 980, 1100]}
-            labels={Array.from({ length: 21 }, (_, i) => `${i + 1}`)}
+            series={days.map((d) => Math.round(d.net / 1000))}
+            labels={days.map((d) => String(new Date(d.key + "T00:00:00").getDate()))}
             format={(v) => `${v}rb`}
           />
         </ChartFrame>
@@ -152,6 +225,24 @@ export function Wallet() {
             ]}
           />
         </div>
+        {loading ? (
+          <div className="space-y-3 p-4 sm:p-5">
+            <Skeleton className="h-14 w-full" />
+            <Skeleton className="h-14 w-full" />
+          </div>
+        ) : loadError ? (
+          <div className="p-4 sm:p-5">
+            <ErrorState onRetry={load} />
+          </div>
+        ) : filtered.length === 0 ? (
+          <div className="p-4 sm:p-5">
+            <EmptyState
+              icon="receipt"
+              title="Belum ada transaksi"
+              desc="Penjualan yang lunas otomatis masuk ke sini. Penarikan yang selesai tercatat sebagai keluar."
+            />
+          </div>
+        ) : (
         <TableWrap>
           <thead>
             <tr>
@@ -163,35 +254,40 @@ export function Wallet() {
             </tr>
           </thead>
           <tbody>
-            {rows.map((r, i) => (
+            {filtered.map((r) => {
+              const amt = Number(r.amount);
+              const when = new Date(r.created_at).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" });
+              return (
               <tr key={r.id} className="transition-colors hover:bg-canvas/70">
                 <Td>
                   <div className="flex items-center gap-3">
                     <span
                       className={cx(
                         "grid h-8 w-8 place-items-center rounded-md",
-                        r.amount > 0 ? "bg-oksoft text-ok" : "bg-warnsoft text-warn",
+                        amt > 0 ? "bg-oksoft text-ok" : "bg-warnsoft text-warn",
                       )}
                     >
-                      <Icon name={r.amount > 0 ? "arrowDown" : "arrowUp"} size={16} />
+                      <Icon name={amt > 0 ? "arrowDown" : "arrowUp"} size={16} />
                     </span>
                     <div>
                       <div className="text-[13.5px] font-semibold text-ink">{r.label}</div>
-                      <div className="text-[12px] text-faint sm:hidden">{r.date}</div>
+                      <div className="text-[12px] text-faint sm:hidden">{when}</div>
                     </div>
                   </div>
                 </Td>
-                <Td className="tnum hidden text-[13px] text-muted sm:table-cell">{r.id}</Td>
-                <Td className="hidden text-[13px] text-muted sm:table-cell">{r.date}</Td>
-                <Td className={cx("tnum text-right font-bold", r.amount > 0 ? "text-ok" : "text-ink")}>
-                  {r.amount > 0 ? "+" : "−"}
-                  {rupiah(Math.abs(r.amount))}
+                <Td className="tnum hidden text-[13px] text-muted sm:table-cell">{r.id.slice(0, 8).toUpperCase()}</Td>
+                <Td className="hidden text-[13px] text-muted sm:table-cell">{when}</Td>
+                <Td className={cx("tnum text-right font-bold", amt > 0 ? "text-ok" : "text-ink")}>
+                  {amt > 0 ? "+" : "−"}
+                  {rupiah(Math.abs(amt))}
                 </Td>
-                <Td className="tnum text-right text-muted">{rupiah(4280000 - i * 180000)}</Td>
+                <Td className="tnum text-right text-muted">{rupiah(running.get(r.id) ?? 0)}</Td>
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </TableWrap>
+        )}
         <div className="px-4 py-3.5 text-[12.5px] text-faint sm:px-5">
           Saldo dihitung ulang setiap transaksi masuk. Biaya layanan QRIS dipotong otomatis.
         </div>
@@ -203,20 +299,60 @@ export function Wallet() {
 /* ================================= WITHDRAW ================================ */
 export function Withdraw() {
   const { toast } = useApp();
+  const { user, profile } = useAuth();
+  const { balance } = useLedger();
   const [amount, setAmount] = useState("500000");
-  const [bank, setBank] = useState("BCA •••• 4821 (Ani Rahayu)");
+  const [bank, setBank] = useState("");
   const [err, setErr] = useState("");
   const [loading, setLoading] = useState(false);
   const [confirm, setConfirm] = useState(false);
-  const balance = 4280000;
+  const [history, setHistory] = useState<{ amount: number | string; status: string; created_at: string; bank: string }[]>([]);
   const fee = 6500;
   const value = Number(amount || 0);
+
+  useEffect(() => {
+    if (!user) return;
+    (async () => {
+      const { data } = await supabase
+        .from("withdrawals")
+        .select("amount,status,created_at,bank")
+        .eq("seller_id", user.id)
+        .order("created_at", { ascending: false })
+        .limit(5);
+      setHistory((data ?? []) as { amount: number | string; status: string; created_at: string; bank: string }[]);
+    })();
+  }, [user?.id]);
 
   const submit = () => {
     if (value < 50000) return setErr("Penarikan minimal Rp50.000.");
     if (value > balance) return setErr("Jumlah melebihi saldo tersedia.");
+    if (!bank) return setErr("Pilih rekening tujuan.");
     setErr("");
     setConfirm(true);
+  };
+
+  const confirmWithdraw = async () => {
+    if (!user) return;
+    setConfirm(false);
+    setLoading(true);
+    try {
+      const { error } = await supabase.from("withdrawals").insert({
+        seller_id: user.id,
+        bank: bank || "BCA",
+        account_number: bank || "BCA",
+        amount: value,
+        fee,
+        status: "menunggu",
+      });
+      if (error) {
+        toast("Gagal membuat penarikan.", "bad");
+        return;
+      }
+      toast("Permintaan penarikan diterima. Dana cair maksimal 1 hari kerja.");
+      navigate("/app/wallet");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -230,7 +366,7 @@ export function Withdraw() {
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
         <Card>
-          <CardHead title="Formulir penarikan" sub="Saldo tersedia Rp4.280.000" icon="wallet" />
+            <CardHead title="Formulir penarikan" sub={`Saldo tersedia ${rupiah(balance)}`} icon="wallet" />
           <div className="space-y-4">
             <Field label="Jumlah yang ditarik" required error={err}>
               <div className="relative">
@@ -270,9 +406,9 @@ export function Withdraw() {
 
             <Field label="Rekening tujuan" required>
               <Select value={bank} onChange={(e) => setBank(e.target.value)}>
-                <option>BCA •••• 4821 (Ani Rahayu)</option>
-                <option>Mandiri •••• 3345 (Ani Rahayu)</option>
-                <option>Tambah rekening baru…</option>
+                <option value="">{`Pilih rekening… (${profile?.owner_name || "Pemilik"})`}</option>
+                <option>BCA •••• 4821</option>
+                <option>Mandiri •••• 3345</option>
               </Select>
             </Field>
 
@@ -310,21 +446,23 @@ export function Withdraw() {
           <Card>
             <CardHead title="Riwayat penarikan" icon="clock" />
             <ul className="space-y-3.5">
-              {[
-                ["11 Feb 2025", 1250000, "Selesai"],
-                ["4 Feb 2025", 980000, "Selesai"],
-                ["28 Jan 2025", 1750000, "Selesai"],
-              ].map(([d, v, s]) => (
-                <li key={String(d)} className="flex items-center justify-between gap-3">
-                  <div>
-                    <div className="tnum text-[13.5px] font-bold text-ink">{rupiah(Number(v))}</div>
-                    <div className="text-[12px] text-faint">{d} · BCA •••• 4821</div>
-                  </div>
-                  <Badge tone="green" dot>
-                    {s}
-                  </Badge>
-                </li>
-              ))}
+              {history.length === 0 ? (
+                <li className="text-[13px] text-faint">Belum ada penarikan.</li>
+              ) : (
+                history.map((h) => (
+                  <li key={`${h.created_at}-${h.amount}`} className="flex items-center justify-between gap-3">
+                    <div>
+                      <div className="tnum text-[13.5px] font-bold text-ink">{rupiah(Number(h.amount))}</div>
+                      <div className="text-[12px] text-faint">
+                        {new Date(h.created_at).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" })} · {h.bank}
+                      </div>
+                    </div>
+                    <Badge tone={h.status === "selesai" ? "green" : h.status === "ditolak" ? "red" : h.status === "diproses" ? "blue" : "amber"} dot>
+                      {h.status === "selesai" ? "Selesai" : h.status === "ditolak" ? "Ditolak" : h.status === "diproses" ? "Diproses" : "Menunggu"}
+                    </Badge>
+                  </li>
+                ))
+              )}
             </ul>
           </Card>
 
@@ -355,14 +493,7 @@ export function Withdraw() {
         body={`Anda akan menarik ${rupiah(value)} ke ${bank}. Biaya transfer ${rupiah(fee)}, sehingga yang diterima ${rupiah(Math.max(0, value - fee))}. Dana tidak bisa ditarik kembali setelah diproses.`}
         confirmLabel="Ya, tarik dana"
         tone="primary"
-        onConfirm={() => {
-          setLoading(true);
-          setTimeout(() => {
-            setLoading(false);
-            toast("Permintaan penarikan diterima. Dana cair maksimal 1 hari kerja.");
-            navigate("/app/wallet");
-          }, 900);
-        }}
+        onConfirm={confirmWithdraw}
       />
     </AppShell>
   );
@@ -371,13 +502,87 @@ export function Withdraw() {
 /* ================================= BIO LINKS =============================== */
 export function BioLinks() {
   const { toast } = useApp();
-  const { profile } = useAuth();
+  const { user, profile } = useAuth();
   const storeName = profile?.store_name || "Dapoer Bu Ani";
   const storeSlug = profile?.store_slug || "dapoer-bu-ani";
-  const [links, setLinks] = useState(BIO_LINKS);
+  type BRow = {
+    id: string; label: string; url: string; icon: string | null;
+    clicks: number; is_active: boolean; sort_order: number;
+  };
+  const [links, setLinks] = useState<BRow[]>([]);
+  const [loading, setLoading] = useState(true);
   const [del, setDel] = useState<{ id: string; label: string } | null>(null);
 
-  const toggle = (id: string) => setLinks((l) => l.map((x) => (x.id === id ? { ...x, on: !x.on } : x)));
+  const load = async () => {
+    if (!user) return;
+    setLoading(true);
+    const { data } = await supabase
+      .from("bio_links")
+      .select("*")
+      .eq("seller_id", user.id)
+      .order("sort_order", { ascending: true });
+    setLinks((data ?? []) as BRow[]);
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    load();
+  }, [user?.id]);
+
+  const toggle = async (id: string) => {
+    const cur = links.find((x) => x.id === id);
+    if (!cur) return;
+    setLinks((l) => l.map((x) => (x.id === id ? { ...x, is_active: !x.is_active } : x)));
+    const { error } = await supabase.from("bio_links").update({ is_active: !cur.is_active }).eq("id", id);
+    if (error) {
+      setLinks((l) => l.map((x) => (x.id === id ? { ...x, is_active: cur.is_active } : x)));
+      toast("Gagal mengubah status tautan.", "bad");
+    }
+  };
+
+  const saveField = async (id: string, patch: Partial<BRow>) => {
+    const { error } = await supabase.from("bio_links").update(patch).eq("id", id);
+    if (error) {
+      toast("Gagal menyimpan tautan.", "bad");
+      load();
+    }
+  };
+
+  const addLink = async () => {
+    if (!user) return;
+    const maxOrder = links.reduce((s, l) => Math.max(s, l.sort_order), -1);
+    const { data, error } = await supabase
+      .from("bio_links")
+      .insert({
+        seller_id: user.id,
+        label: "Tautan baru",
+        url: `tokolink.id/${storeSlug}/baru`,
+        icon: "link",
+        sort_order: maxOrder + 1,
+      })
+      .select("*")
+      .single();
+    if (error || !data) {
+      toast("Gagal menambah tautan.", "bad");
+      return;
+    }
+    setLinks((l) => [...l, data as BRow]);
+    toast("Tautan baru ditambahkan.");
+  };
+
+  const confirmDelete = async () => {
+    if (!del) return;
+    const target = del.id;
+    setDel(null);
+    setLinks((l) => l.filter((x) => x.id !== target));
+    const { error } = await supabase.from("bio_links").delete().eq("id", target);
+    if (error) {
+      toast("Gagal menghapus tautan.", "bad");
+      load();
+      return;
+    }
+    toast("Tautan dihapus.", "warn");
+  };
 
   return (
     <AppShell>
@@ -392,13 +597,7 @@ export function BioLinks() {
               <Icon name="copy" size={16} /> Salin tautan
             </Button>
             <Button
-              onClick={() => {
-                setLinks((l) => [
-                  ...l,
-                  { id: "b" + Date.now(), label: "Tautan baru", url: `tokolink.id/${storeSlug}/baru`, icon: "link", clicks: 0, on: true },
-                ]);
-                toast("Tautan baru ditambahkan.");
-              }}
+              onClick={addLink}
             >
               <Icon name="plus" size={16} /> Tambah tautan
             </Button>
@@ -408,42 +607,56 @@ export function BioLinks() {
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
         <div className="space-y-3">
-          {links.map((l, i) => (
+          {loading ? (
+            <>
+              <Skeleton className="h-20 w-full" />
+              <Skeleton className="h-20 w-full" />
+            </>
+          ) : links.length === 0 ? (
+            <EmptyState
+              icon="link"
+              title="Belum ada tautan"
+              desc="Tambahkan WhatsApp, Instagram, atau katalog agar pembeli mudah menghubungimu."
+            />
+          ) : (
+          links.map((l, i) => (
             <div
               key={l.id}
               className={cx(
                 "flex flex-col gap-3 rounded-xl border bg-white p-4 transition-[border-color,box-shadow] duration-150 sm:flex-row sm:items-center",
-                l.on ? "border-line shadow-card" : "border-dashed border-line bg-canvas/60",
+                l.is_active ? "border-line shadow-card" : "border-dashed border-line bg-canvas/60",
               )}
             >
               <div className="flex items-center gap-3">
                 <span className="grid h-9 w-9 shrink-0 place-items-center rounded-md bg-canvas text-faint">
                   <Icon name="menu" size={16} />
                 </span>
-                <span className={cx("grid h-9 w-9 shrink-0 place-items-center rounded-md", l.on ? "bg-brand-50 text-brand-600" : "bg-white text-faint")}>
-                  <Icon name={l.icon === "link" ? "link" : l.icon === "doc" ? "receipt" : l.icon} size={17} />
+                <span className={cx("grid h-9 w-9 shrink-0 place-items-center rounded-md", l.is_active ? "bg-brand-50 text-brand-600" : "bg-white text-faint")}>
+                  <Icon name={(l.icon ?? "link") === "link" ? "link" : l.icon === "doc" ? "receipt" : (l.icon ?? "link")} size={17} />
                 </span>
               </div>
-              <div className="min-w-0 flex-1">
-                <Input
-                  value={l.label}
-                  onChange={(e) => setLinks((ls) => ls.map((x) => (x.id === l.id ? { ...x, label: e.target.value } : x)))}
-                  className="h-9 border-transparent bg-transparent px-2 font-semibold hover:border-line focus:bg-white"
-                  aria-label="Judul tautan"
-                />
-                <Input
-                  value={l.url}
-                  onChange={(e) => setLinks((ls) => ls.map((x) => (x.id === l.id ? { ...x, url: e.target.value } : x)))}
-                  className="mt-0.5 h-8 border-transparent bg-transparent px-2 text-[13px] text-muted hover:border-line focus:bg-white"
-                  aria-label="Alamat tautan"
-                />
-              </div>
+                <div className="min-w-0 flex-1">
+                  <Input
+                    value={l.label}
+                    onChange={(e) => setLinks((ls) => ls.map((x) => (x.id === l.id ? { ...x, label: e.target.value } : x)))}
+                    onBlur={(e) => saveField(l.id, { label: e.target.value })}
+                    className="h-9 border-transparent bg-transparent px-2 font-semibold hover:border-line focus:bg-white"
+                    aria-label="Judul tautan"
+                  />
+                  <Input
+                    value={l.url}
+                    onChange={(e) => setLinks((ls) => ls.map((x) => (x.id === l.id ? { ...x, url: e.target.value } : x)))}
+                    onBlur={(e) => saveField(l.id, { url: e.target.value })}
+                    className="mt-0.5 h-8 border-transparent bg-transparent px-2 text-[13px] text-muted hover:border-line focus:bg-white"
+                    aria-label="Alamat tautan"
+                  />
+                </div>
               <div className="flex items-center justify-between gap-4 sm:justify-end">
                 <span className="text-right">
                   <span className="tnum block text-[14px] font-bold text-ink">{l.clicks.toLocaleString("id-ID")}</span>
                   <span className="micro text-faint">klik</span>
                 </span>
-                <Toggle checked={l.on} onChange={() => toggle(l.id)} label={`Tampilkan ${l.label}`} />
+                <Toggle checked={l.is_active} onChange={() => toggle(l.id)} label={`Tampilkan ${l.label}`} />
                 <button
                   onClick={() => setDel({ id: l.id, label: l.label })}
                   aria-label="Hapus tautan"
@@ -454,7 +667,8 @@ export function BioLinks() {
               </div>
               <span className="micro hidden text-faint sm:block">{String(i + 1).padStart(2, "0")}</span>
             </div>
-          ))}
+          ))
+          )}
 
           <div className="rounded-xl border border-dashed border-line bg-canvas/60 p-4 text-[13px] text-muted">
             Tarikan tautan bisa disusun dengan menahan tombol ⠿ di sebelah kiri. Urutan di sini sama
@@ -478,13 +692,13 @@ export function BioLinks() {
               </div>
               <ul className="mt-3.5 space-y-2">
                 {links
-                  .filter((l) => l.on)
+                  .filter((l) => l.is_active)
                   .map((l) => (
                     <li
                       key={l.id}
                       className="flex items-center gap-2.5 rounded-md border border-line bg-canvas px-3 py-2.5 text-[12.5px] font-semibold text-ink"
                     >
-                      <Icon name={l.icon === "doc" ? "receipt" : l.icon} size={15} className="text-brand-600" />
+                      <Icon name={(l.icon ?? "link") === "doc" ? "receipt" : (l.icon ?? "link")} size={15} className="text-brand-600" />
                       <span className="truncate">{l.label}</span>
                     </li>
                   ))}
@@ -508,10 +722,7 @@ export function BioLinks() {
         title={`Hapus tautan “${del?.label ?? ""}”?`}
         body="Tautan langsung hilang dari halaman bio Anda. Riwayat jumlah klik tetap tersimpan."
         confirmLabel="Hapus tautan"
-        onConfirm={() => {
-          setLinks((l) => l.filter((x) => x.id !== del?.id));
-          toast("Tautan dihapus.", "warn");
-        }}
+        onConfirm={confirmDelete}
       />
     </AppShell>
   );
@@ -734,32 +945,90 @@ export function Theme() {
 /* ================================ DISCOUNT ================================ */
 export function Discount() {
   const { toast } = useApp();
-  const [list, setList] = useState(DISCOUNTS);
+  const { user } = useAuth();
+  type DRow = {
+    id: string; code: string; type: string; value: number | string;
+    min_purchase: number | string; usage_limit: number | null; used_count: number;
+    valid_until: string | null; is_active: boolean;
+  };
+  const [list, setList] = useState<DRow[]>([]);
+  const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({ code: "", type: "Persen", value: "", min: "", limit: "", until: "" });
   const [err, setErr] = useState("");
 
-  const create = () => {
-    if (form.code.trim().length < 3) return setErr("Kode minimal 3 karakter, tanpa spasi.");
-    if (!form.value) return setErr("Isi nilai diskon.");
-    setList((l) => [
-      {
-        code: form.code.toUpperCase().replace(/\s/g, ""),
-        type: form.type,
-        value: form.type === "Persen" ? `${form.value}%` : rupiah(Number(form.value)),
-        min: Number(form.min || 0),
-        used: 0,
-        limit: Number(form.limit || 100),
-        until: form.until || "31 Des 2025",
-        on: true,
-      },
-      ...l,
-    ]);
-    setErr("");
-    setOpen(false);
-    setForm({ code: "", type: "Persen", value: "", min: "", limit: "", until: "" });
-    toast("Kode promo dibuat dan langsung bisa dipakai pembeli.");
+  const load = async () => {
+    if (!user) return;
+    setLoading(true);
+    const { data } = await supabase
+      .from("discount_codes")
+      .select("*")
+      .eq("seller_id", user.id)
+      .order("created_at", { ascending: false });
+    setList((data ?? []) as DRow[]);
+    setLoading(false);
   };
+
+  useEffect(() => {
+    load();
+  }, [user?.id]);
+
+  const dbType = (label: string) => (label === "Persen" ? "persen" : label === "Nominal" ? "nominal" : "potongan_ongkir");
+  const labelType = (t: string) => (t === "persen" ? "Persen" : t === "nominal" ? "Nominal" : "Potongan ongkir");
+  const fmtDate = (d: string | null) =>
+    d ? new Date(d + "T00:00:00").toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" }) : "Tanpa batas";
+
+  const create = async () => {
+    const code = form.code.trim().toUpperCase().replace(/\s+/g, "");
+    if (code.length < 3) return setErr("Kode minimal 3 karakter, tanpa spasi.");
+    if (!form.value || Number(form.value) <= 0) return setErr("Isi nilai diskon.");
+    if (form.type === "Persen" && Number(form.value) > 100) return setErr("Persen maksimal 100.");
+    if (!user) return;
+    setSaving(true);
+    try {
+      const { data, error } = await supabase
+        .from("discount_codes")
+        .insert({
+          seller_id: user.id,
+          code,
+          type: dbType(form.type),
+          value: Number(form.value),
+          min_purchase: Number(form.min || 0),
+          usage_limit: form.limit ? Number(form.limit) : null,
+          valid_until: form.until || null,
+          is_active: true,
+        })
+        .select("*")
+        .single();
+      if (error) {
+        setErr(error.code === "23505" ? `Kode ${code} sudah dipakai. Pakai nama lain.` : "Gagal menyimpan kode.");
+        return;
+      }
+      setList((l) => [data as DRow, ...l]);
+      setErr("");
+      setOpen(false);
+      setForm({ code: "", type: "Persen", value: "", min: "", limit: "", until: "" });
+      toast("Kode promo dibuat dan langsung bisa dipakai pembeli.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const setActive = async (id: string, v: boolean, code: string) => {
+    // Optimistic: UI berubah dulu, gagal → kembalikan + error.
+    setList((ls) => ls.map((x) => (x.id === id ? { ...x, is_active: v } : x)));
+    const { error } = await supabase.from("discount_codes").update({ is_active: v }).eq("id", id);
+    if (error) {
+      setList((ls) => ls.map((x) => (x.id === id ? { ...x, is_active: !v } : x)));
+      toast("Gagal mengubah status kode.", "bad");
+      return;
+    }
+    toast(`Kode ${code} ${v ? "diaktifkan" : "dinonaktifkan"}.`, v ? "ok" : "warn");
+  };
+
+  const usedTotal = list.reduce((s, d) => s + d.used_count, 0);
+  const activeCount = list.filter((d) => d.is_active).length;
 
   return (
     <AppShell>
@@ -776,9 +1045,9 @@ export function Discount() {
       />
 
       <div className="mb-4 grid gap-4 sm:grid-cols-3">
-        <StatCard label="Promo dipakai bulan ini" value="46" delta={22} hint="dari 3 kode aktif" spark={[4, 8, 6, 12, 10, 16, 22]} />
-        <StatCard label="Diskon diberikan" value="Rp748.000" hint="0,9% dari omzet" />
-        <StatCard label="Pesanan dari promo" value="38" delta={18} hint="31% dari total pesanan" />
+        <StatCard label="Promo dipakai" value={String(usedTotal)} hint={`dari ${list.length} kode`} loading={loading} />
+        <StatCard label="Kode aktif" value={String(activeCount)} hint="bisa dipakai pembeli" loading={loading} />
+        <StatCard label="Total kode" value={String(list.length)} hint="terdaftar di toko" loading={loading} />
       </div>
 
       <Card pad={false}>
@@ -797,45 +1066,66 @@ export function Discount() {
             </tr>
           </thead>
           <tbody>
-            {list.map((d) => (
-              <tr key={d.code} className="transition-colors hover:bg-canvas/70">
+            {loading ? (
+              <tr>
+                <td colSpan={6}>
+                  <div className="space-y-2 py-2">
+                    <Skeleton className="h-10 w-full" />
+                    <Skeleton className="h-10 w-full" />
+                  </div>
+                </td>
+              </tr>
+            ) : list.length === 0 ? (
+              <tr>
+                <td colSpan={6}>
+                  <div className="p-4 sm:p-5">
+                    <EmptyState
+                      icon="tag"
+                      title="Belum ada kode promo"
+                      desc="Buat kode pertama untuk menarik pembeli baru atau menghabiskan stok lama."
+                    />
+                  </div>
+                </td>
+              </tr>
+            ) : (
+              list.map((d) => (
+              <tr key={d.id} className="transition-colors hover:bg-canvas/70">
                 <Td>
                   <span className="notch-sm inline-block bg-navy-800 px-2.5 py-1.5 tnum text-[13px] font-bold tracking-wider text-brand-300">
                     {d.code}
                   </span>
                 </Td>
                 <Td>
-                  <div className="text-[14px] font-bold text-ink">{d.value}</div>
-                  <div className="text-[12px] text-faint">{d.type}</div>
+                  <div className="text-[14px] font-bold text-ink">
+                    {d.type === "persen" ? `${d.value}%` : rupiah(Number(d.value))}
+                  </div>
+                  <div className="text-[12px] text-faint">{labelType(d.type)}</div>
                 </Td>
-                <Td className="tnum hidden text-[13.5px] md:table-cell">{rupiah(d.min)}</Td>
-                <Td className="hidden text-[13.5px] text-muted md:table-cell">{d.until}</Td>
+                <Td className="tnum hidden text-[13.5px] md:table-cell">{rupiah(Number(d.min_purchase))}</Td>
+                <Td className="hidden text-[13.5px] text-muted md:table-cell">{fmtDate(d.valid_until)}</Td>
                 <Td>
                   <div className="min-w-[120px]">
                     <div className="mb-1 flex justify-between text-[12.5px]">
-                      <span className="tnum font-semibold text-ink">{d.used}</span>
-                      <span className="tnum text-faint">/{d.limit}</span>
+                      <span className="tnum font-semibold text-ink">{d.used_count}</span>
+                      <span className="tnum text-faint">/{d.usage_limit ?? "∞"}</span>
                     </div>
-                    <Progress value={(d.used / d.limit) * 100} tone={d.used >= d.limit ? "amber" : "blue"} />
+                    <Progress
+                      value={d.usage_limit ? (d.used_count / d.usage_limit) * 100 : 0}
+                      tone={d.usage_limit != null && d.used_count >= d.usage_limit ? "amber" : "blue"}
+                    />
                   </div>
                 </Td>
                 <Td>
                   <div className="flex items-center justify-end gap-3">
-                    <Badge tone={d.on ? "green" : "gray"} dot>
-                      {d.on ? "Aktif" : "Nonaktif"}
+                    <Badge tone={d.is_active ? "green" : "gray"} dot>
+                      {d.is_active ? "Aktif" : "Nonaktif"}
                     </Badge>
-                    <Toggle
-                      checked={d.on}
-                      onChange={(v) => {
-                        setList((ls) => ls.map((x) => (x.code === d.code ? { ...x, on: v } : x)));
-                        toast(`Kode ${d.code} ${v ? "diaktifkan" : "dinonaktifkan"}.`, v ? "ok" : "warn");
-                      }}
-                      label={`Status ${d.code}`}
-                    />
+                    <Toggle checked={d.is_active} onChange={(v) => setActive(d.id, v, d.code)} label={`Status ${d.code}`} />
                   </div>
                 </Td>
               </tr>
-            ))}
+              ))
+            )}
           </tbody>
         </TableWrap>
       </Card>
@@ -850,7 +1140,7 @@ export function Discount() {
             <Button variant="secondary" onClick={() => setOpen(false)}>
               Batal
             </Button>
-            <Button onClick={create}>Simpan kode</Button>
+            <Button onClick={create} loading={saving}>Simpan kode</Button>
           </>
         }
       >
@@ -897,7 +1187,7 @@ export function Discount() {
                 className="tnum"
               />
             </Field>
-            <Field label="Batas pemakaian">
+            <Field label="Batas pemakaian" hint="Kosongkan = tanpa batas">
               <Input
                 value={form.limit}
                 inputMode="numeric"
@@ -906,8 +1196,8 @@ export function Discount() {
                 className="tnum"
               />
             </Field>
-            <Field label="Berlaku sampai">
-              <Input value={form.until} onChange={(e) => setForm((f) => ({ ...f, until: e.target.value }))} placeholder="28 Feb 2025" />
+            <Field label="Berlaku sampai" hint="Kosongkan = selamanya">
+              <Input type="date" value={form.until} onChange={(e) => setForm((f) => ({ ...f, until: e.target.value }))} className="tnum" />
             </Field>
           </FieldRow>
         </div>
@@ -919,9 +1209,95 @@ export function Discount() {
 /* ================================== HOURS ================================== */
 export function Hours() {
   const { toast } = useApp();
-  const [rows, setRows] = useState(HOURS);
-  const set = (d: string, k: "on" | "open" | "close", v: string | boolean) =>
-    setRows((r) => r.map((x) => (x.d === d ? { ...x, [k]: v } : x)));
+  const { user } = useAuth();
+  const DAYS = ["Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu", "Minggu"];
+  type HRow = { id: string; day: number; open: string; close: string; on: boolean };
+  const [rows, setRows] = useState<HRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [savingAll, setSavingAll] = useState(false);
+
+  const load = async () => {
+    if (!user) return;
+    setLoading(true);
+    const { data } = await supabase
+      .from("store_hours")
+      .select("id,day_of_week,open_time,close_time,is_open")
+      .eq("seller_id", user.id);
+    const have = new Map<number, HRow>();
+    ((data ?? []) as { id: string; day_of_week: number; open_time: string | null; close_time: string | null; is_open: boolean }[]).forEach(
+      (r) => {
+        have.set(r.day_of_week, {
+          id: r.id,
+          day: r.day_of_week,
+          open: (r.open_time ?? "08:00").slice(0, 5),
+          close: (r.close_time ?? "20:00").slice(0, 5),
+          on: r.is_open,
+        });
+      },
+    );
+    // Seed 7 hari bila belum ada (default: buka 08–20, Minggu libur).
+    const missing = DAYS.map((_, d) => d).filter((d) => !have.has(d));
+    if (missing.length > 0) {
+      await supabase.from("store_hours").insert(
+        missing.map((d) => ({
+          seller_id: user.id,
+          day_of_week: d,
+          open_time: "08:00",
+          close_time: d === 6 ? "15:00" : "20:00",
+          is_open: d !== 6,
+        })),
+      );
+      const { data: retry } = await supabase
+        .from("store_hours")
+        .select("id,day_of_week,open_time,close_time,is_open")
+        .eq("seller_id", user.id);
+      ((retry ?? []) as { id: string; day_of_week: number; open_time: string | null; close_time: string | null; is_open: boolean }[]).forEach(
+        (r) => {
+          have.set(r.day_of_week, {
+            id: r.id,
+            day: r.day_of_week,
+            open: (r.open_time ?? "08:00").slice(0, 5),
+            close: (r.close_time ?? "20:00").slice(0, 5),
+            on: r.is_open,
+          });
+        },
+      );
+    }
+    setRows(DAYS.map((_, d) => have.get(d) ?? { id: "", day: d, open: "08:00", close: "20:00", on: d !== 6 }));
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    load();
+  }, [user?.id]);
+
+  const set = async (d: number, k: "on" | "open" | "close", v: string | boolean) => {
+    const cur = rows.find((x) => x.day === d);
+    if (!cur || !cur.id) return;
+    setRows((r) => r.map((x) => (x.day === d ? { ...x, [k]: v } : x)));
+    const patch =
+      k === "on" ? { is_open: v as boolean } : k === "open" ? { open_time: v as string } : { close_time: v as string };
+    const { error } = await supabase.from("store_hours").update(patch).eq("id", cur.id);
+    if (error) {
+      setRows((r) => r.map((x) => (x.day === d ? { ...cur } : x)));
+      toast("Gagal menyimpan jam.", "bad");
+    }
+  };
+
+  const openAll = async () => {
+    if (!user) return;
+    setSavingAll(true);
+    try {
+      const { error } = await supabase.from("store_hours").update({ is_open: true }).eq("seller_id", user.id);
+      if (error) {
+        toast("Gagal menyimpan.", "bad");
+        return;
+      }
+      setRows((r) => r.map((x) => ({ ...x, on: true })));
+    } finally {
+      setSavingAll(false);
+    }
+  };
 
   return (
     <AppShell>
@@ -934,7 +1310,8 @@ export function Hours() {
           <>
             <Button
               variant="secondary"
-              onClick={() => setRows(HOURS.map((h) => ({ ...h, on: true })))}
+              loading={savingAll}
+              onClick={openAll}
             >
               Buka setiap hari
             </Button>
@@ -944,28 +1321,37 @@ export function Hours() {
       />
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
+        {loading ? (
+          <Card pad={false}>
+            <div className="space-y-3 p-4 sm:p-5">
+              <Skeleton className="h-14 w-full" />
+              <Skeleton className="h-14 w-full" />
+              <Skeleton className="h-14 w-full" />
+            </div>
+          </Card>
+        ) : (
         <Card pad={false}>
           <ul className="divide-y divide-linesoft">
             {rows.map((h) => (
-              <li key={h.d} className={cx("flex flex-wrap items-center gap-x-4 gap-y-3 px-4 py-3.5 sm:flex-nowrap sm:px-5", !h.on && "bg-canvas/60")}>
-                <Toggle checked={h.on} onChange={(v) => set(h.d, "on", v)} label={`Buka ${h.d}`} />
-                <span className={cx("w-24 text-[14.5px] font-bold", h.on ? "text-ink" : "text-faint")}>{h.d}</span>
+              <li key={h.day} className={cx("flex flex-wrap items-center gap-x-4 gap-y-3 px-4 py-3.5 sm:flex-nowrap sm:px-5", !h.on && "bg-canvas/60")}>
+                <Toggle checked={h.on} onChange={(v) => set(h.day, "on", v)} label={`Buka ${DAYS[h.day]}`} />
+                <span className={cx("w-24 text-[14.5px] font-bold", h.on ? "text-ink" : "text-faint")}>{DAYS[h.day]}</span>
                 {h.on ? (
                   <div className="flex min-w-[200px] flex-1 basis-full items-center gap-2 sm:basis-auto">
                     <Input
                       type="time"
                       value={h.open}
-                      onChange={(e) => set(h.d, "open", e.target.value)}
+                      onChange={(e) => set(h.day, "open", e.target.value)}
                       className="tnum h-10 min-w-0 flex-1 sm:w-[110px] sm:flex-none"
-                      aria-label={`Jam buka ${h.d}`}
+                      aria-label={`Jam buka ${DAYS[h.day]}`}
                     />
                     <span className="shrink-0 text-faint">–</span>
                     <Input
                       type="time"
                       value={h.close}
-                      onChange={(e) => set(h.d, "close", e.target.value)}
+                      onChange={(e) => set(h.day, "close", e.target.value)}
                       className="tnum h-10 min-w-0 flex-1 sm:w-[110px] sm:flex-none"
-                      aria-label={`Jam tutup ${h.d}`}
+                      aria-label={`Jam tutup ${DAYS[h.day]}`}
                     />
                   </div>
                 ) : (
@@ -983,6 +1369,7 @@ export function Hours() {
             </Button>
           </div>
         </Card>
+        )}
 
         <aside className="space-y-4">
           <Card>

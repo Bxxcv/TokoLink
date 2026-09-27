@@ -1,12 +1,12 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { navigate } from "../lib/router";
+import { supabase } from "../lib/supabase";
 import {
   ADMIN_USERS,
   PAYMENTS,
   PREMIUM_REQUESTS,
   SALES_30,
   SELLERS,
-  WITHDRAWALS,
   rupiah,
   rupiahShort,
   useApp,
@@ -28,6 +28,7 @@ import {
   Progress,
   Segmented,
   Select,
+  Skeleton,
   TableWrap,
   Tabs,
   Td,
@@ -538,8 +539,35 @@ export function AdminPremium() {
 /* =========================== WITHDRAWAL MANAGEMENT ======================= */
 export function AdminWithdrawals() {
   const { toast } = useApp();
-  const [list, setList] = useState(WITHDRAWALS);
-  const [confirm, setConfirm] = useState<{ id: string; act: "proses" | "tolak" } | null>(null);
+  type WRow = {
+    id: string; bank: string; account_number: string; amount: number | string;
+    fee: number | string; status: string; created_at: string; seller_id: string;
+    profiles: { store_name: string | null } | { store_name: string | null }[] | null;
+  };
+  const [list, setList] = useState<WRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [tab, setTab] = useState("semua");
+  const [confirm, setConfirm] = useState<{ id: string; act: "proses" | "selesai" | "tolak" } | null>(null);
+
+  const load = async () => {
+    setLoading(true);
+    const { data } = await supabase
+      .from("withdrawals")
+      .select("id,bank,account_number,amount,fee,status,created_at,seller_id,profiles(store_name)")
+      .order("created_at", { ascending: false });
+    setList((data ?? []) as WRow[]);
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    load();
+  }, []);
+
+  const masked = (acct: string) => (acct.includes("•") ? acct : `•••• ${acct.slice(-4)}`);
+  const storeOf = (w: WRow) =>
+    Array.isArray(w.profiles) ? (w.profiles[0]?.store_name ?? "Toko") : (w.profiles?.store_name ?? "Toko");
+  const filtered = list.filter((w) => (tab === "semua" ? true : w.status === tab));
+  const sum = (st: string) => filtered.filter((w) => w.status === st).reduce((s, w) => s + Number(w.amount), 0);
 
   return (
     <AppShell group="admin">
@@ -554,27 +582,27 @@ export function AdminWithdrawals() {
       />
 
       <div className="mb-4 grid gap-4 sm:grid-cols-4">
-        <StatCard label="Menunggu" value={String(list.filter((l) => l.status === "menunggu").length)} hint="Rp875.000" />
-        <StatCard label="Diproses hari ini" value="2" hint="Rp5.550.000" />
-        <StatCard label="Selesai bulan ini" value="412" delta={14} hint="Rp486.200.000" />
-        <StatCard label="Biaya transfer" value="Rp2.678.000" hint="ditanggung platform" />
+        <StatCard label="Menunggu" value={String(list.filter((l) => l.status === "menunggu").length)} hint={rupiah(sum("menunggu"))} loading={loading} />
+        <StatCard label="Diproses" value={String(list.filter((l) => l.status === "diproses").length)} hint={rupiah(sum("diproses"))} loading={loading} />
+        <StatCard label="Selesai" value={String(list.filter((l) => l.status === "selesai").length)} hint={rupiah(sum("selesai"))} loading={loading} />
+        <StatCard label="Biaya transfer" value={rupiah(list.reduce((s, w) => s + Number(w.fee), 0))} hint="ditanggung platform" loading={loading} />
       </div>
 
       <Card pad={false}>
         <div className="flex flex-col gap-3 border-b border-line p-4 sm:flex-row sm:items-center sm:px-5">
           <Tabs
             className="flex-1 border-b-0"
-            active="semua"
-            onChange={() => {}}
+            active={tab}
+            onChange={setTab}
             items={[
               { id: "semua", label: "Semua", count: list.length },
-              { id: "menunggu", label: "Menunggu" },
-              { id: "diproses", label: "Diproses" },
-              { id: "selesai", label: "Selesai" },
+              { id: "menunggu", label: "Menunggu", count: list.filter((l) => l.status === "menunggu").length },
+              { id: "diproses", label: "Diproses", count: list.filter((l) => l.status === "diproses").length },
+              { id: "selesai", label: "Selesai", count: list.filter((l) => l.status === "selesai").length },
             ]}
           />
-          <Button variant="ghost" size="sm">
-            <Icon name="calendar" size={15} /> 1 – 12 Feb 2025
+          <Button variant="ghost" size="sm" onClick={load}>
+            <Icon name="refresh" size={15} /> Muat ulang
           </Button>
         </div>
 
@@ -592,16 +620,28 @@ export function AdminWithdrawals() {
             </tr>
           </thead>
           <tbody>
-            {list.map((w) => (
+            {loading ? (
+              <tr>
+                <td colSpan={8}>
+                  <div className="space-y-2 py-2">
+                    <Skeleton className="h-10 w-full" />
+                    <Skeleton className="h-10 w-full" />
+                  </div>
+                </td>
+              </tr>
+            ) : (
+              filtered.map((w) => (
               <tr key={w.id} className="transition-colors hover:bg-canvas/70">
-                <Td className="tnum text-[13px] text-muted">{w.id}</Td>
-                <Td className="text-[13.5px] font-semibold">{w.seller}</Td>
+                <Td className="tnum text-[13px] text-muted">{w.id.slice(0, 8).toUpperCase()}</Td>
+                <Td className="text-[13.5px] font-semibold">{storeOf(w)}</Td>
                 <Td className="text-[13.5px]">
-                  {w.bank} <span className="tnum text-faint">{w.acct}</span>
+                  {w.bank} <span className="tnum text-faint">{masked(w.account_number)}</span>
                 </Td>
-                <Td className="tnum text-right font-bold">{rupiah(w.amount)}</Td>
-                <Td className="tnum text-right text-muted">{rupiah(w.fee)}</Td>
-                <Td className="hidden text-[13px] text-muted md:table-cell">{w.date}</Td>
+                <Td className="tnum text-right font-bold">{rupiah(Number(w.amount))}</Td>
+                <Td className="tnum text-right text-muted">{rupiah(Number(w.fee))}</Td>
+                <Td className="hidden text-[13px] text-muted md:table-cell">
+                  {new Date(w.created_at).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" })}
+                </Td>
                 <Td>
                   <Badge tone={statusTone(w.status)} dot>
                     {label(w.status)}
@@ -609,13 +649,19 @@ export function AdminWithdrawals() {
                 </Td>
                 <Td>
                   <div className="flex justify-end gap-2">
-                    <Button
-                      size="sm"
-                      disabled={w.status !== "menunggu"}
-                      onClick={() => setConfirm({ id: w.id, act: "proses" })}
-                    >
-                      Proses
-                    </Button>
+                    {w.status === "diproses" ? (
+                      <Button size="sm" onClick={() => setConfirm({ id: w.id, act: "selesai" })}>
+                        Selesai
+                      </Button>
+                    ) : (
+                      <Button
+                        size="sm"
+                        disabled={w.status !== "menunggu"}
+                        onClick={() => setConfirm({ id: w.id, act: "proses" })}
+                      >
+                        Proses
+                      </Button>
+                    )}
                     <Button
                       size="sm"
                       variant="ghost"
@@ -627,7 +673,8 @@ export function AdminWithdrawals() {
                   </div>
                 </Td>
               </tr>
-            ))}
+              ))
+            )}
           </tbody>
         </TableWrap>
       </Card>
@@ -635,19 +682,59 @@ export function AdminWithdrawals() {
       <ConfirmDialog
         open={!!confirm}
         onClose={() => setConfirm(null)}
-        title={confirm?.act === "proses" ? `Proses penarikan ${confirm?.id}?` : `Tolak penarikan ${confirm?.id}?`}
+        title={
+          confirm?.act === "proses"
+            ? `Proses penarikan ${confirm?.id.slice(0, 8).toUpperCase()}?`
+            : confirm?.act === "selesai"
+              ? `Selesaikan penarikan ${confirm?.id.slice(0, 8).toUpperCase()}?`
+              : `Tolak penarikan ${confirm?.id.slice(0, 8).toUpperCase()}?`
+        }
         body={
           confirm?.act === "proses"
             ? "Dana akan dikirim ke rekening penjual pada batch transfer berikutnya. Tindakan ini tercatat di log audit."
-            : "Dana dikembalikan ke saldo penjual dan alasan penolakan wajib diisi pada catatan internal."
+            : confirm?.act === "selesai"
+              ? "Saldo penjual berkurang dan tercatat di ledger sebagai keluar."
+              : "Dana dikembalikan ke saldo penjual dan alasan penolakan wajib diisi pada catatan internal."
         }
-        confirmLabel={confirm?.act === "proses" ? "Proses transfer" : "Tolak penarikan"}
-        tone={confirm?.act === "proses" ? "primary" : "danger"}
-        onConfirm={() => {
-          setList((l) =>
-            l.map((x) => (x.id === confirm?.id ? { ...x, status: confirm.act === "proses" ? "diproses" : "ditolak" } : x)),
+        confirmLabel={confirm?.act === "proses" ? "Proses transfer" : confirm?.act === "selesai" ? "Ya, selesai" : "Tolak penarikan"}
+        tone={confirm?.act === "tolak" ? "danger" : "primary"}
+        onConfirm={async () => {
+          if (!confirm) return;
+          const target = list.find((x) => x.id === confirm.id);
+          if (!target) return;
+          setConfirm(null);
+          // Idempotent: baca ulang status, hanya proses dari state yang sah.
+          const { data: fresh } = await supabase.from("withdrawals").select("status").eq("id", target.id).single();
+          const cur = (fresh as { status: string } | null)?.status ?? target.status;
+          const want =
+            confirm.act === "proses" ? "diproses" : confirm.act === "selesai" ? "selesai" : "ditolak";
+          const allowed =
+            (confirm.act === "proses" && cur === "menunggu") ||
+            (confirm.act === "selesai" && cur === "diproses") ||
+            (confirm.act === "tolak" && cur === "menunggu");
+          if (!allowed) {
+            toast("Status sudah berubah. Muat ulang antrean.", "bad");
+            load();
+            return;
+          }
+          const { error } = await supabase.from("withdrawals").update({ status: want, processed_at: new Date().toISOString() }).eq("id", target.id);
+          if (error) {
+            toast("Gagal memperbarui status.", "bad");
+            return;
+          }
+          if (want === "selesai") {
+            await supabase.from("ledger").insert({
+              seller_id: target.seller_id,
+              label: `Penarikan ke ${target.bank}`,
+              amount: -Math.abs(Number(target.amount)),
+              type: "keluar",
+            });
+          }
+          setList((l) => l.map((x) => (x.id === target.id ? { ...x, status: want } : x)));
+          toast(
+            want === "diproses" ? "Penarikan masuk antrean transfer." : want === "selesai" ? "Penarikan selesai, saldo berkurang." : "Penarikan ditolak.",
+            want === "ditolak" ? "warn" : "ok",
           );
-          toast(confirm?.act === "proses" ? "Penarikan masuk antrean transfer." : "Penarikan ditolak.", confirm?.act === "proses" ? "ok" : "warn");
         }}
       />
     </AppShell>

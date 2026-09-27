@@ -103,8 +103,16 @@ function RouteView({ path }: { path: string }) {
   if (path === "/cart") return <Cart />;
   if (path === "/checkout") return <Checkout />;
   if (path === "/checkout/qris") return <Qris />;
-  if (path === "/checkout/status") return <PaymentStatus />;
-  if (path === "/checkout/success") return <OrderSuccess />;
+  if (path.split("?")[0] === "/checkout/status") {
+    const [, query] = path.split("?");
+    const params = new URLSearchParams(query ?? "");
+    return <PaymentStatus orderId={params.get("id") ?? ""} token={params.get("token") ?? ""} />;
+  }
+  if (path.split("?")[0] === "/checkout/success") {
+    const [, query] = path.split("?");
+    const params = new URLSearchParams(query ?? "");
+    return <OrderSuccess orderId={params.get("id") ?? ""} token={params.get("token") ?? ""} />;
+  }
   if (seg[0] === "order" && seg[1]) return <OrderTracking id={seg[1]} />;
 
   /* ---- phase 3: seller dashboard ---- */
