@@ -321,7 +321,7 @@ type AppCtx = {
 const Ctx = createContext<AppCtx | null>(null);
 
 export function AppProvider({ children }: { children: ReactNode }) {
-  const [cart, setCart] = useState<CartItem[]>([{ id: "p1", qty: 1 }, { id: "p5", qty: 2 }]);
+  const [cart, setCart] = useState<CartItem[]>([]);
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [promo, setPromo] = useState<string | null>(null);
 

@@ -224,11 +224,11 @@ function Stepper({
   );
 }
 
-function ProductCard({ p, onAdd }: { p: Product; onAdd: (p: Product) => void }) {
+function ProductCard({ p, slug, onAdd }: { p: Product; slug: string; onAdd: (p: Product) => void }) {
   const out = p.stock === 0;
   return (
     <article className="group relative flex flex-col overflow-hidden rounded-lg border border-line bg-white transition-[border-color,box-shadow,transform] duration-150 hover:-translate-y-0.5 hover:border-brand-300 hover:shadow-card">
-      <Link to={`/s/dapoer-bu-ani/p/${p.id}`} className="relative block overflow-hidden bg-canvas">
+      <Link to={`/s/${slug}/p/${p.id}`} className="relative block overflow-hidden bg-canvas">
         <img
           src={p.img}
           alt={p.name}
@@ -252,7 +252,7 @@ function ProductCard({ p, onAdd }: { p: Product; onAdd: (p: Product) => void }) 
       <div className="flex flex-1 flex-col p-3">
         <div className="micro text-faint">{p.cat}</div>
         <Link
-          to={`/s/dapoer-bu-ani/p/${p.id}`}
+          to={`/s/${slug}/p/${p.id}`}
           className="mt-1 line-clamp-2 text-[14px] font-bold leading-snug text-ink hover:text-brand-700"
         >
           {p.name}
@@ -502,7 +502,7 @@ export function StoreHome({ slug }: { slug: string }) {
             ) : (
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
                 {list.map((p) => (
-                  <ProductCard key={p.id} p={p} onAdd={onAdd} />
+                  <ProductCard key={p.id} p={p} slug={slug} onAdd={onAdd} />
                 ))}
               </div>
             )}
@@ -813,7 +813,7 @@ export function ProductDetail({ id, slug }: { id: string; slug: string }) {
           <div className="micro mb-3 text-brand-600">Produk lain di toko ini</div>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             {related.map((r) => (
-              <ProductCard key={r.id} p={r} onAdd={(x) => { add(x.id); toast(`${x.name} masuk keranjang.`); }} />
+              <ProductCard key={r.id} p={r} slug={slug} onAdd={(x) => { add(x.id); toast(`${x.name} masuk keranjang.`); }} />
             ))}
           </div>
         </div>
@@ -874,7 +874,9 @@ function useTotals(promo: string | null) {
         return;
       }
       setLoading(true);
-      const ids = [...new Set(cart.map((c) => c.id))];
+      // ID mock lama (mis. "p1") bukan uuid → dibuang dulu, kalau ikut
+      // dikirim PostgREST menolak seluruh query dan keranjang jadi kosong.
+      const ids = [...new Set(cart.map((c) => c.id))].filter((id) => /^[0-9a-f-]{36}$/i.test(id));
       const { data } = await supabase.from("products").select("*").in("id", ids).eq("status", "aktif");
       const rows = ((data ?? []) as DbProduct[]);
       const byId = new Map(rows.map((r) => [r.id, r]));
@@ -937,22 +939,45 @@ function useTotals(promo: string | null) {
   return { items, subtotal, discount, shipping, total, promoNote, promoValid, loading };
 }
 
+/** Toko pemilik item pertama di keranjang (untuk header + link kembali). */
+function useCartStore(items: { sellerId: string }[]) {
+  const [store, setStore] = useState<StoreProfile | null>(null);
+  const sellerId = items.length > 0 ? items[0].sellerId : null;
+  useEffect(() => {
+    if (!sellerId) {
+      setStore(null);
+      return;
+    }
+    (async () => {
+      const { data } = await supabase
+        .from("profiles")
+        .select("id,store_name,store_slug,city,owner_name,wa_number")
+        .eq("id", sellerId)
+        .maybeSingle();
+      setStore((data as StoreProfile | null) ?? null);
+    })();
+  }, [sellerId]);
+  return store;
+}
+
 export function Cart() {
   const { setQty, promo, setPromo, toast } = useApp();
   const { items, subtotal, discount, shipping, total, promoNote, promoValid, loading } = useTotals(promo);
+  const store = useCartStore(items);
+  const storeSlug = store?.store_slug || "dapoer-bu-ani";
   const [code, setCode] = useState("");
   const [remove, setRemove] = useState<{ id: string; name: string } | null>(null);
 
   return (
     <div className="min-h-screen bg-canvas pb-28">
-      <StoreHeader crumb="Keranjang belanja" />
+      <StoreHeader crumb="Keranjang belanja" store={store} />
       <PageShell className="py-6">
         <div className="mb-5 flex items-end justify-between gap-3">
           <div>
             <div className="micro mb-2 text-brand-600">02 / Keranjang</div>
             <h1 className="text-[26px] font-extrabold tracking-[-0.03em] text-ink">Keranjang belanja</h1>
           </div>
-          <Link to="/s/dapoer-bu-ani" className="text-[13.5px] font-semibold text-brand-700 hover:underline">
+          <Link to={`/s/${storeSlug}`} className="text-[13.5px] font-semibold text-brand-700 hover:underline">
             Tambah produk lain
           </Link>
         </div>
@@ -968,7 +993,7 @@ export function Cart() {
             title="Keranjang masih kosong"
             desc="Pilih produk dulu dari katalog toko. Barang yang dipilih akan tersimpan di sini sampai Anda selesai belanja."
             action={
-              <ButtonLink to="/s/dapoer-bu-ani">
+              <ButtonLink to={`/s/${storeSlug}`}>
                 Lihat produk <Icon name="arrowRight" size={16} />
               </ButtonLink>
             }
@@ -981,7 +1006,7 @@ export function Cart() {
                   key={p.id}
                   className="flex gap-3.5 rounded-xl border border-line bg-white p-3.5 sm:gap-4 sm:p-4"
                 >
-                  <Link to={`/s/dapoer-bu-ani/p/${p.id}`} className="shrink-0">
+                  <Link to={`/s/${storeSlug}/p/${p.id}`} className="shrink-0">
                     <img
                       src={p.img}
                       alt={p.name}
@@ -992,7 +1017,7 @@ export function Cart() {
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <Link
-                          to={`/s/dapoer-bu-ani/p/${p.id}`}
+                          to={`/s/${storeSlug}/p/${p.id}`}
                           className="line-clamp-2 text-[15px] font-bold leading-snug text-ink hover:text-brand-700"
                         >
                           {p.name}
@@ -1129,6 +1154,7 @@ export function Cart() {
 export function Checkout() {
   const { cart, toast, promo } = useApp();
   const { items, subtotal, discount, shipping, total } = useTotals(promo);
+  const store = useCartStore(items);
   const [form, setForm] = useState({
     name: "",
     phone: "",
@@ -1169,7 +1195,7 @@ export function Checkout() {
 
   return (
     <div className="min-h-screen bg-canvas pb-28">
-      <StoreHeader crumb="Checkout" />
+      <StoreHeader crumb="Checkout" store={store} />
       <PageShell className="py-6">
         <div className="mb-6 flex items-center gap-2.5">
           {[
