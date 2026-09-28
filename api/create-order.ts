@@ -31,7 +31,7 @@ export async function POST(req: Request): Promise<Response> {
 
   // 1) Harga SELALU dari DB (jangan percaya total dari browser).
   const ids = body.cart.map((c) => c.product_id);
-  const { data: products } = await db.from("products").select("*").in("id", ids).eq("status", "aktif");
+  const { data: products } = await db.from("products").select("*").in("id", ids).eq("seller_id", body.seller_id).eq("status", "aktif");
   const byId = new Map(((products ?? []) as Record<string, unknown>[]).map((p) => [(p as { id: string }).id, p]));
   let subtotal = 0;
   const lines: { product_id: string; name: string; qty: number; price: number }[] = [];

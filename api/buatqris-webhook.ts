@@ -57,7 +57,15 @@ export async function POST(req: Request): Promise<Response> {
   const paid = String(payload.status).toLowerCase() === "berhasil"; // TODO: samakan nilai status sukses resmi
   const fee = Number(payload.fee ?? 0);
 
-  await db.from("payments").update({ status: paid ? "berhasil" : "gagal", fee }).eq("id", payment.id);
+  // Atomic: hanya 1 webhook yang menang mengubah 'menunggu' -> final (cegah ledger dobel
+  // kalau BuatQris kirim 2 webhook bersamaan).
+  const { data: claimed } = await db
+    .from("payments")
+    .update({ status: paid ? "berhasil" : "gagal", fee })
+    .eq("id", payment.id)
+    .eq("status", "menunggu")
+    .select("id");
+  if (!claimed || claimed.length === 0) return json({ ok: true, deduped: true });
 
   if (paid) {
     await db.from("orders").update({ status: "dikemas" }).eq("id", payment.order_id);
