@@ -3,6 +3,16 @@ name: ui-interaction-patterns
 description: Pola wajib untuk toggle/switch dan cek responsif di TokoLink. Baca ini sebelum menyentuh komponen apapun yang punya toggle aktif/nonaktif atau sebelum menandai task UI selesai.
 ---
 
+# Ketelitian Per Halaman (NOTED user, wajib)
+
+Aturan user 28 Sep 2026: **setiap mengerjakan halaman harus teliti, tidak
+harus mematuhi UI mock** — kalau ada yang kurang/aneh (data fiktif
+tertulis, link nyangkut ke toko contoh, input membingungkan), BOLEH
+menyimpang dari mock ASALKAN tanya user dulu sebelum mengubahnya.
+Contoh yang sudah terjadi: header cart nyangkut "Dapoer Bu Ani", badge
+keranjang bohong, ID mock meracuni query. Jangan ulangi: tiap halaman
+yang disentuh, audit sisa mock-nya sebelum lapor selesai.
+
 # Pola Toggle (Optimistic Update)
 
 Salah satu bug yang sudah terjadi: toggle (mis. aktif/nonaktif produk,

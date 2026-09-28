@@ -1,36 +1,60 @@
-// POST /api/buatqris-webhook — Task 3.4 (implementasi penuh mengikuti
-// dokumen resmi BuatQris: Problem_screenshot/konfigurasi-open-api.txt).
+// POST /api/buatqris-webhook — Task 3.4 (dokumen resmi BuatQris:
+// Problem_screenshot/konfigurasi-open-api.txt).
 //
-// Fakta dari dokumen (bukan tebakan):
-// - Header: X-BuatQris-Event, X-BuatQris-Delivery, X-BuatQris-Signature
-// - Signature = "sha256=" + hex HMAC-SHA256 dari RAW body,
-//   secret = Signing Secret (beda dengan secret_token API).
-// - Event: payment.success / payment.expired / payment.failed
-//   (+ withdrawal.* — diabaikan, alur tarik dana kita manual via admin).
-// - Body pembayaran: event, transaction_id, status, amount, total_amount,
-//   credit_amount, admin_fee, is_test, paid_at.
+// CATATAN VERCEL: default export gaya (req, res), SELF-CONTAINED
+// (tanpa import relatif), dan bodyParser DIMATIKAN agar HMAC dihitung
+// dari RAW body. GET dibalas 405 (bukan 500).
+//
+// Fakta dari dokumen: header X-BuatQris-Event / X-BuatQris-Delivery /
+// X-BuatQris-Signature ("sha256=" + hex HMAC, secret = Signing Secret);
+// event payment.success / payment.expired / payment.failed.
 
 import { createHmac, timingSafeEqual } from "node:crypto";
-import { adminDb, clientIp, json, rateLimit } from "./_lib";
+import { createClient } from "@supabase/supabase-js";
 
-export async function POST(req: Request): Promise<Response> {
-  if (!rateLimit(clientIp(req), 60)) return json({ error: "Rate limited." }, 429);
+export const config = { api: { bodyParser: false } };
+
+function readRaw(req: any): Promise<string> {
+  return new Promise((resolve, reject) => {
+    let data = "";
+    req.setEncoding("utf8");
+    req.on("data", (chunk: string) => {
+      data += chunk;
+    });
+    req.on("end", () => resolve(data));
+    req.on("error", reject);
+  });
+}
+
+export default async function handler(req: any, res: any) {
+  if (req.method !== "POST") return res.status(405).json({ error: "Method tidak didukung." });
+
+  // Rate limit sederhana per-IP.
+  const ip =
+    (req.headers["x-forwarded-for"] as string | undefined)?.split(",")[0]?.trim() ?? "unknown";
+  const g = globalThis as unknown as { __whHits?: Map<string, { n: number; reset: number }> };
+  g.__whHits = g.__whHits ?? new Map();
+  const now = Date.now();
+  const cur = g.__whHits.get(ip);
+  if (!cur || now > cur.reset) g.__whHits.set(ip, { n: 1, reset: now + 60_000 });
+  else {
+    cur.n += 1;
+    if (cur.n > 60) return res.status(429).json({ error: "Rate limited." });
+  }
 
   const secret = process.env.BUATQRIS_SIGNING_SECRET;
-  if (!secret) return json({ error: "Webhook belum dikonfigurasi." }, 500);
+  if (!secret) return res.status(500).json({ error: "Webhook belum dikonfigurasi." });
 
-  // RAW body — wajib untuk HMAC yang valid (jangan JSON.parse dulu).
-  const rawBody = await req.text();
-
-  const signature = req.headers.get("x-buatqris-signature") ?? "";
+  const rawBody = await readRaw(req);
+  const signature = (req.headers["x-buatqris-signature"] as string | undefined) ?? "";
   const expected = "sha256=" + createHmac("sha256", secret).update(rawBody).digest("hex");
   const sigBuf = Buffer.from(signature);
   const expBuf = Buffer.from(expected);
   if (sigBuf.length !== expBuf.length || !timingSafeEqual(sigBuf, expBuf)) {
-    return new Response(null, { status: 401 });
+    return res.status(401).end();
   }
 
-  const event = req.headers.get("x-buatqris-event") ?? "";
+  const event = (req.headers["x-buatqris-event"] as string | undefined) ?? "";
   const payload = JSON.parse(rawBody) as {
     event?: string;
     transaction_id?: string;
@@ -41,12 +65,15 @@ export async function POST(req: Request): Promise<Response> {
   };
   const evt = payload.event ?? event;
 
-  // Event penarikan bukan alur kita (tarik dana via admin) → akui saja.
-  if (evt.startsWith("withdrawal.")) return json({ ok: true, ignored: true });
-  if (!evt.startsWith("payment.")) return json({ error: "Event tidak dikenal." }, 400);
-  if (!payload.transaction_id) return json({ error: "Payload tidak lengkap." }, 400);
+  if (evt.startsWith("withdrawal.")) return res.status(200).json({ ok: true, ignored: true });
+  if (!evt.startsWith("payment.")) return res.status(400).json({ error: "Event tidak dikenal." });
+  if (!payload.transaction_id) return res.status(400).json({ error: "Payload tidak lengkap." });
 
-  const db = adminDb();
+  const url = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) return res.status(500).json({ error: "Server belum dikonfigurasi." });
+  const db = createClient(url, key, { auth: { persistSession: false } });
+
   const { data: payment } = (await db
     .from("payments")
     .select("id,order_id,seller_id,amount,fee,status")
@@ -61,24 +88,19 @@ export async function POST(req: Request): Promise<Response> {
       status: string;
     } | null;
   };
-
-  if (!payment) return json({ error: "Transaksi tidak dikenal." }, 404);
-
-  // Idempotent: sudah final → jangan proses ulang (cegah ledger dobel).
-  if (payment.status !== "menunggu") return json({ ok: true, deduped: true });
+  if (!payment) return res.status(404).json({ error: "Transaksi tidak dikenal." });
+  if (payment.status !== "menunggu") return res.status(200).json({ ok: true, deduped: true });
 
   const fee = Number(payload.admin_fee ?? 0);
 
   if (evt === "payment.success") {
-    // Atomic: hanya 1 webhook yang menang (cegah race antar retry).
     const { data: claimed } = await db
       .from("payments")
       .update({ status: "berhasil", fee })
       .eq("id", payment.id)
       .eq("status", "menunggu")
       .select("id");
-    if (!claimed || claimed.length === 0) return json({ ok: true, deduped: true });
-
+    if (!claimed || claimed.length === 0) return res.status(200).json({ ok: true, deduped: true });
     await db.from("orders").update({ status: "dikemas" }).eq("id", payment.order_id);
     const credit = Number(payload.credit_amount ?? Number(payment.amount) - fee);
     await db.from("ledger").insert({
@@ -88,16 +110,15 @@ export async function POST(req: Request): Promise<Response> {
       type: "masuk",
       ref_order_id: payment.order_id,
     });
-    return json({ ok: true });
+    return res.status(200).json({ ok: true });
   }
 
   if (evt === "payment.expired") {
     await db.from("payments").update({ status: "gagal", fee }).eq("id", payment.id).eq("status", "menunggu");
     await db.from("orders").update({ status: "batal" }).eq("id", payment.order_id);
-    return json({ ok: true });
+    return res.status(200).json({ ok: true });
   }
 
-  // payment.failed → payments gagal, order tetap menunggu (boleh retry QR baru).
   await db.from("payments").update({ status: "gagal", fee }).eq("id", payment.id).eq("status", "menunggu");
-  return json({ ok: true });
+  return res.status(200).json({ ok: true });
 }

@@ -4,6 +4,7 @@ import { HOURS, rupiah, useApp, type Product } from "../lib/data";
 import { supabase } from "../lib/supabase";
 import { mapProduct, type DbProduct } from "../lib/products";
 import { normalizeWA } from "../lib/format";
+import { searchCities } from "../lib/cities";
 import { Logo, LogoMark } from "../components/Logo";
 import {
   Badge,
@@ -16,8 +17,6 @@ import {
   Input,
   Modal,
   PageShell,
-  Select,
-  Skeleton,
   TagChip,
   Textarea,
   cx,
@@ -1243,6 +1242,66 @@ export function Cart() {
 }
 
 /* -------------------------------- checkout -------------------------------- */
+/* ------------------------- combobox kota/kabupaten ------------------------ */
+/** Ketik untuk mencari (daftar instan + tetap boleh ketik manual). */
+function CityCombobox({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const [q, setQ] = useState(value);
+  const results = searchCities(q);
+  const pick = (c: string) => {
+    onChange(c);
+    setQ(c);
+    setOpen(false);
+  };
+  return (
+    <div className="relative">
+      <Input
+        value={q}
+        onChange={(e) => {
+          setQ(e.target.value);
+          onChange(e.target.value);
+          setOpen(true);
+        }}
+        onFocus={() => setOpen(true)}
+        onBlur={() => window.setTimeout(() => setOpen(false), 150)}
+        placeholder="Ketik kota…"
+        autoComplete="off"
+        className="pr-9"
+        aria-label="Kota atau kabupaten"
+      />
+      <Icon
+        name="search"
+        size={15}
+        className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-faint"
+      />
+      {open &&
+        (results.length > 0 ? (
+          <ul className="absolute inset-x-0 top-full z-30 mt-1 max-h-52 overflow-y-auto rounded-md border border-line bg-white py-1 shadow-lift">
+            {results.map((c) => (
+              <li key={c}>
+                <button
+                  type="button"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => pick(c)}
+                  className="flex w-full items-center px-3 py-2 text-left text-[13.5px] text-ink hover:bg-brand-50"
+                >
+                  <Icon name="pin" size={14} className="mr-2 shrink-0 text-faint" />
+                  {c}
+                </button>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          q.trim() && (
+            <div className="absolute inset-x-0 top-full z-30 mt-1 rounded-md border border-line bg-white px-3 py-2 text-[12.5px] text-muted shadow-lift">
+              Tidak ketemu — ketikanmu tetap dipakai.
+            </div>
+          )
+        ))}
+    </div>
+  );
+}
+
 export function Checkout() {
   const { cart, toast, promo, clear } = useApp();
   const { items, subtotal, discount, shipping, total } = useTotals(promo);
@@ -1398,13 +1457,7 @@ export function Checkout() {
                 </Field>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <Field label="Kota / kabupaten" required>
-                    <Select value={form.city} onChange={(e) => set("city", e.target.value)}>
-                      {["Bandung", "Cimahi", "Jakarta Selatan", "Bekasi", "Depok", "Surabaya", "Semarang"].map(
-                        (c) => (
-                          <option key={c}>{c}</option>
-                        ),
-                      )}
-                    </Select>
+                    <CityCombobox value={form.city} onChange={(v) => set("city", v)} />
                   </Field>
                   <Field label="Kode pos">
                     <Input defaultValue="40131" />
