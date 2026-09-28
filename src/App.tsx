@@ -102,7 +102,11 @@ function RouteView({ path }: { path: string }) {
   }
   if (path === "/cart") return <Cart />;
   if (path === "/checkout") return <Checkout />;
-  if (path === "/checkout/qris") return <Qris />;
+  if (path.split("?")[0] === "/checkout/qris") {
+    const [, query] = path.split("?");
+    const params = new URLSearchParams(query ?? "");
+    return <Qris orderId={params.get("id") ?? ""} token={params.get("token") ?? ""} />;
+  }
   if (path.split("?")[0] === "/checkout/status") {
     const [, query] = path.split("?");
     const params = new URLSearchParams(query ?? "");

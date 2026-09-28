@@ -1,3 +1,4 @@
+import QRCode from "qrcode";
 import { useEffect, useRef, useState } from "react";
 import { navigate } from "../lib/router";
 import { supabase } from "../lib/supabase";
@@ -1422,6 +1423,31 @@ export function StoreQR() {
   const storeSlug = profile?.store_slug || "dapoer-bu-ani";
   const [style, setStyle] = useState("Standar");
   const styles = ["Standar", "Bingkai toko", "Hitam putih"];
+  const [qrData, setQrData] = useState("");
+
+  useEffect(() => {
+    let alive = true;
+    setQrData("");
+    QRCode.toDataURL(`https://tokolink.id/${storeSlug}`, { width: 456, margin: 2 })
+      .then((url) => {
+        if (alive) setQrData(url);
+      })
+      .catch(() => {
+        if (alive) toast("Gagal membuat kode QR.", "bad");
+      });
+    return () => {
+      alive = false;
+    };
+  }, [storeSlug]);
+
+  const download = () => {
+    if (!qrData) return;
+    const a = document.createElement("a");
+    a.href = qrData;
+    a.download = `qr-${storeSlug}.png`;
+    a.click();
+    toast("QR diunduh ke perangkat.");
+  };
 
   return (
     <AppShell>
@@ -1435,7 +1461,7 @@ export function StoreQR() {
             <Button variant="secondary" onClick={() => toast("Tautan QR disalin.")}>
               <Icon name="copy" size={16} /> Salin tautan
             </Button>
-            <Button onClick={() => toast("QR diunduh sebagai PNG resolusi tinggi.")}>
+            <Button onClick={download}>
               <Icon name="download" size={16} /> Unduh PNG
             </Button>
           </>
@@ -1451,7 +1477,18 @@ export function StoreQR() {
                 style === "Bingkai toko" ? "bg-navy-900" : "bg-white",
               )}
             >
-              <QRMark size={228} fg={style === "Bingkai toko" ? "#FFFFFF" : "#061B45"} />
+              {qrData ? (
+                <img
+                  src={qrData}
+                  alt={`QR toko ${storeName}`}
+                  width={228}
+                  height={228}
+                  className="h-[228px] w-[228px] rounded-md"
+                  style={style === "Hitam putih" ? { filter: "grayscale(1)" } : undefined}
+                />
+              ) : (
+                <Skeleton className="h-[228px] w-[228px]" />
+              )}
               <div className="mt-3 flex items-center justify-center gap-2">
                 <LogoMark size={26} />
                 <span className={cx("font-display text-[15px] font-bold", style === "Bingkai toko" ? "text-white" : "text-navy-800")}>

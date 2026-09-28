@@ -1,6 +1,5 @@
-// POST /api/create-order — Task 3.2 (SCAFFOLD: aktif penuh setelah
-// kredensial BuatQris diisi — JANGAN tebak nama field/header sebelum baca
-// dokumentasi resmi BuatQris, lihat .opencode/skill/buatqris-webhook/SKILL.md).
+// POST /api/create-order — Task 3.2 (implementasi penuh mengikuti
+// dokumen resmi BuatQris: Problem_screenshot/konfigurasi-open-api.txt).
 //
 // Alur: terima cart + buyer + kode promo → validasi server-side → insert
 // orders (menunggu) + order_items (snapshot) + payments (menunggu) →
@@ -45,6 +44,8 @@ export async function POST(req: Request): Promise<Response> {
 
   // 2) Validasi promo server-side (aturan sama seperti di useTotals).
   let discount = 0;
+  let promoId: string | null = null;
+  let promoUsed = 0;
   const code = (body.promo_code ?? "").trim();
   if (code) {
     const { data: codes } = await db
@@ -55,7 +56,7 @@ export async function POST(req: Request): Promise<Response> {
     const match = ((codes ?? []) as Record<string, unknown>[]).find(
       (d) => String(d.code).toLowerCase() === code.toLowerCase(),
     ) as
-      | { type: string; value: number | string; min_purchase: number | string; usage_limit: number | null; used_count: number }
+      | { id: string; type: string; value: number | string; min_purchase: number | string; usage_limit: number | null; used_count: number }
       | undefined;
     if (match) {
       const today = new Date().toISOString().slice(0, 10);
@@ -67,6 +68,8 @@ export async function POST(req: Request): Promise<Response> {
         if (match.type === "persen") discount = Math.round((subtotal * Number(match.value)) / 100);
         else if (match.type === "nominal") discount = Math.min(Math.round(Number(match.value)), subtotal);
         // potongan_ongkir ditangani saat hitung ongkir (disederhanakan: tanpa ongkir di v1).
+        promoId = match.id;
+        promoUsed = match.used_count;
       }
     }
   }
@@ -121,20 +124,76 @@ export async function POST(req: Request): Promise<Response> {
     .select("id")
     .single();
 
-  // 4) Panggil BuatQris — TODO: isi setelah kredensial + dokumentasi resmi ada.
-  //    - Env: BUATQRIS_API_KEY (server saja, JANGAN VITE_*).
-  //    - Cek nama endpoint, header auth, dan field response di docs resmi.
-  //    - Simpan id transaksi ke payments.external_ref.
-  //    - Kalau gagal: order TETAP tersimpan (status menunggu) + return
-  //      { order_id, access_token, qr: null, qr_pending: true } agar
-  //      frontend tampilkan "QR belum jadi, coba lagi".
-  void payment;
+  // Kuota promo terpakai begitu order dibuat (QR kedaluwarsa tetap terhitung — perilaku v1).
+  if (promoId) {
+    await db.from("discount_codes").update({ used_count: promoUsed + 1 }).eq("id", promoId);
+  }
 
-  return json({
-    order_id: (order as { id: string }).id,
-    access_token: (order as { access_token: string }).access_token,
-    qr: null,
-    qr_pending: true,
-    todo: "Hubungkan API BuatQris di langkah 4 setelah kredensial ada.",
+  // 4) Panggil BuatQris (dokumen: konfigurasi-open-api.txt).
+  //    Kalau gagal: order TETAP tersimpan (status menunggu) + frontend
+  //    tampilkan "QR belum jadi" (Done When 3.2).
+  const accountId = process.env.BUATQRIS_ACCOUNT_ID;
+  const secretToken = process.env.BUATQRIS_SECRET_TOKEN;
+  const testMode = process.env.BUATQRIS_TEST ?? "1"; // "1" = sandbox (tanpa uang asli)
+  const base = { order_id: (order as { id: string }).id, access_token: (order as { access_token: string }).access_token };
+
+  if (total < 1000) {
+    return json({ ...base, qr_pending: true, error: "Minimal pembayaran Rp1.000 (aturan BuatQris)." }, 400);
+  }
+  if (!accountId || !secretToken) {
+    return json({ ...base, qr_pending: true, error: "Kredensial BuatQris belum dipasang di server." });
+  }
+
+  const callbackUrl =
+    process.env.BUATQRIS_CALLBACK_URL ??
+    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}/api/buatqris-webhook` : undefined);
+
+  const params = new URLSearchParams({
+    action: "api_create_qris",
+    account_id: accountId,
+    secret_token: secretToken,
+    amount: String(Math.round(total)),
+    description: `TokoLink ${(order as { id: string }).id}`.slice(0, 100),
+    fee_by: "user",
+    test: testMode,
+    app_name: "TokoLink",
   });
+  if (callbackUrl) params.set("callback_url", callbackUrl);
+
+  let qr: {
+    qr_url: string; qris_image: string; total_amount: number;
+    expired_at: string | null; payment_url: string | null; is_test: boolean;
+  } | null = null;
+  try {
+    const res = await fetch("https://api.buatqris.site", {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: params.toString(),
+    });
+    const out = (await res.json()) as {
+      success: boolean; message?: string;
+      data?: {
+        transaction_id: string; total_amount: number; admin_fee: number;
+        qr_url: string; qris_image: string; expired_at: string | null;
+        payment_url: string | null;
+      };
+    };
+    if (out.success && out.data) {
+      const d = out.data;
+      const pid = (payment as { id: string } | null)?.id;
+      if (pid) {
+        await db.from("payments").update({ external_ref: d.transaction_id, fee: d.admin_fee, amount: d.total_amount }).eq("id", pid);
+      }
+      qr = {
+        qr_url: d.qr_url, qris_image: d.qris_image, total_amount: d.total_amount,
+        expired_at: d.expired_at, payment_url: d.payment_url, is_test: testMode === "1" || testMode === "true",
+      };
+    } else {
+      return json({ ...base, qr_pending: true, error: out.message ?? "BuatQris menolak permintaan." });
+    }
+  } catch {
+    return json({ ...base, qr_pending: true, error: "Tidak bisa menghubungi BuatQris." });
+  }
+
+  return json({ ...base, qr_pending: false, qr });
 }

@@ -296,6 +296,38 @@ export function StoreHome({ slug }: { slug: string }) {
   const name = store?.store_name || STORE.name;
   const city = store?.city || STORE.city;
   const wa = store?.wa_number || STORE.wa;
+  // Badge buka/tutup dari store_hours (zona WIB). Tanpa data jam → anggap buka.
+  const [openNow, setOpenNow] = useState<boolean | null>(null);
+  const [todayHours, setTodayHours] = useState("");
+
+  useEffect(() => {
+    if (!store) return;
+    (async () => {
+      const { data } = await supabase
+        .from("store_hours")
+        .select("day_of_week,open_time,close_time,is_open")
+        .eq("seller_id", store.id);
+      const rows = ((data ?? []) as {
+        day_of_week: number; open_time: string | null; close_time: string | null; is_open: boolean;
+      }[]);
+      if (rows.length === 0) {
+        setOpenNow(true);
+        return;
+      }
+      const wib = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Jakarta" }));
+      const day = (wib.getDay() + 6) % 7; // 0 = Senin
+      const row = rows.find((r) => r.day_of_week === day);
+      if (!row || !row.is_open || !row.open_time || !row.close_time) {
+        setOpenNow(false);
+        return;
+      }
+      const open = row.open_time.slice(0, 5);
+      const close = row.close_time.slice(0, 5);
+      const now = `${String(wib.getHours()).padStart(2, "0")}:${String(wib.getMinutes()).padStart(2, "0")}`;
+      setTodayHours(`${open.replace(":", ".")} – ${close.replace(":", ".")} WIB`);
+      setOpenNow(open <= now && now <= close);
+    })();
+  }, [store]);
 
   if (notFound) {
     return (
@@ -401,13 +433,13 @@ export function StoreHome({ slug }: { slug: string }) {
             <span
               className={cx(
                 "inline-flex items-center gap-2 rounded-sm px-2.5 py-1 text-[12.5px] font-bold",
-                STORE.open ? "bg-oksoft text-[#0a7a55]" : "bg-badsoft text-bad",
+                openNow === false ? "bg-badsoft text-bad" : "bg-oksoft text-[#0a7a55]",
               )}
             >
               <span className="relative flex h-2 w-2">
-                <span className={cx("h-2 w-2 rounded-full", STORE.open ? "bg-ok" : "bg-bad")} />
+                <span className={cx("h-2 w-2 rounded-full", openNow === false ? "bg-bad" : "bg-ok")} />
               </span>
-              {STORE.open ? `Buka · ${STORE.hours}` : "Tutup"}
+              {openNow === false ? "Tutup" : `Buka · ${todayHours || STORE.hours}`}
             </span>
             <span className="text-[13px] text-muted">
               Pesanan sebelum 15.00 dikirim hari ini juga.
@@ -951,6 +983,7 @@ type TrackedOrder = {
   city: string | null;
   store: string | null;
   slug: string | null;
+  external_ref?: string | null;
   items: { name: string; qty: number; price: number | string }[];
 };
 
@@ -997,14 +1030,6 @@ function orderStore(o: TrackedOrder | null): StoreProfile | null {
   if (!o) return null;
   return { id: "", store_name: o.store, store_slug: o.slug, city: null, owner_name: null, wa_number: null };
 }
-let lastStore: StoreProfile | null = null;
-
-/** Toko terakhir yang terlihat (dipakai halaman bayar/sukses/lacak mock
- *  sampai create-order backend datang di 3.2). */
-function useLastStore() {
-  const [s] = useState(lastStore);
-  return s;
-}
 
 function useCartStore(items: { sellerId: string }[]) {
   const [store, setStore] = useState<StoreProfile | null>(null);
@@ -1021,7 +1046,6 @@ function useCartStore(items: { sellerId: string }[]) {
         .eq("id", sellerId)
         .maybeSingle();
       const resolved = (data as StoreProfile | null) ?? null;
-      lastStore = resolved;
       setStore(resolved);
     })();
   }, [sellerId]);
@@ -1220,7 +1244,7 @@ export function Cart() {
 
 /* -------------------------------- checkout -------------------------------- */
 export function Checkout() {
-  const { cart, toast, promo } = useApp();
+  const { cart, toast, promo, clear } = useApp();
   const { items, subtotal, discount, shipping, total } = useTotals(promo);
   const store = useCartStore(items);
   const [form, setForm] = useState({
@@ -1241,7 +1265,7 @@ export function Checkout() {
 
   const set = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
 
-  const submit = (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     const n: Record<string, string> = {};
     if (form.name.trim().length < 3) n.name = "Tulis nama penerima.";
@@ -1252,11 +1276,53 @@ export function Checkout() {
       toast("Beberapa isian masih perlu diperbaiki.", "bad");
       return;
     }
+    // v1: satu checkout = satu toko (multi-toko butuh split order).
+    const sellerIds = [...new Set(items.map((i) => i.sellerId))];
+    if (sellerIds.length > 1) {
+      toast("Keranjang berisi produk beda toko. Selesaikan satu toko dulu.", "bad");
+      return;
+    }
+    if (form.pay !== "QRIS") {
+      toast("Saat ini pembayaran hanya via QRIS.", "bad");
+      return;
+    }
     setLoading(true);
-    setTimeout(() => {
+    try {
+      const res = await fetch("/api/create-order", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          seller_id: sellerIds[0],
+          buyer_name: form.name.trim(),
+          buyer_city: form.city,
+          channel: "QRIS",
+          cart: items.map((i) => ({ product_id: i.p.id, qty: i.qty })),
+          promo_code: promo,
+        }),
+      });
+      const out = (await res.json()) as {
+        order_id?: string; access_token?: string;
+        qr?: { qr_url: string; qris_image: string; total_amount: number; expired_at: string | null; payment_url: string | null; is_test: boolean } | null;
+        qr_pending?: boolean; error?: string;
+      };
+      if (!res.ok || !out.order_id || !out.access_token) {
+        toast(out.error ?? "Gagal membuat pesanan.", "bad");
+        return;
+      }
+      if (out.qr) {
+        try {
+          sessionStorage.setItem(`tl_qr_${out.order_id}`, JSON.stringify(out.qr));
+        } catch {
+          /* penyimpanan penuh — halaman QR pakai pola qr_url */
+        }
+      }
+      clear();
+      navigate(`/checkout/qris?id=${out.order_id}&token=${out.access_token}`);
+    } catch {
+      toast("Tidak bisa menghubungi server.", "bad");
+    } finally {
       setLoading(false);
-      navigate(form.pay === "QRIS" ? "/checkout/qris" : "/checkout/status");
-    }, 900);
+    }
   };
 
   if (items.length === 0) return null;
@@ -1479,23 +1545,73 @@ export function Checkout() {
 }
 
 /* --------------------------------- QRIS ----------------------------------- */
-export function Qris() {
+export function Qris({ orderId, token }: { orderId: string; token: string }) {
   const { toast } = useApp();
-  const { total } = useTotals(null);
-  const store = useLastStore();
-  const merchant = store?.store_name || "Dapoer Bu Ani";
-  const storeSlug = store?.store_slug || "dapoer-bu-ani";
-  const [left, setLeft] = useState(300);
+  const { order, loading, notFound } = useOrderStatus(orderId, token);
+  const store = orderStore(order);
+  const merchant = order?.store ?? store?.store_name ?? "Toko";
+  const storeSlug = order?.slug ?? store?.store_slug ?? "";
+  const [qr, setQr] = useState<{
+    qr_url: string; qris_image: string; total_amount: number;
+    expired_at: string | null; payment_url: string | null; is_test: boolean;
+  } | null>(null);
+  const [imgOk, setImgOk] = useState(true);
   const [confirmCancel, setConfirmCancel] = useState(false);
+  const [now, setNow] = useState(Date.now());
 
   useEffect(() => {
-    const t = window.setInterval(() => setLeft((l) => Math.max(0, l - 1)), 1000);
+    try {
+      const raw = sessionStorage.getItem(`tl_qr_${orderId}`);
+      if (raw) setQr(JSON.parse(raw));
+    } catch {
+      /* abaikan */
+    }
+  }, [orderId]);
+
+  useEffect(() => {
+    const t = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(t);
   }, []);
 
+  const externalRef = (order as (TrackedOrder & { external_ref?: string | null }) | null)?.external_ref ?? null;
+  const qrSrc = qr?.qr_url ?? (externalRef ? `https://app.buatqris.site/poto/qris/${externalRef}.png` : null);
+  const amount = qr?.total_amount ?? Number(order?.total ?? 0);
+  const left = qr?.expired_at ? Math.max(0, Math.floor((new Date(qr.expired_at).getTime() - now) / 1000)) : 300;
   const mm = String(Math.floor(left / 60)).padStart(2, "0");
   const ss = String(left % 60).padStart(2, "0");
   const expired = left === 0;
+
+  if (loading) {
+    return (
+      <div className="relative min-h-screen overflow-hidden bg-navy-900 pb-24">
+        <div className="blueprint absolute inset-0 opacity-70" />
+        <div className="relative mx-auto w-full max-w-[520px] px-4 pt-6">
+          <Skeleton className="h-12 w-full" />
+          <Skeleton className="mt-4 h-64 w-full" />
+        </div>
+      </div>
+    );
+  }
+
+  if (notFound || !order) {
+    return (
+      <div className="relative min-h-screen overflow-hidden bg-navy-900 pb-24">
+        <div className="blueprint absolute inset-0 opacity-70" />
+        <div className="relative mx-auto w-full max-w-[520px] px-4 pt-6">
+          <EmptyState
+            icon="search"
+            title="Pesanan tidak ditemukan"
+            desc="Link pembayaran salah atau tidak lengkap."
+            action={
+              <ButtonLink to="/cart">
+                Kembali ke keranjang <Icon name="arrowRight" size={16} />
+              </ButtonLink>
+            }
+          />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-navy-900 pb-24">
@@ -1516,28 +1632,51 @@ export function Qris() {
 
         <div className="mt-6 text-center">
           <TagChip tone="white">03 / Menunggu pembayaran</TagChip>
-          <div className="tnum mt-5 text-[40px] font-bold leading-none text-white">{rupiah(total)}</div>
+          <div className="tnum mt-5 text-[40px] font-bold leading-none text-white">{rupiah(amount)}</div>
           <div className="mt-2 text-[13.5px] text-white/60">
-            {merchant} · pesanan <span className="tnum text-white/85">TL-2502-0193</span>
+            {merchant} · pesanan <span className="tnum text-white/85">{order.id}</span>
           </div>
+          {qr?.is_test && (
+            <div className="micro mt-2 text-warn">MODE SANDBOX — tanpa uang asli</div>
+          )}
         </div>
 
         <div className="notch-lg mt-6 rounded-xl border border-white/15 bg-white p-5 shadow-lift">
           <div className="flex flex-col items-center">
-            <div className="relative">
-              <QRMark size={216} />
-              <span className="absolute left-1/2 top-1/2 flex h-14 w-14 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-md border-2 border-white bg-white shadow-xs">
-                <LogoMark size={42} />
-              </span>
-            </div>
+            {qrSrc && imgOk ? (
+              <div className="relative">
+                <img
+                  src={qrSrc}
+                  alt={`QRIS ${rupiah(amount)}`}
+                  width={260}
+                  height={260}
+                  className="h-[260px] w-[260px] rounded-lg border border-line object-contain"
+                  onError={() => setImgOk(false)}
+                />
+                <span className="absolute left-1/2 top-1/2 flex h-14 w-14 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-md border-2 border-white bg-white shadow-xs">
+                  <LogoMark size={42} />
+                </span>
+              </div>
+            ) : (
+              <div className="flex w-full flex-col items-center rounded-lg border border-dashed border-line bg-canvas px-4 py-10 text-center">
+                <Icon name="qr" size={30} className="text-faint" />
+                <p className="mt-3 text-[14px] font-bold text-ink">QR belum jadi</p>
+                <p className="mt-1 max-w-xs text-[13px] leading-relaxed text-muted">
+                  Pesananmu tersimpan. QR gagal dibuat — kembali dan buat ulang pesanan.
+                </p>
+                <Button variant="secondary" className="mt-4" onClick={() => navigate("/cart")}>
+                  Kembali ke keranjang
+                </Button>
+              </div>
+            )}
             <div className="mt-4 w-full space-y-1.5 border-t border-linesoft pt-4 text-[13.5px]">
               <div className="flex justify-between">
                 <span className="text-muted">Merchant</span>
                 <span className="font-semibold text-ink">{merchant}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-muted">Nomor rekening sumber</span>
-                <span className="tnum font-semibold text-ink">9360 0••• •••• 4821</span>
+                <span className="text-muted">Jumlah ditagih</span>
+                <span className="tnum font-semibold text-ink">{rupiah(amount)}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-muted">Berlaku sampai</span>
@@ -1568,7 +1707,7 @@ export function Qris() {
           <Button
             size="lg"
             className="w-full bg-brand-500! text-navy-900! hover:bg-brand-400!"
-            onClick={() => navigate("/checkout/status")}
+            onClick={() => navigate(`/checkout/status?id=${order.id}&token=${token}`)}
             disabled={expired}
           >
             Saya sudah bayar
