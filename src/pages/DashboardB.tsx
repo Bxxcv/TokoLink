@@ -1123,7 +1123,7 @@ export function Discount() {
   };
   const [list, setList] = useState<DRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState(false);
+  const [loadError, setLoadError] = useState("");
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({ code: "", type: "Persen", value: "", min: "", limit: "", until: "" });
@@ -1132,7 +1132,7 @@ export function Discount() {
   const load = async () => {
     if (!user) return;
     setLoading(true);
-    setLoadError(false);
+    setLoadError("");
     const { data, error } = await supabase
       .from("discount_codes")
       .select("*")
@@ -1140,7 +1140,7 @@ export function Discount() {
       .order("created_at", { ascending: false });
     if (error) {
       setLoading(false);
-      setLoadError(true);
+      setLoadError(error.message);
       return;
     }
     setList((data ?? []) as DRow[]);
@@ -1260,7 +1260,7 @@ export function Discount() {
               <tr>
                 <td colSpan={6}>
                   <div className="p-4 sm:p-5">
-                    <ErrorState onRetry={load} desc="Kode promo gagal dimuat. Periksa koneksi lalu coba lagi." />
+                    <ErrorState onRetry={load} desc={`Kode promo gagal dimuat: ${loadError}`} />
                   </div>
                 </td>
               </tr>
