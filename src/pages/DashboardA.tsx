@@ -780,7 +780,7 @@ export function Products() {
     setDel(null);
     const { error } = await supabase.from("products").delete().eq("id", target.id);
     if (error) {
-      toast("Produk gagal dihapus.", "bad");
+      toast("Tidak bisa dihapus — produk ini dipakai di riwayat pesanan.", "bad");
       return;
     }
     setItems((xs) => xs.filter((p) => p.id !== target.id));
