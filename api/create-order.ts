@@ -40,7 +40,10 @@ export default async function handler(req: any, res: any) {
   const body = (typeof req.body === "string" ? JSON.parse(req.body) : req.body) as {
     seller_id?: string;
     buyer_name?: string;
+    buyer_phone?: string;
     buyer_city?: string;
+    buyer_address?: string;
+    buyer_note?: string;
     channel?: string;
     cart?: CartLine[];
     promo_code?: string;
@@ -124,7 +127,10 @@ export default async function handler(req: any, res: any) {
         id: orderId,
         seller_id: body.seller_id,
         buyer_name: body.buyer_name.trim(),
+        buyer_phone: (body.buyer_phone ?? "").replace(/[^\d+]/g, "") || null,
         buyer_city: body.buyer_city ?? null,
+        buyer_address: body.buyer_address?.trim() || null,
+        buyer_note: body.buyer_note?.trim() || null,
         total,
         status: "menunggu",
         channel: body.channel ?? "QRIS",

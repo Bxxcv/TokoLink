@@ -1333,7 +1333,10 @@ export function Checkout() {
         body: JSON.stringify({
           seller_id: sellerIds[0],
           buyer_name: form.name.trim(),
+          buyer_phone: form.phone,
           buyer_city: form.city,
+          buyer_address: form.addr.trim(),
+          buyer_note: form.note.trim() || undefined,
           channel: "QRIS",
           cart: items.map((i) => ({ product_id: i.p.id, qty: i.qty })),
           promo_code: promo,

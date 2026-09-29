@@ -1453,7 +1453,7 @@ export function OrderDetail({ id }: { id: string }) {
       setNotFound(false);
       const { data: order } = await supabase
         .from("orders")
-        .select("id,buyer_name,buyer_city,total,status,channel,created_at")
+        .select("id,buyer_name,buyer_phone,buyer_city,buyer_address,buyer_note,total,status,channel,created_at")
         .eq("id", id)
         .maybeSingle();
       if (!order) {
@@ -1487,6 +1487,9 @@ export function OrderDetail({ id }: { id: string }) {
           minute: "2-digit",
         }),
         channel: order.channel ?? "—",
+        phone: order.buyer_phone ?? "",
+        address: order.buyer_address ?? "",
+        note: order.buyer_note ?? "",
       });
       setLines(
         ((items ?? []) as { product_name_snapshot: string; qty: number; price_snapshot: number | string }[]).map(
@@ -1675,10 +1678,23 @@ export function OrderDetail({ id }: { id: string }) {
                   <dt className="micro text-faint">Kota</dt>
                   <dd className="text-ink">{o.city || "—"}</dd>
                 </div>
+                <div>
+                  <dt className="micro text-faint">WhatsApp</dt>
+                  <dd className="tnum text-ink">{o.phone || "—"}</dd>
+                </div>
+                {o.address && (
+                  <div>
+                    <dt className="micro text-faint">Alamat</dt>
+                    <dd className="text-ink">{o.address}</dd>
+                  </div>
+                )}
+                {o.note && (
+                  <div>
+                    <dt className="micro text-faint">Catatan</dt>
+                    <dd className="text-ink">{o.note}</dd>
+                  </div>
+                )}
               </dl>
-              <p className="mt-3 text-[12.5px] leading-relaxed text-faint">
-                WA & alamat pembeli mulai tersimpan otomatis untuk pesanan baru (create-order, 3.2).
-              </p>
             </Card>
             <Card>
               <CardHead title="Pengiriman" icon="truck" />

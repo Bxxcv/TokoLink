@@ -120,6 +120,9 @@ export type Order = {
   status: OrderStatus;
   date: string;
   channel: string;
+  phone?: string;
+  address?: string;
+  note?: string;
 };
 
 export const STATUS_LABEL: Record<OrderStatus, string> = {
