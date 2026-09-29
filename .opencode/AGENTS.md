@@ -6,6 +6,19 @@ dan konfirmasi ke user dulu** — jangan menimpa aturan di sini diam-diam,
 dan jangan pernah mengarang/menebak (no hallucination) kalau informasi
 tidak ada di sini atau di `.opencode/TASKS.md` / `database/schema.sql`.
 
+**Dua dokumen pendamping, baca juga sebelum kerja fitur apapun yang
+menyangkut keputusan produk atau alur sistem:**
+- `docs/PRD.md` — APA yang dibangun: persona, fitur per halaman, model
+  bisnis, batas scope, glosarium istilah↔kolom database.
+- `docs/ARCHITECTURE.md` — BAGAIMANA sistemnya terhubung: diagram
+  sistem, ER diagram skema, sequence diagram alur checkout/webhook,
+  peta struktur folder.
+
+Kalau `PRD.md`/`ARCHITECTURE.md` dan dokumen ini (`AGENTS.md`) kelihatan
+bertentangan di satu titik: `AGENTS.md` menang untuk ATURAN KERJA (cara
+mengerjakan), `PRD.md` menang untuk KEPUTUSAN PRODUK (apa yang dibangun).
+Kalau tetap bingung, tanya user — jangan pilih sendiri mana yang menang.
+
 ---
 
 ## 0. TENTANG USER (baca ini dulu, ini menentukan CARA kamu ngomong)
@@ -26,6 +39,18 @@ Aturan komunikasi wajib (ini sering dilanggar sebelumnya — jangan diulang):
 4. Kalau nemu ambiguitas soal **keputusan produk** (bukan keputusan
    teknis), tanya dengan pertanyaan pendek + kasih 2-3 opsi konkret,
    jangan tanya terbuka yang bikin user harus mikir dari nol.
+5. **Kalau bingung/ragu di TENGAH mengerjakan (bukan cuma di awal),
+   BERHENTI dan tanya.** Jangan lanjut dengan asumsi sendiri lalu
+   berharap ketahuan belakangan — user lebih suka ditanya daripada
+   nemu hasil yang salah arah setelah selesai.
+6. **Kalau kasih saran, sertakan pertimbangannya dalam 1 kalimat**
+   (kenapa itu lebih baik / trade-off-nya apa), bukan cuma "sebaiknya
+   begini" tanpa alasan. Tapi tetap singkat — 1 kalimat pertimbangan,
+   bukan esai.
+7. **Kalau kamu SENGAJA belum menyambungkan suatu bagian ke data asli**
+   (misal fase belum sampai situ), WAJIB bilang eksplisit di laporan —
+   "halaman X masih pakai data contoh, belum dikerjakan" — jangan biarkan
+   user nemu sendiri lalu kaget. Lihat juga Bagian 3 aturan #9.
 
 ---
 
@@ -82,7 +107,17 @@ UI = perubahan keputusan produk, bukan keputusan teknis biasa.
   Forgot Password dianggap selesai.
 - File konfigurasi agent disimpan di `.opencode/` (AGENTS.md, TASKS.md,
   opencode.json, skill/), skema database di `database/` (schema.sql +
-  file migrasi bernomor per fase).
+  file migrasi bernomor per fase), dokumen produk & arsitektur di
+  `docs/` (PRD.md, ARCHITECTURE.md).
+- **KEPUTUSAN user 29 Sep 2026:** dependency `qrcode` + pekerjaan awal
+  `StoreQR` (harusnya Fase 5) yang sempat dikerjakan lebih dulu dari
+  urutan — **DIBOLEHKAN lanjut, tidak perlu revert.** Tapi ini
+  PENGECUALIAN sekali, bukan izin umum untuk lompat fase lagi ke depan
+  — aturan #6 di Bagian 3 tetap berlaku normal untuk sisanya.
+- **Insiden 29 Sep 2026:** data contoh ("Dapoer Bu Ani" dari
+  `src/lib/data.tsx`) sempat kelihatan di frontend dan bikin user
+  kesal. Lihat aturan #9 Bagian 3 — ini sekarang pelanggaran fatal,
+  jangan terulang.
 
 ---
 
@@ -109,6 +144,33 @@ UI = perubahan keputusan produk, bukan keputusan teknis biasa.
    langsung), atau mengubah struktur folder `.opencode/`.
 8. Kalau nemu bug/inkonsistensi di kode yang sudah ada, **laporkan**,
    jangan refactor besar-besaran tanpa izin.
+9. **DATA DI FRONTEND WAJIB REAL DARI SUPABASE — ZERO TOLERANSI DATA
+   CONTOH DI FITUR YANG SUDAH DITANDAI `[x]` SELESAI.** Ini pelanggaran
+   fatal, pernah terjadi (contoh: "Dapoer Bu Ani" dari `src/lib/data.tsx`
+   masih nongol di frontend), jangan diulang lagi.
+   - `src/lib/data.tsx` isinya DATA CONTOH (mock), bukan sumber data
+     produk. Begitu satu halaman/fitur kamu tandai `[x]` selesai di
+     `.opencode/TASKS.md`, halaman itu HARUS 100% ambil data dari
+     Supabase — tidak ada satupun render yang jatuh balik
+     (fallback) ke `data.tsx` atau array hardcode lain.
+   - **Sebelum centang task manapun `[x]`**, wajib jalankan pengecekan
+     ini dan pastikan hasilnya kosong untuk file yang kamu sentuh di
+     task itu:
+     ```
+     grep -n "from \"../lib/data\"\|from \"./data\"\|MOCK_" <file yang disentuh>
+     ```
+     Kalau masih ada import dari `lib/data.tsx` di file itu untuk data
+     yang seharusnya real (bukan konstanta UI seperti daftar ikon/tema),
+     task itu BELUM selesai — jangan dicentang.
+   - **Pengecualian yang boleh** (bukan pelanggaran): `Landing.tsx`
+     (copy marketing statis, bukan data pengguna), dan konstanta murni
+     UI (nama ikon, daftar warna tema, label statis) — itu bukan "data
+     produk", boleh tetap di `data.tsx` atau file constants terpisah.
+   - **Fase yang MEMANG belum dikerjakan** (lihat checkbox kosong `[ ]`
+     di `.opencode/TASKS.md`) BOLEH masih menampilkan data contoh — itu
+     bukan pelanggaran. TAPI wajib ikuti aturan #6 di Bagian 0: laporkan
+     eksplisit halaman mana saja yang masih begitu, jangan biarkan user
+     nemu sendiri.
 
 ---
 
@@ -131,7 +193,8 @@ mulai task manapun:
      error. Jangan tunggu response dulu baru UI berubah (kelihatan lag).
    - Cek responsif di lebar **375px (HP) dan 1440px (desktop)** minimal
      — mayoritas seller akses dari HP, ini prioritas, bukan opsional.
-4. Kalau task selesai dan semua Done When terpenuhi: centang `[x]` di
+4. Kalau task selesai dan semua Done When terpenuhi (TERMASUK cek
+   anti-mock-data di Bagian 3 aturan #9): centang `[x]` di
    `.opencode/TASKS.md`, lalu laporkan pakai format di Bagian 5.
 5. Kalau task TIDAK bisa diselesaikan penuh (ada bagian yang perlu
    keputusan user): centang bagian yang selesai, tulis sub-bullet baru
@@ -149,6 +212,9 @@ Setelah satu task selesai, laporkan PERSIS format ini, tidak lebih:
 - Yang berubah: [1-2 kalimat, bahasa awam]
 - Perlu kamu cek: [kalau ada -- spesifik, mis. "coba toggle di HP, dan isi 1 kode
   diskon buat tes" -- kalau tidak ada langsung tulis "tidak ada"]
+- Masih pakai data contoh: [kalau ADA bagian yang sengaja belum
+  disambungkan ke data asli, sebutkan halamannya di sini -- kalau
+  semua sudah data asli, tulis "tidak ada"]
 ```
 
 Jangan tambahkan penjelasan konsep umum, jangan tulis ulang seluruh kode
