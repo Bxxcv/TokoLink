@@ -299,11 +299,14 @@ export function Wallet() {
 /* ================================= WITHDRAW ================================ */
 export function Withdraw() {
   const { toast } = useApp();
-  const { user, profile } = useAuth();
+  const { user } = useAuth();
   const { balance } = useLedger();
   const [amount, setAmount] = useState("500000");
-  const [bank, setBank] = useState("");
+  const [bankName, setBankName] = useState("BCA");
+  const [acctNum, setAcctNum] = useState("");
+  const [acctName, setAcctName] = useState("");
   const [err, setErr] = useState("");
+  const [fieldErr, setFieldErr] = useState("");
   const [loading, setLoading] = useState(false);
   const [confirm, setConfirm] = useState(false);
   const [history, setHistory] = useState<{ amount: number | string; status: string; created_at: string; bank: string }[]>([]);
@@ -326,8 +329,10 @@ export function Withdraw() {
   const submit = () => {
     if (value < 50000) return setErr("Penarikan minimal Rp50.000.");
     if (value > balance) return setErr("Jumlah melebihi saldo tersedia.");
-    if (!bank) return setErr("Pilih rekening tujuan.");
+    if (digitsOnly(acctNum).length < 9) return setFieldErr("Nomor rekening belum benar (minimal 9 digit).");
+    if (acctName.trim().length < 3) return setFieldErr("Tulis nama pemilik rekening.");
     setErr("");
+    setFieldErr("");
     setConfirm(true);
   };
 
@@ -338,8 +343,8 @@ export function Withdraw() {
     try {
       const { error } = await supabase.from("withdrawals").insert({
         seller_id: user.id,
-        bank: bank || "BCA",
-        account_number: bank || "BCA",
+        bank: bankName,
+        account_number: digitsOnly(acctNum),
         amount: value,
         fee,
         status: "menunggu",
@@ -404,12 +409,30 @@ export function Withdraw() {
               ))}
             </div>
 
-            <Field label="Rekening tujuan" required>
-              <Select value={bank} onChange={(e) => setBank(e.target.value)}>
-                <option value="">{`Pilih rekening… (${profile?.owner_name || "Pemilik"})`}</option>
-                <option>BCA •••• 4821</option>
-                <option>Mandiri •••• 3345</option>
-              </Select>
+            <Field label="Rekening tujuan" required error={fieldErr}>
+              <div className="grid gap-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <Select value={bankName} onChange={(e) => setBankName(e.target.value)} aria-label="Nama bank">
+                    {["BCA", "BRI", "Mandiri", "BNI", "CIMB", "Danamon", "BSI", "DANA", "OVO", "GoPay"].map((b) => (
+                      <option key={b}>{b}</option>
+                    ))}
+                  </Select>
+                  <Input
+                    value={acctNum ? Number(digitsOnly(acctNum)).toLocaleString("id-ID").replace(/\./g, " ") : ""}
+                    inputMode="numeric"
+                    onChange={(e) => setAcctNum(digitsOnly(e.target.value))}
+                    placeholder="1234 5678 90"
+                    className="tnum"
+                    aria-label="Nomor rekening"
+                  />
+                </div>
+                <Input
+                  value={acctName}
+                  onChange={(e) => setAcctName(e.target.value)}
+                  placeholder="Nama pemilik rekening"
+                  aria-label="Nama pemilik rekening"
+                />
+              </div>
             </Field>
 
             <Field label="Catatan (opsional)">
@@ -490,7 +513,7 @@ export function Withdraw() {
         open={confirm}
         onClose={() => setConfirm(false)}
         title="Konfirmasi penarikan"
-        body={`Anda akan menarik ${rupiah(value)} ke ${bank}. Biaya transfer ${rupiah(fee)}, sehingga yang diterima ${rupiah(Math.max(0, value - fee))}. Dana tidak bisa ditarik kembali setelah diproses.`}
+        body={`Anda akan menarik ${rupiah(value)} ke ${bankName} •••• ${digitsOnly(acctNum).slice(-4)} (${acctName.trim()}). Biaya transfer ${rupiah(fee)}, sehingga yang diterima ${rupiah(Math.max(0, value - fee))}. Dana tidak bisa ditarik kembali setelah diproses.`}
         confirmLabel="Ya, tarik dana"
         tone="primary"
         onConfirm={confirmWithdraw}
@@ -1823,6 +1846,9 @@ export function AccountSettings() {
   const [owner, setOwner] = useState("");
   const [phone, setPhone] = useState("");
   const [saving, setSaving] = useState(false);
+  const [pw, setPw] = useState({ baru: "", ulang: "" });
+  const [pwErr, setPwErr] = useState("");
+  const [pwLoading, setPwLoading] = useState(false);
   const initialized = useRef(false);
 
   useEffect(() => {
@@ -1914,19 +1940,54 @@ export function AccountSettings() {
           </Card>
 
           <Card>
-            <CardHead title="Kata sandi" sub="Terakhir diubah 4 bulan lalu" icon="lock" />
+            <CardHead title="Kata sandi" sub="Minimal 8 karakter, campur angka dan huruf" icon="lock" />
             <div className="grid gap-4 sm:max-w-md">
-              <Field label="Kata sandi saat ini" required>
-                <Input type="password" placeholder="••••••••" />
-              </Field>
-              <Field label="Kata sandi baru" required hint="Minimal 8 karakter, campur angka dan huruf.">
-                <Input type="password" placeholder="••••••••" />
+              <Field label="Kata sandi baru" required error={pwErr}>
+                <Input
+                  type="password"
+                  value={pw.baru}
+                  autoComplete="new-password"
+                  onChange={(e) => {
+                    setPw((x) => ({ ...x, baru: e.target.value }));
+                    setPwErr("");
+                  }}
+                  placeholder="••••••••"
+                />
               </Field>
               <Field label="Ulangi kata sandi baru" required>
-                <Input type="password" placeholder="••••••••" />
+                <Input
+                  type="password"
+                  value={pw.ulang}
+                  autoComplete="new-password"
+                  onChange={(e) => {
+                    setPw((x) => ({ ...x, ulang: e.target.value }));
+                    setPwErr("");
+                  }}
+                  placeholder="••••••••"
+                />
               </Field>
               <div>
-                <Button variant="secondary" onClick={() => toast("Kata sandi berhasil diganti.")}>
+                <Button
+                  variant="secondary"
+                  loading={pwLoading}
+                  onClick={async () => {
+                    if (pw.baru.length < 8) return setPwErr("Kata sandi minimal 8 karakter.");
+                    if (pw.baru !== pw.ulang) return setPwErr("Ulangi kata sandi tidak sama.");
+                    setPwErr("");
+                    setPwLoading(true);
+                    try {
+                      const { error } = await supabase.auth.updateUser({ password: pw.baru });
+                      if (error) {
+                        setPwErr("Gagal mengganti. Coba login ulang lalu ulangi.");
+                        return;
+                      }
+                      setPw({ baru: "", ulang: "" });
+                      toast("Kata sandi berhasil diganti.");
+                    } finally {
+                      setPwLoading(false);
+                    }
+                  }}
+                >
                   Ganti kata sandi
                 </Button>
               </div>

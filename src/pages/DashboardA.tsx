@@ -976,7 +976,7 @@ export function ProductForm({ id }: { id?: string }) {
   const { toast } = useApp();
   const { user } = useAuth();
   const editing = !!id;
-  const [existing, setExisting] = useState<Product | null>(null);
+  const [, setExisting] = useState<Product | null>(null);
   const [loading, setLoading] = useState(editing);
   const [f, setF] = useState({
     name: "",
@@ -986,12 +986,41 @@ export function ProductForm({ id }: { id?: string }) {
     sku: "",
     weight: "500",
     desc: "",
+    img: "",
     active: true,
     showStock: true,
   });
   const [err, setErr] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const set = (k: keyof typeof f, v: string | boolean) => setF((x) => ({ ...x, [k]: v }));
+
+  const uploadPhoto = async (file: File | undefined) => {
+    if (!file || !user) return;
+    if (!file.type.startsWith("image/")) {
+      toast("File harus gambar (JPG/PNG).", "bad");
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      toast("Ukuran maksimal 2MB.", "bad");
+      return;
+    }
+    setUploading(true);
+    try {
+      const ext = file.name.split(".").pop()?.toLowerCase() === "png" ? "png" : "jpg";
+      const path = `${user.id}/${Date.now()}.${ext}`;
+      const { error } = await supabase.storage.from("tokolink").upload(path, file, { upsert: true });
+      if (error) {
+        toast("Upload gagal. Pastikan SQL storage sudah di-run.", "bad");
+        return;
+      }
+      const { data } = supabase.storage.from("tokolink").getPublicUrl(path);
+      set("img", data.publicUrl);
+      toast("Foto terunggah.");
+    } finally {
+      setUploading(false);
+    }
+  };
 
   useEffect(() => {
     if (!id) return;
@@ -1013,6 +1042,7 @@ export function ProductForm({ id }: { id?: string }) {
         sku: mapped.sku,
         weight: String(mapped.weight),
         desc: mapped.desc,
+        img: mapped.img.startsWith("images/") ? "" : mapped.img,
         active: mapped.status !== "nonaktif",
         showStock: true,
       });
@@ -1044,8 +1074,9 @@ export function ProductForm({ id }: { id?: string }) {
         sku: f.sku.trim() || null,
         weight_gram: f.weight === "" ? null : Number(f.weight),
         description: f.desc.trim() || null,
+        image_url: f.img || null,
         status: f.active ? "aktif" : "nonaktif",
-        ...(editing ? {} : { unit: null, image_url: null }),
+        ...(editing ? {} : { unit: null }),
       };
       const { error } = editing
         ? await supabase.from("products").update(payload).eq("id", id)
@@ -1139,27 +1170,33 @@ export function ProductForm({ id }: { id?: string }) {
           </Card>
 
           <Card>
-            <CardHead title="Foto produk" sub="Maksimal 6 foto, format JPG atau PNG" icon="image" />
+            <CardHead title="Foto produk" sub="JPG atau PNG, maksimal 2MB" icon="image" />
             <div className="grid grid-cols-3 gap-3 sm:grid-cols-6">
               <div className="relative overflow-hidden rounded-md border border-line">
-                <img
-                  src={existing?.img ?? "images/p-lapis.jpg"}
-                  alt=""
-                  className="aspect-square w-full object-cover"
-                />
-                <span className="micro absolute left-0 top-0 bg-brand-600 px-1.5 py-0.5 text-white">Utama</span>
+                {f.img ? (
+                  <img src={f.img} alt="" className="aspect-square w-full object-cover" />
+                ) : (
+                  <div className="grid aspect-square w-full place-items-center bg-canvas text-faint">
+                    <Icon name="image" size={24} />
+                  </div>
+                )}
+                {f.img && (
+                  <span className="micro absolute left-0 top-0 bg-brand-600 px-1.5 py-0.5 text-white">Utama</span>
+                )}
               </div>
-              {[0, 1, 2].map((i) => (
-                <button
-                  key={i}
-                  type="button"
-                  onClick={() => toast("Pilih foto dari galeri perangkat.", "info")}
-                  className="grid aspect-square place-items-center rounded-md border border-dashed border-[#CBD7E7] bg-canvas text-faint transition-colors hover:border-brand-400 hover:text-brand-600"
-                >
-                  <Icon name="plus" size={18} />
-                </button>
-              ))}
+              <label className="grid aspect-square cursor-pointer place-items-center rounded-md border border-dashed border-[#CBD7E7] bg-canvas text-faint transition-colors hover:border-brand-400 hover:text-brand-600">
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png"
+                  className="hidden"
+                  disabled={uploading}
+                  onChange={(e) => uploadPhoto(e.target.files?.[0])}
+                />
+                {uploading ? <Icon name="refresh" size={18} className="animate-spin" /> : <Icon name="plus" size={18} />}
+                <span className="sr-only">Unggah foto</span>
+              </label>
             </div>
+            {uploading && <p className="mt-2 text-[12.5px] text-muted">Mengunggah…</p>}
           </Card>
 
           <Card>
@@ -1215,7 +1252,7 @@ export function ProductForm({ id }: { id?: string }) {
             <div className="micro mb-3 text-brand-600">Pratinjau di toko</div>
             <div className="overflow-hidden rounded-lg border border-line">
               <img
-                src={existing?.img ?? "images/p-lapis.jpg"}
+                src={f.img || "images/p-lapis.jpg"}
                 alt=""
                 className="aspect-[4/3] w-full object-cover"
               />
