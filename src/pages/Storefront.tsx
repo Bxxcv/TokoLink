@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, navigate } from "../lib/router";
-import { HOURS, rupiah, useApp, type Product } from "../lib/data";
+import { rupiah, useApp, type Product } from "../lib/data";
 import { supabase } from "../lib/supabase";
 import { mapProduct, type DbProduct } from "../lib/products";
 import { normalizeWA } from "../lib/format";
@@ -285,6 +285,8 @@ export function StoreHome({ slug }: { slug: string }) {
   // Badge buka/tutup dari store_hours (zona WIB). Tanpa data jam → anggap buka.
   const [openNow, setOpenNow] = useState<boolean | null>(null);
   const [todayHours, setTodayHours] = useState("");
+  const [hourRows, setHourRows] = useState<{ day: string; text: string; on: boolean }[]>([]);
+  const DAY_NAMES = ["Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu", "Minggu"];
 
   useEffect(() => {
     if (!store) return;
@@ -298,8 +300,21 @@ export function StoreHome({ slug }: { slug: string }) {
       }[]);
       if (rows.length === 0) {
         setOpenNow(true);
+        setHourRows([]);
         return;
       }
+      setHourRows(
+        [...rows]
+          .sort((a, b) => a.day_of_week - b.day_of_week)
+          .map((r) => ({
+            day: DAY_NAMES[r.day_of_week] ?? "",
+            text:
+              r.is_open && r.open_time && r.close_time
+                ? `${r.open_time.slice(0, 5).replace(":", ".")} – ${r.close_time.slice(0, 5).replace(":", ".")}`
+                : "Libur",
+            on: r.is_open && !!r.open_time && !!r.close_time,
+          })),
+      );
       const wib = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Jakarta" }));
       const day = (wib.getDay() + 6) % 7; // 0 = Senin
       const row = rows.find((r) => r.day_of_week === day);
@@ -525,23 +540,29 @@ export function StoreHome({ slug }: { slug: string }) {
           <div className="rounded-xl border border-line bg-white p-5 lg:col-span-2">
             <div className="micro mb-3 text-brand-600">02 / Jam buka</div>
             <ul className="grid gap-x-6 gap-y-1.5 sm:grid-cols-2">
-              {HOURS.map((h) => (
-                <li
-                  key={h.d}
-                  className={cx(
-                    "flex items-center justify-between border-b border-linesoft py-2 text-[13.5px] last:border-0",
-                    h.on ? "text-ink" : "text-faint",
-                  )}
-                >
-                  <span className="font-semibold">{h.d}</span>
-                  <span className="tnum">{h.on ? `${h.open} – ${h.close}` : "Libur"}</span>
-                </li>
-              ))}
+              {hourRows.length === 0 ? (
+                <li className="text-[13px] text-faint">Jam operasional belum diatur penjual.</li>
+              ) : (
+                hourRows.map((h) => (
+                  <li
+                    key={h.day}
+                    className={cx(
+                      "flex items-center justify-between border-b border-linesoft py-2 text-[13.5px] last:border-0",
+                      h.on ? "text-ink" : "text-faint",
+                    )}
+                  >
+                    <span className="font-semibold">{h.day}</span>
+                    <span className="tnum">{h.text}</span>
+                  </li>
+                ))
+              )}
             </ul>
             <div className="mt-4 flex flex-wrap gap-x-6 gap-y-2 border-t border-linesoft pt-4 text-[13.5px] text-muted">
-              <span className="flex items-center gap-2">
-                <Icon name="pin" size={15} className="text-brand-500" /> Jl. Cihampelas No. 28, Bandung
-              </span>
+              {city && (
+                <span className="flex items-center gap-2">
+                  <Icon name="pin" size={15} className="text-brand-500" /> {city}
+                </span>
+              )}
               <span className="flex items-center gap-2">
                 <Icon name="truck" size={15} className="text-brand-500" /> GoSend · JNE · kirim sendiri
               </span>
