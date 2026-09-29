@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { navigate } from "../lib/router";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
@@ -443,7 +443,22 @@ export function Analytics() {
         actions={
           <>
             <Segmented items={["7 hari", "30 hari", "90 hari"]} active={period} onChange={setPeriod} />
-              <Button variant="secondary" onClick={() => toast("Laporan Excel sedang disiapkan, akan dikirim ke email Anda.", "info")}>
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  const rows = [
+                    ["tanggal", "pesanan", "omzet"].join(";"),
+                    ...dayKeys.map((k, i) => [k, countSeries[i], series[i] * 1000].join(";")),
+                  ];
+                  const blob = new Blob(["\ufeff" + rows.join("\n")], { type: "text/csv" });
+                  const a = document.createElement("a");
+                  a.href = URL.createObjectURL(blob);
+                  a.download = `analitik-${period.replace(/ /g, "")}.csv`;
+                  a.click();
+                  URL.revokeObjectURL(a.href);
+                  toast("Laporan Excel diunduh.");
+                }}
+              >
               <Icon name="download" size={16} /> Unduh Excel
             </Button>
           </>
@@ -676,6 +691,41 @@ export function Products() {
   const [items, setItems] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const importCsv = async (file: File | undefined) => {
+    if (!file || !user) return;
+    setImporting(true);
+    try {
+      const text = await file.text();
+      const rows = text.split(/\r?\n/).map((l) => l.split(",").map((c) => c.trim())).filter((c) => c.length >= 2 && c[0]);
+      const valid = rows
+        .filter((c) => !isNaN(Number(c[1])))
+        .map((c) => ({
+          seller_id: user.id,
+          name: c[0].slice(0, 80),
+          category: c[3] || "Kue & Snack",
+          price: Math.max(0, Number(c[1])),
+          stock: Math.max(0, Number(c[2] || 0)),
+          status: "nonaktif",
+        }));
+      if (valid.length === 0) {
+        toast("Tidak ada baris valid. Format: nama,harga,stok,kategori.", "bad");
+        return;
+      }
+      const { error } = await supabase.from("products").insert(valid);
+      if (error) {
+        toast("Gagal mengimpor.", "bad");
+        return;
+      }
+      toast(`${valid.length} produk diimpor sebagai draf.`);
+      load();
+    } finally {
+      setImporting(false);
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  };
 
   const load = async () => {
     if (!user) return;
@@ -755,7 +805,8 @@ export function Products() {
         desc={`${items.length} produk di toko Anda, ${items.filter((p) => p.stock === 0).length} di antaranya stok habis.`}
         actions={
           <>
-            <Button variant="secondary" onClick={() => toast("Impor produk dari CSV belum aktif di prototipe.", "info")}>
+            <input ref={fileRef} type="file" accept=".csv,text/csv" className="hidden" onChange={(e) => importCsv(e.target.files?.[0])} />
+            <Button variant="secondary" loading={importing} onClick={() => fileRef.current?.click()}>
               <Icon name="download" size={16} /> Impor
             </Button>
             <ButtonLink to="/app/products/new">
@@ -1049,7 +1100,7 @@ export function ProductForm({ id }: { id?: string }) {
     })();
   }, [id]);
 
-  const save = async () => {
+  const save = async (asDraft = false) => {
     const e: Record<string, string> = {};
     if (f.name.trim().length < 4) e.name = "Nama produk minimal 4 karakter.";
     if (!f.price || Number(f.price) <= 0) e.price = "Masukkan harga jual.";
@@ -1075,7 +1126,7 @@ export function ProductForm({ id }: { id?: string }) {
         weight_gram: f.weight === "" ? null : Number(f.weight),
         description: f.desc.trim() || null,
         image_url: f.img || null,
-        status: f.active ? "aktif" : "nonaktif",
+        status: asDraft ? "nonaktif" : f.active ? "aktif" : "nonaktif",
         ...(editing ? {} : { unit: null }),
       };
       const { error } = editing
@@ -1120,7 +1171,7 @@ export function ProductForm({ id }: { id?: string }) {
             <Button variant="ghost" onClick={() => navigate("/app/products")}>
               Batal
             </Button>
-            <Button variant="secondary" loading={saving} onClick={save}>
+            <Button variant="secondary" loading={saving} onClick={() => save(true)}>
               Simpan sebagai draf
             </Button>
           </>
@@ -1236,10 +1287,6 @@ export function ProductForm({ id }: { id?: string }) {
             </FieldRow>
             <div className="mt-4 space-y-3 rounded-md bg-canvas p-3.5">
               <div className="flex items-center justify-between gap-3">
-                <span className="text-[13.5px] text-muted">Tampilkan sisa stok ke pembeli</span>
-                <Toggle checked={f.showStock} onChange={(v) => set("showStock", v)} label="Tampilkan stok" />
-              </div>
-              <div className="flex items-center justify-between gap-3 border-t border-line pt-3">
                 <span className="text-[13.5px] text-muted">Produk aktif di toko</span>
                 <Toggle checked={f.active} onChange={(v) => set("active", v)} label="Produk aktif" />
               </div>
@@ -1310,6 +1357,7 @@ export function ProductForm({ id }: { id?: string }) {
 export function Orders() {
   const [tab, setTab] = useState("semua");
   const [q, setQ] = useState("");
+  const [period, setPeriod] = useState("Semua");
   const { user, profile } = useAuth();
   const storeSlug = profile?.store_slug || "";
   const [rows, setRows] = useState<Order[]>([]);
@@ -1359,6 +1407,7 @@ export function Orders() {
             minute: "2-digit",
           }),
           channel: o.channel ?? "—",
+          ts: o.created_at,
         };
       }),
     );
@@ -1380,9 +1429,10 @@ export function Orders() {
   const filtered = rows.filter(
     (o) =>
       (tab === "semua" || o.status === tab || (tab === "refund" && o.status === "batal")) &&
+      (period === "Semua" || Date.now() - new Date((o as Order & { ts?: string }).ts ?? o.date).getTime() <= (period === "7 hari" ? 7 : 30) * 86400000) &&
       (o.customer.toLowerCase().includes(q.toLowerCase()) || o.id.toLowerCase().includes(q.toLowerCase())),
   );
-  const isPristine = rows.length === 0 && q === "" && tab === "semua";
+  const isPristine = rows.length === 0 && q === "" && tab === "semua" && period === "Semua";
 
   return (
     <AppShell>
@@ -1424,12 +1474,7 @@ export function Orders() {
             <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cari nomor pesanan atau nama pembeli…" className="h-10 pl-9" />
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="secondary" size="sm" className="h-10">
-              <Icon name="calendar" size={15} /> 14 Jan – 12 Feb
-            </Button>
-            <Button variant="ghost" size="sm" className="h-10">
-              <Icon name="filter" size={15} /> Filter
-            </Button>
+            <Segmented items={["Semua", "7 hari", "30 hari"]} active={period} onChange={setPeriod} />
           </div>
         </div>
 
@@ -1720,7 +1765,17 @@ export function OrderDetail({ id }: { id: string }) {
           desc={`${o.customer} · ${o.city} · ${lines.reduce((s, l) => s + l.qty, 0)} barang`}
           actions={
             <>
-              <Button variant="secondary" onClick={() => toast("Membuka chat WhatsApp pembeli…", "info")}>
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  const digits = (o.phone || "").replace(/\D/g, "").replace(/^0/, "62");
+                  if (!digits) {
+                    toast("Nomor WhatsApp pembeli tidak tersimpan.", "bad");
+                    return;
+                  }
+                  window.open(`https://wa.me/${digits}?text=${encodeURIComponent(`Halo, terkait pesanan ${o.id} di toko kami.`)}`, "_blank");
+                }}
+              >
                 <Icon name="wa" size={16} className="text-[#0a7a56]" /> Chat pembeli
               </Button>
               <Button variant="secondary" onClick={() => window.print()}>
@@ -1896,7 +1951,27 @@ export function OrderDetail({ id }: { id: string }) {
           <div className="rounded-xl border border-line bg-white p-5">
             <div className="micro mb-3 text-faint">Tindakan lain</div>
             <div className="space-y-2">
-              <Button variant="secondary" className="w-full justify-start" onClick={() => toast("Label pengiriman diunduh.")}>
+              <Button
+                variant="secondary"
+                className="w-full justify-start"
+                onClick={() => {
+                  const rows = [
+                    `PENERIMA: ${o.customer}`,
+                    o.address ? `ALAMAT: ${o.address}` : null,
+                    o.city ? `KOTA: ${o.city}` : null,
+                    o.phone ? `WA: ${o.phone}` : null,
+                    `ORDER: ${o.id}`,
+                    ...lines.map((l) => `${l.qty}x ${l.name}`),
+                  ].filter(Boolean) as string[];
+                  const blob = new Blob([rows.join("\n")], { type: "text/plain" });
+                  const a = document.createElement("a");
+                  a.href = URL.createObjectURL(blob);
+                  a.download = `label-${o.id}.txt`;
+                  a.click();
+                  URL.revokeObjectURL(a.href);
+                  toast("Label pengiriman diunduh.");
+                }}
+              >
                 <Icon name="download" size={16} /> Unduh label kirim
               </Button>
               <Button

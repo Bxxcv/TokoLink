@@ -10,9 +10,10 @@ alter table profiles add column if not exists cover_url text;
 alter table profiles add column if not exists category text;
 alter table profiles add column if not exists bio text;
 alter table profiles add column if not exists address text;
+alter table profiles add column if not exists is_closed boolean not null default false;
 
 -- ---------- verifikasi ----------
 -- select column_name from information_schema.columns
 -- where table_name = 'profiles' and column_name in
--- ('avatar_url', 'cover_url', 'category', 'bio', 'address');
--- Harus 5 baris.
+-- ('avatar_url', 'cover_url', 'category', 'bio', 'address', 'is_closed');
+-- Harus 6 baris.

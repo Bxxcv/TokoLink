@@ -18,6 +18,7 @@ export type Profile = {
   category: string | null;
   bio: string | null;
   address: string | null;
+  is_closed: boolean;
   plan: string;
   status: string;
 };

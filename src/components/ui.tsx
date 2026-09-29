@@ -101,6 +101,7 @@ const PATHS: Record<string, ReactNode> = {
   right: <path d="m10 7.5 4.5 4.5L10 16.5" />,
   left: <path d="M14 7.5 9.5 12 14 16.5" />,
   down: <path d="M12 5.5v13M6.5 13l5.5 5.5L17.5 13" />,
+  up: <path d="M12 18.5v-13M6.5 11l5.5-5.5L17.5 11" />,
   arrowUp: <path d="M12 19V5M6.5 10.5 12 5l5.5 5.5" />,
   arrowDown: <path d="M12 5v14M6.5 13.5 12 19l5.5-5.5" />,
   arrowRight: <path d="M5 12h14M13.5 6.5 19 12l-5.5 5.5" />,

@@ -1,3 +1,4 @@
+import QRCode from "qrcode";
 import { useEffect, useMemo, useState } from "react";
 import { Link, navigate } from "../lib/router";
 import { rupiah, useApp, type Product } from "../lib/data";
@@ -37,6 +38,7 @@ export type StoreProfile = {
   avatar_url: string | null;
   cover_url: string | null;
   bio: string | null;
+  is_closed: boolean | null;
 };
 
 /**
@@ -55,7 +57,7 @@ function usePublicStore(slug: string) {
       setNotFound(false);
       const { data: prof } = await supabase
         .from("profiles")
-        .select("id,store_name,store_slug,city,owner_name,wa_number,avatar_url,cover_url,bio")
+        .select("id,store_name,store_slug,city,owner_name,wa_number,avatar_url,cover_url,bio,is_closed")
         .eq("store_slug", slug)
         .maybeSingle();
       if (!prof) {
@@ -213,10 +215,10 @@ function Stepper({
   );
 }
 
-function ProductCard({ p, slug, onAdd }: { p: Product; slug: string; onAdd: (p: Product) => void }) {
+function ProductCard({ p, slug, accent, hideAdd, className = "", onAdd }: { p: Product; slug: string; accent?: string; hideAdd?: boolean; className?: string; onAdd: (p: Product) => void }) {
   const out = p.stock === 0;
   return (
-    <article className="group relative flex flex-col overflow-hidden rounded-lg border border-line bg-white transition-[border-color,box-shadow,transform] duration-150 hover:-translate-y-0.5 hover:border-brand-300 hover:shadow-card">
+    <article className={`group relative flex flex-col overflow-hidden rounded-lg border border-line bg-white transition-[border-color,box-shadow,transform] duration-150 hover:-translate-y-0.5 hover:border-brand-300 hover:shadow-card ${className}`}>
       <Link to={`/s/${slug}/p/${p.id}`} className="relative block overflow-hidden bg-canvas">
         <img
           src={p.img}
@@ -248,17 +250,20 @@ function ProductCard({ p, slug, onAdd }: { p: Product; slug: string; onAdd: (p: 
         </Link>
         <div className="mt-2 flex items-end justify-between gap-2">
           <div>
-            <div className="tnum text-[15.5px] font-bold text-brand-700">{rupiah(p.price)}</div>
+            <div className="tnum text-[15.5px] font-bold text-brand-700" style={accent ? { color: accent } : undefined}>{rupiah(p.price)}</div>
             <div className="text-[11.5px] text-faint">{p.unit}</div>
           </div>
+          {!hideAdd && (
           <button
             disabled={out}
             onClick={() => onAdd(p)}
             aria-label={`Tambah ${p.name} ke keranjang`}
             className="grid h-9 w-9 place-items-center rounded-md bg-brand-600 text-white transition-all duration-150 hover:bg-brand-700 active:translate-y-px disabled:pointer-events-none disabled:bg-linesoft disabled:text-faint"
+            style={accent ? { backgroundColor: accent } : undefined}
           >
             <Icon name="plus" size={17} strokeWidth={2.4} />
           </button>
+          )}
         </div>
       </div>
     </article>
@@ -273,6 +278,14 @@ export function StoreHome({ slug }: { slug: string }) {
   const [q, setQ] = useState("");
   const [qrOpen, setQrOpen] = useState(false);
   const [shared, setShared] = useState(false);
+  const [qrData, setQrData] = useState("");
+
+  useEffect(() => {
+    setQrData("");
+    QRCode.toDataURL(`https://tokolink.id/${slug}`, { width: 352, margin: 2 })
+      .then(setQrData)
+      .catch(() => {});
+  }, [slug]);
 
   const cats = useMemo(() => ["Semua", ...Array.from(new Set(items.map((p) => p.cat)))], [items]);
   const list = useMemo(
@@ -285,6 +298,32 @@ export function StoreHome({ slug }: { slug: string }) {
   const name = store?.store_name || "Toko";
   const city = store?.city || "";
   const wa = store?.wa_number || "";
+  const closed = store?.is_closed ?? false;
+  // Tema toko (warna, susunan, bagian tampil) — default bila seller belum atur.
+  const [theme, setTheme] = useState({ accent: "#0A69C4", layout: "Kisi", hours: true, qr: true, cart: true });
+
+  useEffect(() => {
+    if (!store) return;
+    (async () => {
+      const { data } = await supabase
+        .from("store_theme")
+        .select("accent,layout,show_hours,show_qr,show_cart")
+        .eq("seller_id", store.id)
+        .maybeSingle();
+      const t = data as { accent: string; layout: string; show_hours: boolean; show_qr: boolean; show_cart: boolean } | null;
+      if (!t) return;
+      const hex: Record<string, string> = {
+        Biru: "#0A69C4", Navy: "#0B2E6E", Toska: "#1B9AE0", Hijau: "#0E9F6E", "Jingga hangat": "#B45309",
+      };
+      setTheme({
+        accent: hex[t.accent] ?? "#0A69C4",
+        layout: t.layout,
+        hours: t.show_hours,
+        qr: t.show_qr,
+        cart: t.show_cart,
+      });
+    })();
+  }, [store]);
   // Badge buka/tutup dari store_hours (zona WIB). Tanpa data jam → anggap buka.
   const [openNow, setOpenNow] = useState<boolean | null>(null);
   const [todayHours, setTodayHours] = useState("");
@@ -501,6 +540,7 @@ export function StoreHome({ slug }: { slug: string }) {
                     ? "border-navy-800 bg-navy-800 text-white"
                     : "border-line bg-white text-muted hover:border-brand-300 hover:text-brand-700",
                 )}
+                style={cat === c ? { backgroundColor: theme.accent, borderColor: theme.accent } : undefined}
               >
                 {c}
               </button>
@@ -536,9 +576,23 @@ export function StoreHome({ slug }: { slug: string }) {
                 }
               />
             ) : (
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-                {list.map((p) => (
-                  <ProductCard key={p.id} p={p} slug={slug} onAdd={onAdd} />
+              <div
+                className={
+                  theme.layout === "Daftar"
+                    ? "grid grid-cols-1 gap-3"
+                    : "grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4"
+                }
+              >
+                {list.map((p, i) => (
+                  <ProductCard
+                    key={p.id}
+                    p={p}
+                    slug={slug}
+                    accent={theme.accent}
+                    hideAdd={!theme.cart || closed}
+                    className={theme.layout === "Sorotan" && i === 0 ? "col-span-2 lg:col-span-2" : ""}
+                    onAdd={onAdd}
+                  />
                 ))}
               </div>
             )}
@@ -547,6 +601,7 @@ export function StoreHome({ slug }: { slug: string }) {
 
         {/* info + QR */}
         <div className="mt-8 grid gap-4 lg:grid-cols-3">
+          {theme.hours && (
           <div className="rounded-xl border border-line bg-white p-5 lg:col-span-2">
             <div className="micro mb-3 text-brand-600">02 / Jam buka</div>
             <ul className="grid gap-x-6 gap-y-1.5 sm:grid-cols-2">
@@ -578,11 +633,17 @@ export function StoreHome({ slug }: { slug: string }) {
               </span>
             </div>
           </div>
+          )}
 
+          {theme.qr && (
           <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-line bg-navy-900 p-5 text-center">
             <div className="micro text-brand-300">Pindai untuk simpan</div>
             <div className="rounded-lg bg-white p-3">
-              <QRMark size={104} />
+              {qrData ? (
+                <img src={qrData} alt={`QR ${name}`} width={104} height={104} className="h-[104px] w-[104px]" />
+              ) : (
+                <QRMark size={104} />
+              )}
             </div>
             <p className="text-[12.5px] leading-snug text-white/60">
               Cetak QR ini untuk kasir atau etalase toko.
@@ -594,9 +655,10 @@ export function StoreHome({ slug }: { slug: string }) {
               Unduh QR
             </button>
           </div>
+          )}
         </div>
 
-        {count > 0 && (
+        {theme.cart && count > 0 && (
           <div className="sticky bottom-20 z-30 mt-6 lg:hidden">
             <ButtonLink to="/cart" className="w-full shadow-lift" size="lg">
               <Icon name="box" size={17} /> Lihat keranjang ({count})
@@ -612,7 +674,11 @@ export function StoreHome({ slug }: { slug: string }) {
       <Modal open={qrOpen} onClose={() => setQrOpen(false)} title="QR TokoLink" eyebrow={name} width="max-w-sm">
         <div className="flex flex-col items-center gap-4 text-center">
           <div className="relative rounded-lg border border-line bg-white p-4">
-            <QRMark size={176} />
+            {qrData ? (
+              <img src={qrData} alt={`QR ${name}`} width={176} height={176} className="h-[176px] w-[176px]" />
+            ) : (
+              <QRMark size={176} />
+            )}
             <span className="absolute left-1/2 top-1/2 flex h-11 w-11 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-md bg-white">
               <LogoMark size={34} />
             </span>
@@ -624,10 +690,28 @@ export function StoreHome({ slug }: { slug: string }) {
             </p>
           </div>
           <div className="flex w-full gap-2">
-            <Button variant="secondary" className="flex-1" onClick={() => toast("QR diunduh ke perangkat.")}>
+            <Button
+              variant="secondary"
+              className="flex-1"
+              onClick={() => {
+                if (!qrData) return;
+                const a = document.createElement("a");
+                a.href = qrData;
+                a.download = `qr-${slug}.png`;
+                a.click();
+                toast("QR diunduh ke perangkat.");
+              }}
+            >
               <Icon name="download" size={16} /> Unduh
             </Button>
-            <Button className="flex-1" onClick={() => toast("Tautan QR disalin.")}>
+            <Button
+              className="flex-1"
+              onClick={() => {
+                const url = `https://tokolink.id/${slug}`;
+                if (navigator.clipboard) navigator.clipboard.writeText(url).catch(() => {});
+                toast("Tautan QR disalin.");
+              }}
+            >
               <Icon name="copy" size={16} /> Salin tautan
             </Button>
           </div>
@@ -665,7 +749,7 @@ export function ProductDetail({ id, slug }: { id: string; slug: string }) {
       const sellerId = (data as DbProduct).seller_id;
       const { data: prof } = await supabase
         .from("profiles")
-        .select("id,store_name,store_slug,city,owner_name,wa_number")
+        .select("id,store_name,store_slug,city,owner_name,wa_number,avatar_url,cover_url,bio,is_closed")
         .eq("id", sellerId)
         .maybeSingle();
       setStore((prof as StoreProfile | null) ?? null);
@@ -717,6 +801,8 @@ export function ProductDetail({ id, slug }: { id: string; slug: string }) {
   }
 
   const out = p.stock === 0;
+  const closedDetail = store?.is_closed ?? false;
+  const cannotBuy = out || closedDetail;
   const positions = ["50% 50%", "20% 30%", "80% 70%"];
 
   return (
@@ -830,14 +916,14 @@ export function ProductDetail({ id, slug }: { id: string; slug: string }) {
             <div className="mt-6 hidden gap-2.5 lg:flex">
               <Button
                 size="lg"
-                disabled={out}
+                disabled={cannotBuy}
                 onClick={() => {
                   add(p.id, qty);
                   toast(`${qty} × ${p.name} masuk keranjang.`);
                 }}
                 className="flex-1"
               >
-                <Icon name="box" size={17} /> Tambah ke keranjang
+                <Icon name="box" size={17} /> {closedDetail ? "Toko tutup" : "Tambah ke keranjang"}
               </Button>
               <Button
                 size="lg"
@@ -855,7 +941,7 @@ export function ProductDetail({ id, slug }: { id: string; slug: string }) {
           <div className="micro mb-3 text-brand-600">Produk lain di toko ini</div>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             {related.map((r) => (
-              <ProductCard key={r.id} p={r} slug={slug} onAdd={(x) => { add(x.id); toast(`${x.name} masuk keranjang.`); }} />
+              <ProductCard key={r.id} p={r} slug={slug} hideAdd={closedDetail} onAdd={(x) => { add(x.id); toast(`${x.name} masuk keranjang.`); }} />
             ))}
           </div>
         </div>
@@ -876,14 +962,14 @@ export function ProductDetail({ id, slug }: { id: string; slug: string }) {
           </Button>
           <Button
             size="lg"
-            disabled={out}
+            disabled={cannotBuy}
             className="flex-1"
             onClick={() => {
               add(p.id, qty);
               toast(`${qty} × ${p.name} masuk keranjang.`);
             }}
           >
-            {out ? "Stok habis" : `Tambah · ${rupiah(p.price * qty)}`}
+            {out ? "Stok habis" : closedDetail ? "Toko tutup" : `Tambah · ${rupiah(p.price * qty)}`}
           </Button>
         </div>
       </div>
@@ -1038,7 +1124,7 @@ function useOrderStatus(orderId: string, token: string) {
 
 function orderStore(o: TrackedOrder | null): StoreProfile | null {
   if (!o) return null;
-  return { id: "", store_name: o.store, store_slug: o.slug, city: null, owner_name: null, wa_number: null, avatar_url: null, cover_url: null, bio: null };
+  return { id: "", store_name: o.store, store_slug: o.slug, city: null, owner_name: null, wa_number: null, avatar_url: null, cover_url: null, bio: null, is_closed: null };
 }
 
 function useCartStore(items: { sellerId: string }[]) {

@@ -564,6 +564,25 @@ export function BioLinks() {
     }
   };
 
+  const move = async (id: string, dir: -1 | 1) => {
+    const sorted = [...links].sort((a, b) => a.sort_order - b.sort_order);
+    const i = sorted.findIndex((x) => x.id === id);
+    const j = i + dir;
+    if (i < 0 || j < 0 || j >= sorted.length) return;
+    const a = sorted[i];
+    const b = sorted[j];
+    const next = links.map((x) =>
+      x.id === a.id ? { ...x, sort_order: b.sort_order } : x.id === b.id ? { ...x, sort_order: a.sort_order } : x,
+    );
+    setLinks(next);
+    const r1 = await supabase.from("bio_links").update({ sort_order: b.sort_order }).eq("id", a.id);
+    const r2 = await supabase.from("bio_links").update({ sort_order: a.sort_order }).eq("id", b.id);
+    if (r1.error || r2.error) {
+      toast("Gagal menyusun ulang.", "bad");
+      load();
+    }
+  };
+
   const saveField = async (id: string, patch: Partial<BRow>) => {
     const { error } = await supabase.from("bio_links").update(patch).eq("id", id);
     if (error) {
@@ -652,8 +671,23 @@ export function BioLinks() {
               )}
             >
               <div className="flex items-center gap-3">
-                <span className="grid h-9 w-9 shrink-0 place-items-center rounded-md bg-canvas text-faint">
-                  <Icon name="menu" size={16} />
+                <span className="flex flex-col">
+                  <button
+                    type="button"
+                    onClick={() => move(l.id, -1)}
+                    aria-label="Naikkan urutan"
+                    className="rounded p-0.5 text-faint transition-colors hover:text-brand-700"
+                  >
+                    <Icon name="up" size={14} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => move(l.id, 1)}
+                    aria-label="Turunkan urutan"
+                    className="rounded p-0.5 text-faint transition-colors hover:text-brand-700"
+                  >
+                    <Icon name="down" size={14} />
+                  </button>
                 </span>
                 <span className={cx("grid h-9 w-9 shrink-0 place-items-center rounded-md", l.is_active ? "bg-brand-50 text-brand-600" : "bg-white text-faint")}>
                   <Icon name={(l.icon ?? "link") === "link" ? "link" : l.icon === "doc" ? "receipt" : (l.icon ?? "link")} size={17} />
@@ -784,6 +818,65 @@ export function Theme() {
   const [layout, setLayout] = useState("Kisi");
   const [sections, setSections] = useState({ hours: true, qr: true, reviews: false, cart: true });
   const [saved, setSaved] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const snapshot = useRef({ accent: "Biru", layout: "Kisi", sections: { hours: true, qr: true, reviews: false, cart: true } });
+
+  useEffect(() => {
+    if (!user) return;
+    (async () => {
+      const { data } = await supabase.from("store_theme").select("*").eq("seller_id", user.id).maybeSingle();
+      const t = data as {
+        accent: string; layout: string; show_hours: boolean; show_qr: boolean; show_reviews: boolean; show_cart: boolean;
+      } | null;
+      if (!t) return;
+      const next = {
+        accent: t.accent,
+        layout: t.layout,
+        sections: { hours: t.show_hours, qr: t.show_qr, reviews: t.show_reviews, cart: t.show_cart },
+      };
+      setAccent(next.accent);
+      setLayout(next.layout);
+      setSections(next.sections);
+      snapshot.current = next;
+    })();
+  }, [user?.id]);
+
+  const saveTheme = async () => {
+    if (!user) return;
+    setSaving(true);
+    try {
+      const { error } = await supabase.from("store_theme").upsert(
+        {
+          seller_id: user.id,
+          accent,
+          layout,
+          show_hours: sections.hours,
+          show_qr: sections.qr,
+          show_reviews: sections.reviews,
+          show_cart: sections.cart,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "seller_id" },
+      );
+      if (error) {
+        toast("Gagal menyimpan tampilan.", "bad");
+        return;
+      }
+      snapshot.current = { accent, layout, sections: { ...sections } };
+      setSaved(true);
+      toast("Tampilan toko berhasil disimpan.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const cancelTheme = () => {
+    const s = snapshot.current;
+    setAccent(s.accent);
+    setLayout(s.layout);
+    setSections({ ...s.sections });
+    setSaved(true);
+  };
 
   const accents: Record<string, string> = {
     Biru: "#0A69C4",
@@ -802,18 +895,13 @@ export function Theme() {
         desc="Atur warna dan susunan halaman toko. Perubahan langsung terlihat oleh pembeli setelah disimpan."
         actions={
           <>
-            <Button variant="ghost" onClick={() => setSaved(true)}>
+            <Button variant="ghost" onClick={cancelTheme}>
               Batalkan perubahan
             </Button>
             <Button
-              loading={!saved}
-              onClick={() => {
-                setSaved(false);
-                setTimeout(() => {
-                  setSaved(true);
-                  toast("Tampilan toko berhasil disimpan.");
-                }, 700);
-              }}
+              loading={saving}
+              disabled={saved}
+              onClick={saveTheme}
             >
               Simpan tampilan
             </Button>
@@ -1372,6 +1460,25 @@ export function Hours() {
     }
   };
 
+  // Salin jam Sabtu ke Senin–Jumat (pola akhir pekan ke hari kerja).
+  const copyWeekdays = async () => {
+    const sat = rows.find((x) => x.day === 5);
+    if (!sat || !sat.id) return;
+    const prev = rows;
+    setRows((r) => r.map((x) => (x.day <= 4 ? { ...x, open: sat.open, close: sat.close, on: sat.on } : x)));
+    const { error } = await supabase
+      .from("store_hours")
+      .update({ open_time: sat.open, close_time: sat.close, is_open: sat.on })
+      .eq("seller_id", user?.id ?? "")
+      .lte("day_of_week", 4);
+    if (error) {
+      setRows(prev);
+      toast("Gagal menyalin jam.", "bad");
+      return;
+    }
+    toast("Jam Sabtu disalin ke Senin–Jumat.");
+  };
+
   return (
     <AppShell>
       <PageHeader
@@ -1437,7 +1544,7 @@ export function Hours() {
             <span className="text-[13px] text-muted">
               Zona waktu <span className="font-semibold text-ink">WIB (GMT+7)</span>
             </span>
-            <Button variant="secondary" size="sm" onClick={() => toast("Jam akhir pekan disalin ke hari kerja.")}>
+            <Button variant="secondary" size="sm" onClick={copyWeekdays}>
               Salin ke hari kerja
             </Button>
           </div>
@@ -1473,12 +1580,7 @@ export function Hours() {
             <EmptyState
               icon="calendar"
               title="Belum ada jadwal libur"
-              desc="Tambahkan tanggal libur supaya pembeli tidak menunggu barang dikirim di hari yang salah."
-              action={
-                <Button size="sm" onClick={() => toast("Pilih tanggal libur.", "info")}>
-                  Tambah tanggal libur
-                </Button>
-              }
+              desc="Atur hari libur lewat toggle per hari di atas — matikan harinya supaya pembeli tidak menunggu barang dikirim di hari yang salah."
             />
           </Card>
         </aside>
@@ -1530,7 +1632,11 @@ export function StoreQR() {
         desc="Cetak dan tempel QR ini di kasir, etalase, atau kemasan. Semua yang memindai akan langsung membuka toko Anda."
         actions={
           <>
-            <Button variant="secondary" onClick={() => toast("Tautan QR disalin.")}>
+            <Button variant="secondary" onClick={() => {
+              const url = `https://tokolink.id/${storeSlug}`;
+              if (navigator.clipboard) navigator.clipboard.writeText(url).catch(() => {});
+              toast("Tautan QR disalin.");
+            }}>
               <Icon name="copy" size={16} /> Salin tautan
             </Button>
             <Button onClick={download}>
@@ -1605,9 +1711,18 @@ export function StoreQR() {
                 <Button variant="secondary" onClick={() => window.print()}>
                   <Icon name="image" size={16} /> Cetak stiker
                 </Button>
-                <Button variant="secondary" onClick={() => toast("QR dibagikan ke WhatsApp.")}>
-                  <Icon name="send" size={16} /> Bagikan
-                </Button>
+              <Button variant="secondary" onClick={() => {
+                const url = `https://tokolink.id/${storeSlug}`;
+                const text = `Kunjungi toko ${storeName}: ${url}`;
+                if (navigator.share) {
+                  navigator.share({ title: storeName, text, url }).catch(() => {});
+                } else {
+                  if (navigator.clipboard) navigator.clipboard.writeText(text).catch(() => {});
+                  toast("Tautan dibagikan (disalin).");
+                }
+              }}>
+                <Icon name="send" size={16} /> Bagikan
+              </Button>
               </div>
             </div>
           </div>
@@ -1823,11 +1938,16 @@ export function StoreSettings() {
             <CardHead title="Zona berbahaya" sub="Tindakan di sini tidak bisa dibatalkan" icon="alert" />
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <div className="text-[14.5px] font-bold text-ink">Tutup toko sementara</div>
+                <div className="text-[14.5px] font-bold text-ink">
+                  {profile?.is_closed ? "Toko sedang ditutup" : "Tutup toko sementara"}
+                </div>
                 <p className="text-[13.5px] text-muted">Halaman toko tetap bisa dibuka, tetapi tombol beli dimatikan.</p>
               </div>
-              <Button variant="danger" onClick={() => setClose(true)}>
-                Tutup toko
+              <Button
+                variant={profile?.is_closed ? "secondary" : "danger"}
+                onClick={() => setClose(true)}
+              >
+                {profile?.is_closed ? "Buka kembali" : "Tutup toko"}
               </Button>
             </div>
           </Card>
@@ -1853,9 +1973,28 @@ export function StoreSettings() {
             />
             <Button
               className="mt-3 w-full bg-brand-500! text-navy-900! hover:bg-brand-400!"
-              onClick={() => toast("Membuka halaman pembayaran langganan…", "info")}
+              onClick={async () => {
+                if (!user) return;
+                if ((profile?.plan ?? "gratis") === "premium") {
+                  toast("Tokomu sudah Premium.", "ok");
+                  return;
+                }
+                const isYearly = plan === "Tahunan";
+                const { error } = await supabase.from("premium_requests").insert({
+                  seller_id: user.id,
+                  plan: isYearly ? "Premium Tahunan" : "Premium Bulanan",
+                  amount: isYearly ? 590000 : 59000,
+                  proof_channel: "Menunggu bukti",
+                  status: "menunggu",
+                });
+                if (error) {
+                  toast("Gagal mengirim pengajuan.", "bad");
+                  return;
+                }
+                toast("Pengajuan Premium dikirim. Admin akan meninjau 1×24 jam.", "ok");
+              }}
             >
-              Ganti paket
+              {(profile?.plan ?? "gratis") === "premium" ? "Paket Premium aktif" : "Ajukan Premium"}
             </Button>
           </div>
 
@@ -1879,10 +2018,25 @@ export function StoreSettings() {
       <ConfirmDialog
         open={close}
         onClose={() => setClose(false)}
-        title="Tutup toko sementara?"
-        body="Pembeli tidak bisa membuat pesanan baru selama toko ditutup. Pesanan berjalan tetap diproses seperti biasa, dan Anda bisa membuka kembali kapan saja."
-        confirmLabel="Tutup toko"
-        onConfirm={() => toast("Toko ditutup sementara. Buka kembali kapan saja di pengaturan.", "warn")}
+        title={profile?.is_closed ? "Buka kembali toko?" : "Tutup toko sementara?"}
+        body={
+          profile?.is_closed
+            ? "Pembeli bisa memesan lagi seperti biasa."
+            : "Pembeli tidak bisa membuat pesanan baru selama toko ditutup. Pesanan berjalan tetap diproses seperti biasa, dan Anda bisa membuka kembali kapan saja."
+        }
+        confirmLabel={profile?.is_closed ? "Buka toko" : "Tutup toko"}
+        onConfirm={async () => {
+          if (!user) return;
+          const next = !(profile?.is_closed ?? false);
+          setClose(false);
+          const { error } = await supabase.from("profiles").update({ is_closed: next }).eq("id", user.id);
+          if (error) {
+            toast("Gagal mengubah status toko.", "bad");
+            return;
+          }
+          await refresh();
+          toast(next ? "Toko ditutup sementara." : "Toko dibuka kembali.", next ? "warn" : "ok");
+        }}
       />
     </AppShell>
   );
@@ -1896,7 +2050,6 @@ function option(c: string) {
 export function AccountSettings() {
   const { toast } = useApp();
   const { user, profile, loading: authLoading, refresh } = useAuth();
-  const [twoFA, setTwoFA] = useState(true);
   const [del, setDel] = useState(false);
   const [owner, setOwner] = useState("");
   const [phone, setPhone] = useState("");
@@ -2099,33 +2252,34 @@ export function AccountSettings() {
                 <div className="text-[14.5px] font-bold text-ink">Verifikasi lewat WhatsApp</div>
                 <p className="text-[13px] text-muted">Diminta saat login dari perangkat baru.</p>
               </div>
-              <Toggle checked={twoFA} onChange={(v) => { setTwoFA(v); toast(v ? "Verifikasi WhatsApp diaktifkan." : "Verifikasi WhatsApp dimatikan.", v ? "ok" : "warn"); }} label="Verifikasi WhatsApp" />
+              <Badge tone="gray">Segera hadir</Badge>
             </div>
           </Card>
 
           <Card>
             <CardHead title="Perangkat aktif" icon="settings" />
             <ul className="space-y-3.5">
-              {[
-                ["Samsung A54", "Bandung · aktif sekarang", true],
-                ["Chrome di Windows", "Bandung · 11 Feb 2025", false],
-                ["iPhone 13", "Jakarta · 2 Feb 2025", false],
-              ].map(([d, w, now]) => (
-                <li key={String(d)} className="flex items-start justify-between gap-3">
-                  <div>
-                    <div className="text-[13.5px] font-bold text-ink">{d}</div>
-                    <div className="text-[12.5px] text-faint">{w}</div>
-                  </div>
-                  {now ? (
-                    <Badge tone="green" dot>
-                      Ini perangkat
-                    </Badge>
-                  ) : (
-                    <button className="text-[12.5px] font-semibold text-bad hover:underline">Keluarkan</button>
-                  )}
-                </li>
-              ))}
+              <li className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="text-[13.5px] font-bold text-ink">Perangkat ini</div>
+                  <div className="text-[12.5px] text-faint">{user?.email ?? "Sesi aktif"}</div>
+                </div>
+                <Badge tone="green" dot>
+                  Aktif sekarang
+                </Badge>
+              </li>
             </ul>
+            <Button
+              variant="secondary"
+              size="sm"
+              className="mt-4 w-full"
+              onClick={async () => {
+                await supabase.auth.signOut({ scope: "others" });
+                toast("Perangkat lain sudah dikeluarkan.", "ok");
+              }}
+            >
+              Keluarkan perangkat lain
+            </Button>
           </Card>
         </aside>
       </div>
@@ -2134,9 +2288,31 @@ export function AccountSettings() {
         open={del}
         onClose={() => setDel(false)}
         title="Hapus akun TokoLink?"
-        body="Seluruh toko, produk, dan riwayat pesanan akan dihapus permanen dalam 30 hari. Tindakan ini tidak bisa dibatalkan — pastikan saldo sudah ditarik."
+        body="Seluruh toko, produk, dan riwayat pesanan akan dihapus permanen. Saldo yang masih ada HARUS ditarik dulu — setelah dihapus tidak bisa kembali."
         confirmLabel="Ya, hapus akun"
-        onConfirm={() => toast("Permintaan penghapusan akun diterima. Kami mengirim konfirmasi ke email Anda.", "warn")}
+        onConfirm={async () => {
+          setDel(false);
+          try {
+            const { data: sess } = await supabase.auth.getSession();
+            const token = sess.session?.access_token;
+            if (!token) {
+              toast("Sesi berakhir. Masuk lagi.", "bad");
+              return;
+            }
+            const res = await fetch("/api/delete-account", {
+              method: "POST",
+              headers: { authorization: `Bearer ${token}` },
+            });
+            if (!res.ok) {
+              toast("Gagal menghapus akun.", "bad");
+              return;
+            }
+            await supabase.auth.signOut({ scope: "local" });
+            navigate("/");
+          } catch {
+            toast("Tidak bisa menghubungi server.", "bad");
+          }
+        }}
       />
     </AppShell>
   );
