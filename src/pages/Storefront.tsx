@@ -286,6 +286,7 @@ export function StoreHome({ slug }: { slug: string }) {
       .then(setQrData)
       .catch(() => {});
   }, [slug]);
+  useVisitBeacon(store?.id, `/s/${slug}`);
 
   const cats = useMemo(() => ["Semua", ...Array.from(new Set(items.map((p) => p.cat)))], [items]);
   const list = useMemo(
@@ -731,6 +732,7 @@ export function ProductDetail({ id, slug }: { id: string; slug: string }) {
   const [notFound, setNotFound] = useState(false);
   const [qty, setQty] = useState(1);
   const [shot, setShot] = useState(0);
+  useVisitBeacon(store?.id, `/s/${slug}/p/${id}`);
 
   useEffect(() => {
     (async () => {
@@ -1125,6 +1127,20 @@ function useOrderStatus(orderId: string, token: string) {
 function orderStore(o: TrackedOrder | null): StoreProfile | null {
   if (!o) return null;
   return { id: "", store_name: o.store, store_slug: o.slug, city: null, owner_name: null, wa_number: null, avatar_url: null, cover_url: null, bio: null, is_closed: null };
+}
+
+/** Beacon kunjungan: 1x per sesi per toko (anti-spam + hemat kuota). */
+function useVisitBeacon(sellerId: string | null | undefined, path: string) {
+  useEffect(() => {
+    if (!sellerId) return;
+    const key = `tl_visit_${sellerId}`;
+    if (sessionStorage.getItem(key)) return;
+    sessionStorage.setItem(key, "1");
+    supabase
+      .from("store_visits")
+      .insert({ seller_id: sellerId, path })
+      .then(() => {}, () => {});
+  }, [sellerId, path]);
 }
 
 function useCartStore(items: { sellerId: string }[]) {

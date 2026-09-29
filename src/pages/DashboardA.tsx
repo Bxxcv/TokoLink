@@ -4,11 +4,7 @@ import { supabase } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
 import {
   DAY_LABELS,
-  FUNNEL,
-  HOURLY,
-  SOURCES,
   STATUS_LABEL,
-  VISITORS_30,
   angka,
   rupiah,
   rupiahShort,
@@ -52,11 +48,9 @@ import {
   ChartFrame,
   ChartSkeleton,
   Donut,
-  Funnel,
   Legend,
   LineChart,
   Sparkline,
-  useFakeLoad,
 } from "../components/charts";
 import { CATEGORIES, type Product } from "../lib/data";
 import { digitsOnly, formatRibuan } from "../lib/format";
@@ -575,7 +569,40 @@ export function Analytics() {
 /* ================================= TRAFFIC ================================ */
 export function Traffic() {
   const [period, setPeriod] = useState("30 hari");
-  const loading = useFakeLoad([period], 550);
+  const { user } = useAuth();
+  const [visits, setVisits] = useState<{ path: string; created_at: string }[]>([]);
+  const [orders, setOrders] = useState<{ created_at: string }[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!user) return;
+    (async () => {
+      setLoading(true);
+      const days = period === "7 hari" ? 7 : period === "90 hari" ? 90 : 30;
+      const since = new Date(Date.now() - days * 86400000).toISOString();
+      const [{ data: v }, { data: o }] = await Promise.all([
+        supabase.from("store_visits").select("path,created_at").eq("seller_id", user.id).gte("created_at", since).order("created_at", { ascending: true }),
+        supabase.from("orders").select("created_at").eq("seller_id", user.id).gte("created_at", since),
+      ]);
+      setVisits((v ?? []) as { path: string; created_at: string }[]);
+      setOrders((o ?? []) as { created_at: string }[]);
+      setLoading(false);
+    })();
+  }, [user?.id, period]);
+
+  const days = period === "7 hari" ? 7 : period === "90 hari" ? 90 : 30;
+  const dayKeys: string[] = [];
+  for (let i = days - 1; i >= 0; i--) dayKeys.push(new Date(Date.now() - i * 86400000).toISOString().slice(0, 10));
+  const series = dayKeys.map((k) => visits.filter((v) => v.created_at.slice(0, 10) === k).length);
+  const labels = dayKeys.map((k) => String(new Date(k + "T00:00:00").getDate()));
+  const byPath = new Map<string, number>();
+  visits.forEach((v) => byPath.set(v.path, (byPath.get(v.path) ?? 0) + 1));
+  const topPaths = [...byPath.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5);
+  const hourly = Array.from({ length: 24 }, (_, h) =>
+    visits.filter((v) => new Date(v.created_at).getHours() === h).length,
+  );
+  const peak = hourly.indexOf(Math.max(...hourly, 0));
+  const conv = visits.length ? Math.round((orders.length / visits.length) * 1000) / 10 : 0;
 
   return (
     <AppShell>
@@ -583,96 +610,66 @@ export function Traffic() {
         index="03"
         kicker="Pengunjung"
         title="Pengunjung & lalu lintas"
-        desc="Dari mana pembeli datang, kapan mereka berkunjung, dan di mana mereka berhenti."
+        desc="Kunjungan nyata ke etalase dan halaman produk tokomu."
         actions={<Segmented items={["7 hari", "30 hari", "90 hari"]} active={period} onChange={setPeriod} />}
       />
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard label="Pengunjung" value="2.390" delta={27} hint="1.436 lihat produk" loading={loading} />
-        <StatCard label="Masuk keranjang" value="418" delta={14} hint="17,5% dari pengunjung" loading={loading} />
-        <StatCard label="Checkout" value="172" delta={9} hint="142 berhasil bayar" loading={loading} />
-        <StatCard label="Konversi" value="3,8%" delta={-3} hint="Turun 0,1 poin" loading={loading} />
+        <StatCard label="Pengunjung" value={angka(visits.length)} hint="kunjungan tercatat" loading={loading} />
+        <StatCard label="Halaman dilihat" value={angka(visits.length)} hint={`${topPaths.length} halaman berbeda`} loading={loading} />
+        <StatCard label="Pesanan" value={angka(orders.length)} hint="dari kunjungan ini" loading={loading} />
+        <StatCard label="Konversi" value={`${conv}%`} hint="pesanan / kunjungan" loading={loading} />
       </div>
 
       <div className="mt-4 grid gap-4 lg:grid-cols-3">
         <Card className="lg:col-span-2">
           <ChartFrame
             title="Pengunjung harian"
-            hint={`30 hari terakhir · total 2.390 kunjungan`}
+            hint={`${period} terakhir · total ${visits.length} kunjungan`}
             legend={<Legend items={[{ color: "#1B9AE0", label: "Pengunjung" }]} />}
           >
-            {loading ? <ChartSkeleton /> : <LineChart series={VISITORS_30} labels={DAY_LABELS} color="#1B9AE0" format={(v) => String(v)} />}
+            {loading ? <ChartSkeleton /> : <LineChart series={series} labels={labels} color="#1B9AE0" format={(v) => String(v)} />}
           </ChartFrame>
         </Card>
 
         <Card>
-          <CardHead title="Sumber pengunjung" sub="Bagaimana pembeli menemukan toko" icon="link" />
+          <CardHead title="Halaman teratas" sub="Paling sering dibuka" icon="link" />
           {loading ? (
             <div className="space-y-4">
               {[0, 1, 2, 3].map((i) => (
                 <Skeleton key={i} className="h-4 w-full" />
               ))}
             </div>
+          ) : topPaths.length === 0 ? (
+            <p className="text-[13px] text-faint">Belum ada kunjungan di periode ini.</p>
           ) : (
-            <BarRows data={SOURCES.map((s) => ({ label: s.label, value: s.visitors, note: `${s.value}% dari total` }))} color="#0A69C4" />
+            <BarRows data={topPaths.map(([label, value]) => ({ label, value, note: `${Math.round((value / visits.length) * 100)}%` }))} color="#0A69C4" />
           )}
         </Card>
       </div>
 
       <div className="mt-4 grid gap-4 lg:grid-cols-3">
         <Card className="lg:col-span-2">
-          <CardHead title="Perjalanan sampai pesanan" sub="Berapa banyak yang lolos di tiap langkah" icon="layers" />
-          {loading ? <ChartSkeleton height={180} /> : <Funnel items={FUNNEL} />}
+          <CardHead title="Kunjungan per jam" sub="Kapan tokomu paling ramai" icon="layers" />
+          {loading ? <ChartSkeleton height={180} /> : <BarChart data={hourly.map((value, i) => ({ label: `${i}`, value }))} format={(v) => String(v)} color="#0B2E6E" />}
           <div className="mt-4 rounded-md bg-canvas p-3.5">
             <div className="flex items-start gap-2.5">
               <Icon name="info" size={16} className="mt-0.5 shrink-0 text-brand-600" />
               <p className="text-[13px] leading-relaxed text-muted">
-                Penurunan terbesar ada di langkah <strong className="text-ink">lihat produk → keranjang</strong>.
-                Tambahkan foto lebih banyak dan tombol “beli” yang jelas untuk menaikkan angka ini.
+                {visits.length === 0
+                  ? "Bagikan link tokomu agar kunjungan tercatat di sini."
+                  : (
+                    <>Ramai pukul <span className="tnum font-semibold text-ink">{String(peak).padStart(2, "0")}.00</span>. Waktu terbaik memasang promosi.</>
+                  )}
               </p>
             </div>
           </div>
         </Card>
 
         <Card>
-          <ChartFrame title="Jam paling ramai" hint="Rata-rata pengunjung per jam (WIB)">
-            {loading ? <ChartSkeleton height={170} /> : <BarChart data={HOURLY.map((v, i) => ({ label: `${i}`, value: v }))} format={(v) => String(v)} color="#0B2E6E" />}
+          <ChartFrame title="Pesanan per jam" hint="Jam order masuk (WIB)">
+            {loading ? <ChartSkeleton height={170} /> : <BarChart data={Array.from({ length: 24 }, (_, h) => ({ label: `${h}`, value: orders.filter((o) => new Date(o.created_at).getHours() === h).length }))} format={(v) => String(v)} color="#0B2E6E" />}
           </ChartFrame>
-          <p className="mt-2 text-[12.5px] text-muted">
-            Ramai pukul <span className="tnum font-semibold text-ink">19.00–20.00</span>. Waktu terbaik
-            memasang promosi.
-          </p>
-        </Card>
-      </div>
-
-      <div className="mt-4 grid gap-4 lg:grid-cols-2">
-        <Card>
-          <ChartFrame title="Perangkat" hint="Pengunjung berdasarkan jenis layar">
-            <Donut
-              centerValue="82%"
-              centerLabel="lewat HP"
-              items={[
-                { label: "HP Android", value: 1734, color: "#0A69C4" },
-                { label: "iPhone", value: 226, color: "#1B9AE0" },
-                { label: "Desktop", value: 287, color: "#0B2E6E" },
-                { label: "Lainnya", value: 143, color: "#B45309" },
-              ]}
-            />
-          </ChartFrame>
-        </Card>
-
-        <Card>
-          <CardHead title="Sumber berbayar" sub="Iklan & promosi berbayar" icon="send" />
-          <EmptyState
-            icon="chart"
-            title="Belum ada data"
-            desc="Anda belum memasang tautan iklan berbayar. Saat ada yang datang dari iklan, angkanya muncul di sini."
-            action={
-              <Button variant="secondary" size="sm" onClick={() => navigate("/app/bio")}>
-                Atur tautan promosi
-              </Button>
-            }
-          />
         </Card>
       </div>
     </AppShell>
