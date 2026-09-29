@@ -73,7 +73,73 @@ const label = (s: string) =>
 /* ============================== ADMIN OVERVIEW ============================ */
 export function AdminHome() {
   const { toast } = useApp();
-  const loading = useFakeLoad([], 650);
+  const [stats, setStats] = useState({
+    sellers: 0,
+    sellersNew: 0,
+    gmvMonth: 0,
+    txToday: 0,
+    successRate: 0,
+    feeMonth: 0,
+    premiumWait: 0,
+    wdWait: 0,
+    payFailed: 0,
+    daily: [] as number[],
+  });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    (async () => {
+      const now = new Date();
+      const startMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+      const startDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+      const weekAgo = new Date(now.getTime() - 7 * 86400000).toISOString();
+      const monthAgo = new Date(now.getTime() - 30 * 86400000).toISOString();
+
+      const [{ count: sellers }, { data: profs }, { data: orders }, { data: pays }, { data: prems }, { data: wds }] =
+        await Promise.all([
+          supabase.from("profiles").select("id", { count: "exact", head: true }),
+          supabase.from("profiles").select("created_at").gte("created_at", weekAgo),
+          supabase.from("orders").select("total,status,created_at").gte("created_at", monthAgo),
+          supabase.from("payments").select("status,fee,created_at").gte("created_at", monthAgo),
+          supabase.from("premium_requests").select("id").eq("status", "menunggu"),
+          supabase.from("withdrawals").select("id,amount,status").eq("status", "menunggu"),
+        ]);
+      const ord = (orders ?? []) as { total: number | string; status: string; created_at: string }[];
+      const pay = (pays ?? []) as { status: string; fee: number | string; created_at: string }[];
+      const gmvMonth = ord
+        .filter((o) => o.created_at >= startMonth)
+        .reduce((s, o) => s + Number(o.total), 0);
+      const txToday = ord.filter((o) => o.created_at >= startDay).length;
+      const ok = pay.filter((p) => p.status === "berhasil").length;
+      const daily: number[] = [];
+      for (let i = 29; i >= 0; i--) {
+        const d = new Date(now.getTime() - i * 86400000).toISOString().slice(0, 10);
+        daily.push(
+          Math.round(
+            ord.filter((o) => o.created_at.slice(0, 10) === d).reduce((s, o) => s + Number(o.total), 0) / 1000000,
+          ),
+        );
+      }
+      setStats({
+        sellers: sellers ?? 0,
+        sellersNew: (profs ?? []).length,
+        gmvMonth,
+        txToday,
+        successRate: pay.length ? Math.round((ok / pay.length) * 1000) / 10 : 0,
+        feeMonth: pay
+          .filter((p) => p.created_at >= startMonth)
+          .reduce((s, p) => s + Number(p.fee), 0),
+        premiumWait: (prems ?? []).length,
+        wdWait: (wds ?? []).length,
+        payFailed: pay.filter((p) => p.status === "gagal").length,
+        daily,
+      });
+      setLoading(false);
+    })();
+  }, []);
+
+  const pendingTotal = stats.premiumWait + stats.wdWait;
+  const today = new Date().toLocaleString("id-ID", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
 
   return (
     <AppShell group="admin">
@@ -81,7 +147,7 @@ export function AdminHome() {
         index="A01"
         kicker="Admin Master"
         title="Ringkasan platform"
-        desc="Kondisi TokoLink hari ini, 12 Feb 2025 09:45 WIB. Data diperbarui tiap 5 menit."
+        desc={`Kondisi TokoLink hari ini, ${today} WIB. Data diperbarui tiap 5 menit.`}
         actions={
           <Button variant="secondary" onClick={() => toast("Ekspor ringkasan platform diunduh.", "info")}>
             <Icon name="download" size={16} /> Ekspor
@@ -95,9 +161,11 @@ export function AdminHome() {
             <Icon name="shield" size={18} />
           </span>
           <div>
-            <div className="text-[14.5px] font-bold">3 hal menunggu persetujuan Anda</div>
+            <div className="text-[14.5px] font-bold">
+              {pendingTotal === 0 ? "Semua antrean beres" : `${pendingTotal} hal menunggu persetujuan Anda`}
+            </div>
             <p className="text-[13.5px] text-white/65">
-              2 permintaan Premium dan 1 penarikan dana di atas Rp5.000.000.
+              {stats.premiumWait} permintaan Premium dan {stats.wdWait} penarikan menunggu.
             </p>
           </div>
         </div>
@@ -121,10 +189,10 @@ export function AdminHome() {
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard label="GMV bulan ini" value="Rp1,42 M" delta={16} hint="dari 4.820 toko" spark={SALES_30.slice(-12)} loading={loading} />
-        <StatCard label="Transaksi hari ini" value="2.148" delta={9} hint="97,4% berhasil" loading={loading} />
-        <StatCard label="Pendapatan platform" value="Rp48.720.000" delta={12} hint="biaya layanan 0,7%" loading={loading} />
-        <StatCard label="Penjual baru (7 hari)" value="184" delta={-4} hint="perlu verifikasi 12" loading={loading} />
+        <StatCard label="GMV bulan ini" value={rupiahShort(stats.gmvMonth)} hint={`dari ${stats.sellers} toko`} loading={loading} />
+        <StatCard label="Transaksi hari ini" value={String(stats.txToday)} hint={`${stats.successRate}% berhasil`} loading={loading} />
+        <StatCard label="Pendapatan platform" value={rupiah(stats.feeMonth)} hint="dari biaya layanan" loading={loading} />
+        <StatCard label="Penjual baru (7 hari)" value={String(stats.sellersNew)} hint="total tombol di bawah" loading={loading} />
       </div>
 
       <div className="mt-4 grid gap-4 lg:grid-cols-3">
@@ -151,8 +219,8 @@ export function AdminHome() {
               </div>
             ) : (
               <div className="space-y-2">
-                <LineChart series={SALES_30.map((v) => v * 36)} labels={D} height={150} color="#0B2E6E" format={rupiahShort} />
-                <LineChart series={SALES_30.map((v) => v * 1.3)} labels={D} height={100} color="#1B9AE0" format={rupiahShort} yTicks={3} />
+                <LineChart series={stats.daily} labels={D} height={150} color="#0B2E6E" format={rupiahShort} />
+                <LineChart series={stats.daily.map((v) => Math.round(v * 0.02 * 10) / 10)} labels={D} height={100} color="#1B9AE0" format={rupiahShort} yTicks={3} />
               </div>
             )}
           </ChartFrame>
@@ -160,23 +228,22 @@ export function AdminHome() {
 
         <Card>
           <CardHead title="Perlu tindakan" sub="Antrean persetujuan Anda" icon="alert" />
-          <ul className="space-y-3">
-            {[
-              ["Permintaan Premium", "2 menunggu", "/admin/premium", "amber"],
-              ["Penarikan dana", "1 di atas limit", "/admin/withdrawals", "amber"],
-              ["Akun dilaporkan", "1 laporan baru", "/admin/users", "red"],
-              ["Pembayaran gagal", "3 transaksi", "/admin/payments", "red"],
-            ].map(([t, d, to, tone]) => (
+            <ul className="space-y-3">
+              {[
+                ["Permintaan Premium", `${stats.premiumWait} menunggu`, "/admin/premium", stats.premiumWait > 0 ? "amber" : "green"],
+                ["Penarikan dana", `${stats.wdWait} menunggu`, "/admin/withdrawals", stats.wdWait > 0 ? "amber" : "green"],
+                ["Pembayaran gagal", `${stats.payFailed} transaksi`, "/admin/payments", stats.payFailed > 0 ? "red" : "green"],
+              ].map(([t, d, to, tone]) => (
               <li key={t}>
                 <button
                   onClick={() => navigate(to)}
                   className="flex w-full items-center gap-3 rounded-md border border-line px-3 py-2.5 text-left transition-colors hover:border-brand-300 hover:bg-brand-50"
                 >
                   <span
-                    className={cx(
-                      "h-2 w-2 shrink-0 rounded-full",
-                      tone === "red" ? "bg-bad" : "bg-warn",
-                    )}
+                      className={cx(
+                        "h-2 w-2 shrink-0 rounded-full",
+                        tone === "red" ? "bg-bad" : tone === "green" ? "bg-ok" : "bg-warn",
+                      )}
                   />
                   <span className="flex-1 text-[13.5px] font-bold text-ink">{t}</span>
                   <span className="tnum text-[12.5px] text-muted">{d}</span>
