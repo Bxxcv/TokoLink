@@ -13,6 +13,11 @@ export type Profile = {
   owner_name: string | null;
   city: string | null;
   wa_number: string | null;
+  avatar_url: string | null;
+  cover_url: string | null;
+  category: string | null;
+  bio: string | null;
+  address: string | null;
   plan: string;
   status: string;
 };

@@ -34,6 +34,9 @@ export type StoreProfile = {
   city: string | null;
   owner_name: string | null;
   wa_number: string | null;
+  avatar_url: string | null;
+  cover_url: string | null;
+  bio: string | null;
 };
 
 /**
@@ -52,7 +55,7 @@ function usePublicStore(slug: string) {
       setNotFound(false);
       const { data: prof } = await supabase
         .from("profiles")
-        .select("id,store_name,store_slug,city,owner_name,wa_number")
+        .select("id,store_name,store_slug,city,owner_name,wa_number,avatar_url,cover_url,bio")
         .eq("store_slug", slug)
         .maybeSingle();
       if (!prof) {
@@ -360,7 +363,7 @@ export function StoreHome({ slug }: { slug: string }) {
 
       {/* cover */}
       <div className="relative h-[190px] overflow-hidden bg-navy-900 sm:h-[240px]">
-        <img src="images/store-cover.jpg" alt="" className="h-full w-full object-cover object-center" />
+        <img src={store?.cover_url || "images/store-cover.jpg"} alt="" className="h-full w-full object-cover object-center" />
         <div className="absolute inset-0 bg-gradient-to-t from-navy-900/90 via-navy-900/35 to-navy-900/20" />
         <div className="blueprint absolute inset-0 opacity-40" />
         <PageShell className="absolute inset-x-0 top-4">
@@ -389,8 +392,12 @@ export function StoreHome({ slug }: { slug: string }) {
       <PageShell className="relative -mt-12">
         <div className="rounded-xl border border-line bg-white p-4 shadow-card sm:p-5">
           <div className="flex flex-wrap items-start gap-4">
-            <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-lg border border-line bg-canvas shadow-xs">
-              <LogoMark size={42} />
+            <span className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-line bg-canvas shadow-xs">
+              {store?.avatar_url ? (
+                <img src={store.avatar_url} alt="" className="h-full w-full object-cover" />
+              ) : (
+                <LogoMark size={42} />
+              )}
             </span>
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2.5">
@@ -404,6 +411,9 @@ export function StoreHome({ slug }: { slug: string }) {
                   </span>
                 )}
               </div>
+              {store?.bio && (
+                <p className="mt-3 max-w-2xl text-[14px] leading-relaxed text-muted">{store.bio}</p>
+              )}
             </div>
 
             <div className="flex w-full flex-wrap gap-2 sm:w-auto">
@@ -1028,7 +1038,7 @@ function useOrderStatus(orderId: string, token: string) {
 
 function orderStore(o: TrackedOrder | null): StoreProfile | null {
   if (!o) return null;
-  return { id: "", store_name: o.store, store_slug: o.slug, city: null, owner_name: null, wa_number: null };
+  return { id: "", store_name: o.store, store_slug: o.slug, city: null, owner_name: null, wa_number: null, avatar_url: null, cover_url: null, bio: null };
 }
 
 function useCartStore(items: { sellerId: string }[]) {

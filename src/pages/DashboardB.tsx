@@ -4,6 +4,7 @@ import { navigate } from "../lib/router";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
 import { digitsOnly, formatRibuan, isValidWA, normalizeWA } from "../lib/format";
+import { uploadImage } from "../lib/storage";
 import {
   rupiah,
   useApp,
@@ -754,8 +755,31 @@ export function BioLinks() {
 /* ================================== THEME ================================== */
 export function Theme() {
   const { toast } = useApp();
-  const { profile } = useAuth();
+  const { user, profile, refresh } = useAuth();
   const storeName = profile?.store_name || "";
+  const [uploading, setUploading] = useState<"cover" | "logo" | null>(null);
+
+  const uploadMedia = async (file: File | undefined, kind: "cover" | "logo") => {
+    if (!file || !user) return;
+    setUploading(kind);
+    try {
+      const url = await uploadImage(user.id, file, kind === "cover" ? "cover" : "logo");
+      const { error } = await supabase
+        .from("profiles")
+        .update(kind === "cover" ? { cover_url: url } : { avatar_url: url })
+        .eq("id", user.id);
+      if (error) {
+        toast("Gagal menyimpan foto.", "bad");
+        return;
+      }
+      await refresh();
+      toast(kind === "cover" ? "Foto sampul diganti." : "Logo toko diganti.");
+    } catch (e) {
+      toast(e instanceof Error && e.message === "too-big" ? "Ukuran maksimal 2MB." : "File harus gambar (JPG/PNG).", "bad");
+    } finally {
+      setUploading(null);
+    }
+  };
   const [accent, setAccent] = useState("Biru");
   const [layout, setLayout] = useState("Kisi");
   const [sections, setSections] = useState({ hours: true, qr: true, reviews: false, cart: true });
@@ -881,19 +905,41 @@ export function Theme() {
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
                 <div className="overflow-hidden rounded-lg border border-line">
-                  <img src="images/store-cover.jpg" alt="" className="aspect-[16/7] w-full object-cover" />
+                  {profile?.cover_url ? (
+                    <img src={profile.cover_url} alt="" className="aspect-[16/7] w-full object-cover" />
+                  ) : (
+                    <img src="images/store-cover.jpg" alt="" className="aspect-[16/7] w-full object-cover" />
+                  )}
                 </div>
-                <Button variant="secondary" size="sm" className="mt-2 w-full" onClick={() => toast("Pilih foto sampul baru.", "info")}>
-                  Ganti sampul
-                </Button>
+                <label className="mt-2 flex h-9 w-full cursor-pointer items-center justify-center gap-2 rounded-md border border-line bg-white px-3.5 text-[13px] font-semibold text-ink transition-colors hover:border-brand-300 hover:text-brand-700">
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png"
+                    className="hidden"
+                    disabled={uploading !== null}
+                    onChange={(e) => uploadMedia(e.target.files?.[0], "cover")}
+                  />
+                  <Icon name="image" size={16} /> {uploading === "cover" ? "Mengunggah…" : "Ganti sampul"}
+                </label>
               </div>
               <div>
                 <div className="flex aspect-[16/7] items-center justify-center rounded-lg border border-line bg-canvas">
-                  <LogoMark size={54} />
+                  {profile?.avatar_url ? (
+                    <img src={profile.avatar_url} alt="" className="h-16 w-16 rounded-lg object-cover" />
+                  ) : (
+                    <LogoMark size={54} />
+                  )}
                 </div>
-                <Button variant="secondary" size="sm" className="mt-2 w-full" onClick={() => toast("Pilih logo baru.", "info")}>
-                  Ganti logo toko
-                </Button>
+                <label className="mt-2 flex h-9 w-full cursor-pointer items-center justify-center gap-2 rounded-md border border-line bg-white px-3.5 text-[13px] font-semibold text-ink transition-colors hover:border-brand-300 hover:text-brand-700">
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png"
+                    className="hidden"
+                    disabled={uploading !== null}
+                    onChange={(e) => uploadMedia(e.target.files?.[0], "logo")}
+                  />
+                  <Icon name="image" size={16} /> {uploading === "logo" ? "Mengunggah…" : "Ganti logo toko"}
+                </label>
               </div>
             </div>
           </Card>
@@ -907,10 +953,14 @@ export function Theme() {
             </div>
             <div className="overflow-hidden rounded-lg bg-white">
               <div className="relative h-24">
-                <img src="images/store-cover.jpg" alt="" className="h-full w-full object-cover" />
+                <img src={profile?.cover_url || "images/store-cover.jpg"} alt="" className="h-full w-full object-cover" />
                 <div className="absolute inset-0 bg-gradient-to-t from-navy-900/85 to-transparent" />
-                <span className="absolute bottom-2.5 left-2.5 flex h-8 w-8 items-center justify-center rounded-md bg-white">
-                  <LogoMark size={22} />
+                <span className="absolute bottom-2.5 left-2.5 flex h-8 w-8 items-center justify-center overflow-hidden rounded-md bg-white">
+                  {profile?.avatar_url ? (
+                    <img src={profile.avatar_url} alt="" className="h-full w-full object-cover" />
+                  ) : (
+                    <LogoMark size={22} />
+                  )}
                 </span>
               </div>
               <div className="p-3">
@@ -1617,8 +1667,7 @@ export function StoreSettings() {
     address: "Jl. Cihampelas No. 28, Bandung 40131",
   });
 
-  // Muat sekali dari profiles. cat/bio/address belum ada kolomnya di schema
-  // → tetap lokal sampai diputuskan.
+  // Muat sekali dari profiles.
   useEffect(() => {
     if (authLoading || initialized.current) return;
     initialized.current = true;
@@ -1626,8 +1675,11 @@ export function StoreSettings() {
       ...x,
       name: profile?.store_name ?? "",
       slug: profile?.store_slug ?? "",
+      cat: profile?.category ?? x.cat,
       city: profile?.city ?? "",
       phone: profile?.wa_number ?? "",
+      bio: profile?.bio ?? x.bio,
+      address: profile?.address ?? x.address,
     }));
   }, [authLoading, profile]);
 
@@ -1656,8 +1708,11 @@ export function StoreSettings() {
         .update({
           store_name: f.name.trim(),
           store_slug: slugNorm,
+          category: f.cat,
           city: f.city || null,
           wa_number: f.phone.trim() || null,
+          bio: f.bio.trim() || null,
+          address: f.address.trim() || null,
         })
         .eq("id", user.id);
       if (error) {
@@ -1849,6 +1904,7 @@ export function AccountSettings() {
   const [pw, setPw] = useState({ baru: "", ulang: "" });
   const [pwErr, setPwErr] = useState("");
   const [pwLoading, setPwLoading] = useState(false);
+  const [avaLoading, setAvaLoading] = useState(false);
   const initialized = useRef(false);
 
   useEffect(() => {
@@ -1906,12 +1962,41 @@ export function AccountSettings() {
             <CardHead title="Profil" icon="user" />
             <div className="flex flex-col gap-5 sm:flex-row">
               <div className="flex items-start gap-4">
-                <span className="flex h-20 w-20 shrink-0 items-center justify-center rounded-lg bg-navy-800 text-[26px] font-bold text-brand-300">
-                  {initials}
+                <span className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-navy-800 text-[26px] font-bold text-brand-300">
+                  {profile?.avatar_url ? (
+                    <img src={profile.avatar_url} alt="" className="h-full w-full object-cover" />
+                  ) : (
+                    initials
+                  )}
                 </span>
-                <Button variant="secondary" size="sm" onClick={() => toast("Pilih foto profil baru.", "info")}>
-                  Ganti foto
-                </Button>
+                <label className="flex h-9 cursor-pointer items-center gap-2 rounded-md border border-line bg-white px-3.5 text-[13px] font-semibold text-ink transition-colors hover:border-brand-300 hover:text-brand-700">
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png"
+                    className="hidden"
+                    disabled={avaLoading}
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (!file || !user) return;
+                      setAvaLoading(true);
+                      try {
+                        const url = await uploadImage(user.id, file, "avatar");
+                        const { error } = await supabase.from("profiles").update({ avatar_url: url }).eq("id", user.id);
+                        if (error) {
+                          toast("Gagal menyimpan foto.", "bad");
+                          return;
+                        }
+                        await refresh();
+                        toast("Foto profil diganti.");
+                      } catch {
+                        toast("File harus gambar JPG/PNG maksimal 2MB.", "bad");
+                      } finally {
+                        setAvaLoading(false);
+                      }
+                    }}
+                  />
+                  {avaLoading ? "Mengunggah…" : "Ganti foto"}
+                </label>
               </div>
               <div className="flex-1 space-y-4">
                 <FieldRow cols={2}>
