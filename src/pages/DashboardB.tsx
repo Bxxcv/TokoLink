@@ -1179,7 +1179,11 @@ export function Discount() {
         .select("*")
         .single();
       if (error) {
-        setErr(error.code === "23505" ? `Kode ${code} sudah dipakai. Pakai nama lain.` : "Gagal menyimpan kode.");
+        setErr(
+          error.code === "23505"
+            ? `Kode ${code} sudah dipakai. Pakai nama lain.`
+            : `Gagal menyimpan (${error.message}). Screenshot pesan ini ke developer.`,
+        );
         return;
       }
       setList((l) => [data as DRow, ...l]);
