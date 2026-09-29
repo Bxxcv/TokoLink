@@ -6,7 +6,6 @@ import {
   PAYMENTS,
   PREMIUM_REQUESTS,
   SALES_30,
-  SELLERS,
   rupiah,
   rupiahShort,
   useApp,
@@ -326,14 +325,64 @@ export function AdminSellers() {
   const { toast } = useApp();
   const [q, setQ] = useState("");
   const [status, setStatus] = useState("Semua");
-  const [detail, setDetail] = useState<(typeof SELLERS)[number] | null>(null);
-  const [suspend, setSuspend] = useState<(typeof SELLERS)[number] | null>(null);
+  type SellerRow = {
+    id: string; store_name: string | null; owner_name: string | null;
+    city: string | null; plan: string; status: string; created_at: string;
+  };
+  const [sellers, setSellers] = useState<SellerRow[]>([]);
+  const [agg, setAgg] = useState<Map<string, { sales: number; orders: number }>>(new Map());
+  const [loading, setLoading] = useState(true);
+  const [detail, setDetail] = useState<SellerRow | null>(null);
+  const [suspend, setSuspend] = useState<SellerRow | null>(null);
 
-  const rows = SELLERS.filter(
+  const load = async () => {
+    setLoading(true);
+    const { data: profs } = await supabase
+      .from("profiles")
+      .select("id,store_name,owner_name,city,plan,status,created_at")
+      .eq("role", "seller")
+      .order("created_at", { ascending: false });
+    const rows = ((profs ?? []) as SellerRow[]);
+    setSellers(rows);
+    const { data: orders } = await supabase.from("orders").select("seller_id,total");
+    const map = new Map<string, { sales: number; orders: number }>();
+    ((orders ?? []) as { seller_id: string; total: number | string }[]).forEach((o) => {
+      const cur = map.get(o.seller_id) ?? { sales: 0, orders: 0 };
+      cur.sales += Number(o.total);
+      cur.orders += 1;
+      map.set(o.seller_id, cur);
+    });
+    setAgg(map);
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    load();
+  }, []);
+
+  const applySellerStatus = async (row: SellerRow, next: string) => {
+    const prev = row.status;
+    setSellers((ls) => ls.map((x) => (x.id === row.id ? { ...x, status: next } : x)));
+    setSuspend(null);
+    const { error } = await supabase.from("profiles").update({ status: next }).eq("id", row.id);
+    if (error) {
+      setSellers((ls) => ls.map((x) => (x.id === row.id ? { ...x, status: prev } : x)));
+      toast("Gagal mengubah status.", "bad");
+      return;
+    }
+    toast(
+      next === "ditangguhkan" ? `${row.store_name ?? "Toko"} ditangguhkan.` : `${row.store_name ?? "Toko"} diaktifkan kembali.`,
+      next === "ditangguhkan" ? "warn" : "ok",
+    );
+  };
+
+  const rows = sellers.filter(
     (s) =>
       (status === "Semua" || label(s.status) === status) &&
-      (s.name.toLowerCase().includes(q.toLowerCase()) || s.owner.toLowerCase().includes(q.toLowerCase())),
+      ((s.store_name ?? "").toLowerCase().includes(q.toLowerCase()) ||
+        (s.owner_name ?? "").toLowerCase().includes(q.toLowerCase())),
   );
+  const nm = (s: SellerRow) => s.store_name || "Toko tanpa nama";
 
   return (
     <AppShell group="admin">
@@ -341,17 +390,17 @@ export function AdminSellers() {
         index="A02"
         kicker="Operasi"
         title="Kelola penjual"
-        desc="4.820 toko aktif. Verifikasi akun baru maksimal 1×24 jam pada hari kerja."
+        desc={`${sellers.length} toko terdaftar. Verifikasi akun baru maksimal 1×24 jam pada hari kerja.`}
         actions={<Button variant="secondary" onClick={() => toast("Daftar penjual diekspor ke CSV.", "info")}>
           <Icon name="download" size={16} /> Ekspor daftar
         </Button>}
       />
 
       <div className="mb-4 grid gap-4 sm:grid-cols-4">
-        <StatCard label="Total penjual" value="5.104" delta={7} hint="+184 minggu ini" />
-        <StatCard label="Aktif (30 hari)" value="4.820" hint="94,4% dari total" />
-        <StatCard label="Perlu verifikasi" value="12" hint="lewat 1×24 jam" />
-        <StatCard label="Ditangguhkan" value="37" hint="pelanggaran kebijakan" />
+        <StatCard label="Total penjual" value={String(sellers.length)} hint="terdaftar" loading={loading} />
+        <StatCard label="Aktif" value={String(sellers.filter((s) => s.status === "aktif").length)} hint="bisa berjualan" loading={loading} />
+        <StatCard label="Perlu verifikasi" value={String(sellers.filter((s) => s.status === "belum_verifikasi").length)} hint="lewat 1×24 jam" loading={loading} />
+        <StatCard label="Ditangguhkan" value={String(sellers.filter((s) => s.status === "ditangguhkan").length)} hint="pelanggaran kebijakan" loading={loading} />
       </div>
 
       <Card pad={false}>
@@ -367,7 +416,12 @@ export function AdminSellers() {
           </Select>
         </div>
 
-        {rows.length === 0 ? (
+        {loading ? (
+          <div className="space-y-3 p-4 sm:p-5">
+            <Skeleton className="h-12 w-full" />
+            <Skeleton className="h-12 w-full" />
+          </div>
+        ) : rows.length === 0 ? (
           <div className="p-4 sm:p-5">
             <EmptyState
               icon="store"
@@ -384,7 +438,6 @@ export function AdminSellers() {
           <TableWrap>
             <thead>
               <tr>
-                <Th>ID</Th>
                 <Th>Toko / pemilik</Th>
                 <Th>Kota</Th>
                 <Th>Paket</Th>
@@ -395,21 +448,22 @@ export function AdminSellers() {
               </tr>
             </thead>
             <tbody>
-              {rows.map((s) => (
+              {rows.map((s) => {
+                const a = agg.get(s.id) ?? { sales: 0, orders: 0 };
+                return (
                 <tr key={s.id} className="transition-colors hover:bg-canvas/70">
-                  <Td className="tnum text-[13px] text-muted">{s.id}</Td>
                   <Td>
                     <button onClick={() => setDetail(s)} className="text-left">
-                      <div className="text-[14px] font-bold text-ink hover:text-brand-700">{s.name}</div>
-                      <div className="text-[12.5px] text-faint">{s.owner}</div>
+                      <div className="text-[14px] font-bold text-ink hover:text-brand-700">{nm(s)}</div>
+                      <div className="text-[12.5px] text-faint">{s.owner_name || "—"}</div>
                     </button>
                   </Td>
-                  <Td className="text-[13.5px]">{s.city}</Td>
+                  <Td className="text-[13.5px]">{s.city || "—"}</Td>
                   <Td>
-                    <Badge tone={s.plan === "Premium" ? "blue" : "gray"}>{s.plan}</Badge>
+                    <Badge tone={s.plan === "premium" ? "blue" : "gray"}>{s.plan === "premium" ? "Premium" : "Gratis"}</Badge>
                   </Td>
-                  <Td className="tnum text-right font-semibold">{rupiahShort(s.sales)}</Td>
-                  <Td className="tnum text-right">{s.orders}</Td>
+                  <Td className="tnum text-right font-semibold">{rupiahShort(a.sales)}</Td>
+                  <Td className="tnum text-right">{a.orders}</Td>
                   <Td>
                     <Badge tone={statusTone(s.status)} dot>
                       {label(s.status)}
@@ -426,21 +480,22 @@ export function AdminSellers() {
                     </div>
                   </Td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </TableWrap>
         )}
 
         <div className="px-4 py-3.5 text-[13px] text-muted sm:px-5">
-          Menampilkan <span className="tnum font-semibold text-ink">{rows.length}</span> dari 5.104 penjual
+          Menampilkan <span className="tnum font-semibold text-ink">{rows.length}</span> dari {sellers.length} penjual
         </div>
       </Card>
 
       <Modal
         open={!!detail}
         onClose={() => setDetail(null)}
-        title={detail?.name ?? ""}
-        eyebrow={`Detail penjual · ${detail?.id ?? ""}`}
+        title={detail ? nm(detail) : ""}
+        eyebrow={`Detail penjual · ${detail?.id.slice(0, 8).toUpperCase() ?? ""}`}
         footer={
           <>
             <Button variant="secondary" onClick={() => setDetail(null)}>
@@ -454,12 +509,12 @@ export function AdminSellers() {
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-3">
               {[
-                ["Pemilik", detail.owner],
-                ["Kota", detail.city],
-                ["Bergabung", detail.joined],
-                ["Paket", detail.plan],
-                ["Total GMV", rupiah(detail.sales)],
-                ["Jumlah pesanan", String(detail.orders)],
+                ["Pemilik", detail.owner_name || "—"],
+                ["Kota", detail.city || "—"],
+                ["Bergabung", new Date(detail.created_at).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" })],
+                ["Paket", detail.plan === "premium" ? "Premium" : "Gratis"],
+                ["Total GMV", rupiah(agg.get(detail.id)?.sales ?? 0)],
+                ["Jumlah pesanan", String(agg.get(detail.id)?.orders ?? 0)],
               ].map(([k, v]) => (
                 <div key={k} className="rounded-md bg-canvas p-3">
                   <div className="micro text-faint">{k}</div>
@@ -468,18 +523,10 @@ export function AdminSellers() {
               ))}
             </div>
             <div className="rounded-md border border-line p-3.5">
-              <div className="micro mb-2 text-faint">Verifikasi</div>
-              <ul className="space-y-2 text-[13.5px] text-muted">
-                <li className="flex items-center gap-2">
-                  <Icon name="checkCircle" size={15} className="text-ok" /> Identitas (KTP) terverifikasi
-                </li>
-                <li className="flex items-center gap-2">
-                  <Icon name="checkCircle" size={15} className="text-ok" /> Rekening bank cocok
-                </li>
-                <li className="flex items-center gap-2">
-                  <Icon name="clock" size={15} className="text-warn" /> NPWP belum dilampirkan
-                </li>
-              </ul>
+              <div className="micro mb-2 text-faint">Status</div>
+              <Badge tone={statusTone(detail.status)} dot>
+                {label(detail.status)}
+              </Badge>
             </div>
           </div>
         )}
@@ -488,7 +535,7 @@ export function AdminSellers() {
       <ConfirmDialog
         open={!!suspend}
         onClose={() => setSuspend(null)}
-        title={suspend?.status === "ditangguhkan" ? `Aktifkan kembali ${suspend?.name}?` : `Tangguhkan ${suspend?.name}?`}
+        title={suspend?.status === "ditangguhkan" ? `Aktifkan kembali ${suspend ? nm(suspend) : ""}?` : `Tangguhkan ${suspend ? nm(suspend) : ""}?`}
         body={
           suspend?.status === "ditangguhkan"
             ? "Toko akan kembali bisa menerima pesanan dan penarikan dana diaktifkan kembali."
@@ -496,14 +543,10 @@ export function AdminSellers() {
         }
         confirmLabel={suspend?.status === "ditangguhkan" ? "Aktifkan" : "Tangguhkan toko"}
         tone={suspend?.status === "ditangguhkan" ? "primary" : "danger"}
-        onConfirm={() =>
-          toast(
-            suspend?.status === "ditangguhkan"
-              ? `${suspend?.name} diaktifkan kembali.`
-              : `${suspend?.name} ditangguhkan.`,
-            suspend?.status === "ditangguhkan" ? "ok" : "warn",
-          )
-        }
+        onConfirm={() => {
+          if (!suspend) return;
+          applySellerStatus(suspend, suspend.status === "ditangguhkan" ? "aktif" : "ditangguhkan");
+        }}
       />
     </AppShell>
   );

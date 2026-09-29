@@ -41,6 +41,8 @@ kalau user isi kode diskon, validasi ke `discount_codes` (cek
 - Field kode diskon: loading state saat validasi (jangan freeze UI)
 
 ### 3.2 Server function `create-order`
+**KEPUTUSAN user: v1 = satu checkout satu toko (multi-toko ditolak dengan
+pesan), hanya QRIS, kuota promo berkurang saat order dibuat.**
 **Starting state:** belum ada serverless function apapun untuk order.
 **Target state:** function baru yang menerima cart+diskon dari frontend,
 insert `orders` (status `menunggu`) + `order_items` (snapshot nama &
