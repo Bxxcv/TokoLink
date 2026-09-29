@@ -51,6 +51,14 @@ Aturan komunikasi wajib (ini sering dilanggar sebelumnya — jangan diulang):
    (misal fase belum sampai situ), WAJIB bilang eksplisit di laporan —
    "halaman X masih pakai data contoh, belum dikerjakan" — jangan biarkan
    user nemu sendiri lalu kaget. Lihat juga Bagian 3 aturan #9.
+8. **Kalau user belum menjawab pertanyaan, tanyakan BERULANG setiap sesi
+   sampai dijawab.** Jangan anggap selesai, jangan jalan terus seolah
+   sudah dijawab. (Aturan user, 29 Sep 2026.)
+9. **Prioritas: fitur TOKO + DASHBOARD SELLER dulu, admin belakangan.**
+   Jangan buru-buru kerjakan Admin Master. Semua fitur dashboard seller
+   harus BERFUNGSI penuh (baca/tulis database), bukan sekadar UI, HARUS
+   responsif (375px & 1440px), dan pahami alur frontend → database →
+   backend tiap fitur. (Aturan tegas user, 29 Sep 2026.)
 
 ---
 

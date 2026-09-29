@@ -25,7 +25,7 @@ walau tidak ditulis ulang di tiap task.
 
 ---
 
-## Fase 3 — Orders & Checkout (BuatQris) ← MULAI DARI SINI
+## Fase 3 — Orders & Checkout (BuatQris) ✅ SELESAI (test sandbox lolos 29 Sep 2026)
 
 ### 3.1 Checkout: hitung total + terapkan diskon
 **Starting state:** `Cart`/`Checkout` masih pakai data mock, tidak baca
