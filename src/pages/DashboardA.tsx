@@ -102,7 +102,7 @@ export function StatCard({
 /* ================================ OVERVIEW ================================ */
 export function DashboardHome() {
   const { toast } = useApp();
-  const { profile } = useAuth();
+  const { user, profile } = useAuth();
   const firstName = profile?.owner_name?.trim().split(" ")[0] || "Seller";
   const hour = new Date().getHours();
   const greet = hour < 11 ? "Selamat pagi" : hour < 15 ? "Selamat siang" : hour < 19 ? "Selamat sore" : "Selamat malam";
