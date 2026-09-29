@@ -49,7 +49,6 @@ export const SELLER_NAV: NavGroup[] = [
     items: [
       { label: "Pengaturan toko", to: "/app/settings", icon: "settings" },
       { label: "Profil & akun", to: "/app/account", icon: "user" },
-      { label: "Pustaka komponen", to: "/system", icon: "layers" },
     ],
   },
 ];

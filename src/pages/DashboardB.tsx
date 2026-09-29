@@ -535,16 +535,23 @@ export function BioLinks() {
   };
   const [links, setLinks] = useState<BRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [del, setDel] = useState<{ id: string; label: string } | null>(null);
 
   const load = async () => {
     if (!user) return;
     setLoading(true);
-    const { data } = await supabase
+    setLoadError(false);
+    const { data, error } = await supabase
       .from("bio_links")
       .select("*")
       .eq("seller_id", user.id)
       .order("sort_order", { ascending: true });
+    if (error) {
+      setLoading(false);
+      setLoadError(true);
+      return;
+    }
     setLinks((data ?? []) as BRow[]);
     setLoading(false);
   };
@@ -655,6 +662,8 @@ export function BioLinks() {
               <Skeleton className="h-20 w-full" />
               <Skeleton className="h-20 w-full" />
             </>
+          ) : loadError ? (
+            <ErrorState onRetry={load} desc="Tautan gagal dimuat. Periksa koneksi lalu coba lagi." />
           ) : links.length === 0 ? (
             <EmptyState
               icon="link"
@@ -1114,6 +1123,7 @@ export function Discount() {
   };
   const [list, setList] = useState<DRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({ code: "", type: "Persen", value: "", min: "", limit: "", until: "" });
@@ -1122,11 +1132,17 @@ export function Discount() {
   const load = async () => {
     if (!user) return;
     setLoading(true);
-    const { data } = await supabase
+    setLoadError(false);
+    const { data, error } = await supabase
       .from("discount_codes")
       .select("*")
       .eq("seller_id", user.id)
       .order("created_at", { ascending: false });
+    if (error) {
+      setLoading(false);
+      setLoadError(true);
+      return;
+    }
     setList((data ?? []) as DRow[]);
     setLoading(false);
   };
@@ -1233,6 +1249,14 @@ export function Discount() {
                   <div className="space-y-2 py-2">
                     <Skeleton className="h-10 w-full" />
                     <Skeleton className="h-10 w-full" />
+                  </div>
+                </td>
+              </tr>
+            ) : loadError ? (
+              <tr>
+                <td colSpan={6}>
+                  <div className="p-4 sm:p-5">
+                    <ErrorState onRetry={load} desc="Kode promo gagal dimuat. Periksa koneksi lalu coba lagi." />
                   </div>
                 </td>
               </tr>

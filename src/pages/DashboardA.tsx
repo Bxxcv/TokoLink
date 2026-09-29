@@ -102,8 +102,10 @@ export function StatCard({
 /* ================================ OVERVIEW ================================ */
 export function DashboardHome() {
   const { toast } = useApp();
-  const { user, profile } = useAuth();
+  const { profile } = useAuth();
   const firstName = profile?.owner_name?.trim().split(" ")[0] || "Seller";
+  const hour = new Date().getHours();
+  const greet = hour < 11 ? "Selamat pagi" : hour < 15 ? "Selamat siang" : hour < 19 ? "Selamat sore" : "Selamat malam";
   const storeSlug = profile?.store_slug || "";
   type ORow = { id: string; buyer_name: string; total: number | string; status: string; created_at: string };
   type PRow = { id: string; name: string; price: number | string; stock: number; sold: number; status: string };
@@ -169,7 +171,7 @@ export function DashboardHome() {
       <PageHeader
         index="01"
         kicker="Beranda"
-        title={`Selamat pagi, ${firstName}.`}
+        title={`${greet}, ${firstName}.`}
         desc={`Ringkasan toko 30 hari terakhir. Diperbarui ${today} WIB.`}
         actions={
           <>
@@ -1195,12 +1197,18 @@ export function ProductForm({ id }: { id?: string }) {
                 />
               </Field>
               <FieldRow cols={2}>
-                <Field label="Kategori" required>
-                  <Select value={f.cat} onChange={(e) => set("cat", e.target.value)}>
+                <Field label="Kategori" required hint="Bebas isi sendiri, atau pilih saran.">
+                  <Input
+                    value={f.cat}
+                    onChange={(e) => set("cat", e.target.value)}
+                    placeholder="Kue & Snack"
+                    list="cat-list"
+                  />
+                  <datalist id="cat-list">
                     {CATEGORIES.filter((c) => c !== "Semua").map((c) => (
-                      <option key={c}>{c}</option>
+                      <option key={c} value={c} />
                     ))}
-                  </Select>
+                  </datalist>
                 </Field>
                 <Field label="Kode produk (SKU)" hint="Untuk pencatatan sendiri">
                   <Input value={f.sku} onChange={(e) => set("sku", e.target.value)} placeholder="LL-380" />
@@ -1805,7 +1813,7 @@ export function OrderDetail({ id }: { id: string }) {
             <CardHead title="Progres pesanan" icon="truck" />
             <ol className="flex items-start justify-between gap-2">
               {steps.map((s, i) => (
-                <li key={s} className="flex flex-1 flex-col items-center gap-2 text-center">
+                <li key={s} className="relative flex flex-1 flex-col items-center gap-2 text-center">
                   <span
                     className={cx(
                       "grid h-8 w-8 place-items-center rounded-full border-2 text-[13px] font-bold",
