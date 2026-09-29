@@ -53,7 +53,7 @@ export const PRODUCTS: Product[] = [
   },
   {
     id: "p2",
-    name: "Sambal Bawang Bu Ani 250ml",
+    name: "Sambal Bawang 250ml",
     cat: "Sambal & Bumbu",
     price: 32000,
     unit: "/ botol",

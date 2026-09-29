@@ -130,7 +130,7 @@ function EyeButton({ open, onToggle }: { open: boolean; onToggle: () => void }) 
 
 /* ---------------------------------- login --------------------------------- */
 export function Login() {
-  const [email, setEmail] = useState("ani@dapoerbuani.id");
+  const [email, setEmail] = useState("");
   const [pass, setPass] = useState("");
   const [show, setShow] = useState(false);
   const [err, setErr] = useState("");
@@ -362,7 +362,7 @@ export function Register() {
               setName(e.target.value);
               setErr((x) => ({ ...x, name: "" }));
             }}
-            placeholder="Ani Rahayu"
+            placeholder="Nama Anda"
           />
         </Field>
 
@@ -379,7 +379,7 @@ export function Register() {
               setStore(e.target.value);
               setErr((x) => ({ ...x, store: "" }));
             }}
-            placeholder="Dapoer Bu Ani"
+            placeholder="Nama toko Anda"
           />
         </Field>
 

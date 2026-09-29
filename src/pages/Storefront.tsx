@@ -24,19 +24,6 @@ import {
 } from "../components/ui";
 import { QRMark } from "./Landing";
 
-const STORE = {
-  slug: "dapoer-bu-ani",
-  name: "Dapoer Bu Ani",
-  city: "Bandung",
-  since: "Sejak April 2024",
-  rating: 4.9,
-  sold: 1284,
-  bio: "Masakan rumahan dan bumbu jadi, dimasak pagi hari dikirim siang. Order sebelum 15.00 dikirim hari itu juga.",
-  wa: "0812-3456-7890",
-  open: true,
-  hours: "08.00 – 20.00 WIB",
-};
-
 const SHIP = 10000;
 
 /* ------------------------------ shared chrome ----------------------------- */
@@ -105,26 +92,27 @@ type DiscountRow = {
 
 function StoreHeader({ crumb, store }: { crumb?: string; store?: StoreProfile | null }) {
   const { count } = useApp();
-  const name = store?.store_name || STORE.name;
-  const slug = store?.store_slug || STORE.slug;
-  const city = store?.city || STORE.city;
+  // Tanpa data toko (masih loading) tampilkan netral — JANGAN nama contoh.
+  const name = store?.store_name || "Toko";
+  const slug = store?.store_slug || "";
+  const city = store?.city || "";
   return (
     <header className="sticky top-0 z-40 border-b border-line bg-white/96 backdrop-blur-sm">
       <PageShell>
         <div className="flex h-16 items-center gap-3">
-          <Link to={`/s/${slug}`} className="flex min-w-0 items-center gap-2.5">
+          <Link to={slug ? `/s/${slug}` : "/"} className="flex min-w-0 items-center gap-2.5">
             <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-navy-800">
               <LogoMark size={24} />
             </span>
             <span className="min-w-0 leading-tight">
               <span className="block truncate text-[15px] font-extrabold text-ink">{name}</span>
-              <span className="micro text-faint">{crumb ?? `${city} · Kue & bumbu`}</span>
+              <span className="micro text-faint">{crumb ?? (city || "Katalog")}</span>
             </span>
           </Link>
 
           <div className="ml-auto flex items-center gap-2">
             <Link
-              to={`/s/${slug}`}
+              to={slug ? `/s/${slug}` : "/"}
               aria-label="Cari produk"
               className="rounded-md border border-line p-2 text-muted transition-colors hover:bg-canvas hover:text-brand-700"
             >
@@ -150,8 +138,8 @@ function StoreHeader({ crumb, store }: { crumb?: string; store?: StoreProfile | 
 }
 
 function StoreFooter({ store }: { store?: StoreProfile | null }) {
-  const name = store?.store_name || STORE.name;
-  const city = store?.city || STORE.city;
+  const name = store?.store_name || "Toko";
+  const city = store?.city || "";
   return (
     <footer className="border-t border-line bg-white py-8">
       <PageShell>
@@ -162,9 +150,7 @@ function StoreFooter({ store }: { store?: StoreProfile | null }) {
             </span>
             <div className="leading-tight">
               <div className="text-[14px] font-bold text-ink">{name}</div>
-              <div className="text-[12.5px] text-faint">
-                {city} · {STORE.since}
-              </div>
+              {city && <div className="text-[12.5px] text-faint">{city}</div>}
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-4 text-[13px] text-muted">
@@ -293,9 +279,9 @@ export function StoreHome({ slug }: { slug: string }) {
       ),
     [items, cat, q],
   );
-  const name = store?.store_name || STORE.name;
-  const city = store?.city || STORE.city;
-  const wa = store?.wa_number || STORE.wa;
+  const name = store?.store_name || "Toko";
+  const city = store?.city || "";
+  const wa = store?.wa_number || "";
   // Badge buka/tutup dari store_hours (zona WIB). Tanpa data jam → anggap buka.
   const [openNow, setOpenNow] = useState<boolean | null>(null);
   const [todayHours, setTodayHours] = useState("");
@@ -397,25 +383,18 @@ export function StoreHome({ slug }: { slug: string }) {
                 <Badge tone="blue">Premium</Badge>
               </div>
               <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px] text-muted">
-                <span className="flex items-center gap-1.5">
-                  <Icon name="pin" size={14} className="text-faint" /> {city}
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <Icon name="star" size={14} className="text-warn" />{" "}
-                  <span className="tnum font-semibold text-ink">{STORE.rating}</span> ·{" "}
-                  <span className="tnum">{STORE.sold}</span> terjual
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <Icon name="clock" size={14} className="text-faint" /> {STORE.since}
-                </span>
+                {city && (
+                  <span className="flex items-center gap-1.5">
+                    <Icon name="pin" size={14} className="text-faint" /> {city}
+                  </span>
+                )}
               </div>
-              <p className="mt-3 max-w-2xl text-[14px] leading-relaxed text-muted">{STORE.bio}</p>
             </div>
 
             <div className="flex w-full flex-wrap gap-2 sm:w-auto">
               <button
                 className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-md bg-[#0a7a56] px-4 text-[13.5px] font-bold text-white transition-colors hover:bg-[#0b6b4b] sm:flex-none"
-                onClick={() => toast("Membuka chat WhatsApp " + wa, "info")}
+                onClick={() => toast(wa ? "Membuka chat WhatsApp " + wa : "Nomor WhatsApp toko belum diatur.", "info")}
               >
                 <Icon name="wa" size={17} /> Chat WhatsApp
               </button>
@@ -439,7 +418,7 @@ export function StoreHome({ slug }: { slug: string }) {
               <span className="relative flex h-2 w-2">
                 <span className={cx("h-2 w-2 rounded-full", openNow === false ? "bg-bad" : "bg-ok")} />
               </span>
-              {openNow === false ? "Tutup" : `Buka · ${todayHours || STORE.hours}`}
+              {openNow === false ? "Tutup" : `Buka${todayHours ? ` · ${todayHours}` : ""}`}
             </span>
             <span className="text-[13px] text-muted">
               Pesanan sebelum 15.00 dikirim hari ini juga.
@@ -1056,7 +1035,7 @@ export function Cart() {
   const { setQty, promo, setPromo, toast } = useApp();
   const { items, subtotal, discount, shipping, total, promoNote, promoValid, loading } = useTotals(promo);
   const store = useCartStore(items);
-  const storeSlug = store?.store_slug || "dapoer-bu-ani";
+  const storeSlug = store?.store_slug || "";
   const [code, setCode] = useState("");
   const [remove, setRemove] = useState<{ id: string; name: string } | null>(null);
 

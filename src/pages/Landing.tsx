@@ -720,7 +720,7 @@ function Analitik() {
               <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line bg-canvas px-5 py-3.5">
                 <div className="micro flex items-center gap-2 text-navy-800">
                   <LogoMark size={16} />
-                  Dapoer Bu Ani · Laporan
+                  Toko Contoh · Laporan
                 </div>
                 <div className="flex gap-1.5">
                   {["7 hari", "30 hari", "Tahun ini"].map((p) => (
@@ -837,8 +837,8 @@ function StorePreview() {
                         <LogoMark size={26} />
                       </span>
                       <div className="leading-tight">
-                        <div className="text-[15px] font-extrabold text-white">Dapoer Bu Ani</div>
-                        <div className="text-[11.5px] text-white/75">Bandung · Kue & bumbu rumahan</div>
+                        <div className="text-[15px] font-extrabold text-white">Toko Contoh</div>
+                        <div className="text-[11.5px] text-white/75">Bandung · Kuliner rumahan</div>
                       </div>
                     </div>
                   </div>

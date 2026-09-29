@@ -136,8 +136,8 @@ function NavList({ groups, path, onNavigate }: { groups: NavGroup[]; path: strin
 
 function StoreSwitcher({ admin = false }: { admin?: boolean }) {
   const { profile } = useAuth();
-  const storeName = admin ? "TokoLink Indonesia" : profile?.store_name || "Dapoer Bu Ani";
-  const storeSub = admin ? "Admin Master" : `tokolink.id/${profile?.store_slug || "dapoer-bu-ani"}`;
+  const storeName = admin ? "TokoLink Indonesia" : profile?.store_name || "";
+  const storeSub = admin ? "Admin Master" : `tokolink.id/${profile?.store_slug || ""}`;
   return (
     <div className="flex items-center gap-2.5">
       <span className="flex h-9 w-9 items-center justify-center rounded-md bg-navy-800 text-brand-300">
@@ -165,8 +165,8 @@ export function AppShell({
   const { toast } = useApp();
   const { profile } = useAuth();
   // Nama & toko ikut profil yang login; admin tetap pakai label mock sampai Fase 6.
-  const sellerName = profile?.owner_name || "Ani Rahayu";
-  const storeSlug = profile?.store_slug || "dapoer-bu-ani";
+  const sellerName = profile?.owner_name || "";
+  const storeSlug = profile?.store_slug || "";
 
   const mobileItems = (admin ? ADMIN_NAV[1].items : [
     SELLER_NAV[0].items[0],

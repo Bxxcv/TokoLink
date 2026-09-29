@@ -504,8 +504,8 @@ export function Withdraw() {
 export function BioLinks() {
   const { toast } = useApp();
   const { user, profile } = useAuth();
-  const storeName = profile?.store_name || "Dapoer Bu Ani";
-  const storeSlug = profile?.store_slug || "dapoer-bu-ani";
+  const storeName = profile?.store_name || "";
+  const storeSlug = profile?.store_slug || "";
   type BRow = {
     id: string; label: string; url: string; icon: string | null;
     clicks: number; is_active: boolean; sort_order: number;
@@ -733,7 +733,7 @@ export function BioLinks() {
 export function Theme() {
   const { toast } = useApp();
   const { profile } = useAuth();
-  const storeName = profile?.store_name || "Dapoer Bu Ani";
+  const storeName = profile?.store_name || "";
   const [accent, setAccent] = useState("Biru");
   const [layout, setLayout] = useState("Kisi");
   const [sections, setSections] = useState({ hours: true, qr: true, reviews: false, cart: true });
@@ -1419,8 +1419,8 @@ export function Hours() {
 export function StoreQR() {
   const { toast } = useApp();
   const { profile } = useAuth();
-  const storeName = profile?.store_name || "Dapoer Bu Ani";
-  const storeSlug = profile?.store_slug || "dapoer-bu-ani";
+  const storeName = profile?.store_name || "";
+  const storeSlug = profile?.store_slug || "";
   const [style, setStyle] = useState("Standar");
   const styles = ["Standar", "Bingkai toko", "Hitam putih"];
   const [qrData, setQrData] = useState("");
@@ -1785,7 +1785,7 @@ export function StoreSettings() {
           <Card>
             <CardHead title="Tautan penting" icon="link" />
             <div className="space-y-2">
-              <ButtonLink to={`/s/${f.slug || "dapoer-bu-ani"}`} variant="secondary" className="w-full justify-start">
+              <ButtonLink to={`/s/${f.slug || ""}`} variant="secondary" className="w-full justify-start">
                 <Icon name="external" size={16} /> Lihat halaman toko
               </ButtonLink>
               <ButtonLink to="/app/qr" variant="secondary" className="w-full justify-start">
@@ -1894,12 +1894,12 @@ export function AccountSettings() {
                     <Input value={owner} onChange={(e) => setOwner(e.target.value)} placeholder="Nama Anda" />
                   </Field>
                   <Field label="Nama tampilan" hint="Muncul di pesanan dan chat.">
-                    <Input defaultValue="Bu Ani" />
+                    <Input defaultValue="" placeholder="Nama panggilan" />
                   </Field>
                 </FieldRow>
                 <FieldRow cols={2}>
                   <Field label="Email" required>
-                    <Input defaultValue="ani@dapoerbuani.id" type="email" />
+                    <Input defaultValue={user?.email ?? ""} type="email" readOnly />
                   </Field>
                   <Field label="Nomor WhatsApp" required hint="Contoh: 0812xxxxxxx">
                     <Input

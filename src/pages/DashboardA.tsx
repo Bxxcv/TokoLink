@@ -113,7 +113,7 @@ export function DashboardHome() {
   const { toast } = useApp();
   const { profile } = useAuth();
   const firstName = profile?.owner_name?.trim().split(" ")[0] || "Seller";
-  const storeSlug = profile?.store_slug || "dapoer-bu-ani";
+  const storeSlug = profile?.store_slug || "";
   const loading = useFakeLoad([], 700);
   const [check, setCheck] = useState([true, true, false, false]);
   const done = check.filter(Boolean).length;
@@ -553,7 +553,7 @@ export function Traffic() {
 export function Products() {
   const { toast } = useApp();
   const { user, profile } = useAuth();
-  const slug = profile?.store_slug ?? "dapoer-bu-ani";
+  const slug = profile?.store_slug ?? "";
   const [q, setQ] = useState("");
   const [cat, setCat] = useState("Semua");
   const [status, setStatus] = useState("Semua status");
@@ -1159,7 +1159,7 @@ export function Orders() {
   const [tab, setTab] = useState("semua");
   const [q, setQ] = useState("");
   const { user, profile } = useAuth();
-  const storeSlug = profile?.store_slug || "dapoer-bu-ani";
+  const storeSlug = profile?.store_slug || "";
   const [rows, setRows] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
