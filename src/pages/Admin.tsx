@@ -2,10 +2,6 @@ import { useEffect, useState } from "react";
 import { navigate } from "../lib/router";
 import { supabase } from "../lib/supabase";
 import {
-  ADMIN_USERS,
-  PAYMENTS,
-  PREMIUM_REQUESTS,
-  SALES_30,
   rupiah,
   rupiahShort,
   useApp,
@@ -35,7 +31,7 @@ import {
   Toggle,
   cx,
 } from "../components/ui";
-import { BarRows, ChartFrame, Donut, LineChart, useFakeLoad } from "../components/charts";
+import { BarRows, ChartFrame, Donut, LineChart } from "../components/charts";
 import { StatCard } from "./DashboardA";
 
 const D = DAY();
@@ -47,7 +43,7 @@ function DAY() {
 const statusTone = (s: string) =>
   s === "aktif" || s === "selesai" || s === "berhasil" || s === "disetujui" || s === "cocok"
     ? "green"
-    : s === "menunggu" || s === "diproses" || s === "perlu cek" || s === "belum verifikasi"
+    : s === "menunggu" || s === "diproses" || s === "perlu cek" || s === "perlu_cek" || s === "belum verifikasi"
       ? "amber"
       : s === "ditolak" || s === "gagal" || s === "ditangguhkan"
         ? "red"
@@ -63,6 +59,7 @@ const label = (s: string) =>
     menunggu: "Menunggu",
     diproses: "Diproses",
     "perlu cek": "Perlu dicek",
+    perlu_cek: "Perlu dicek",
     "belum verifikasi": "Belum verifikasi",
     ditolak: "Ditolak",
     gagal: "Gagal",
@@ -84,6 +81,9 @@ export function AdminHome() {
     payFailed: 0,
     daily: [] as number[],
   });
+  const [recentPays, setRecentPays] = useState<
+    { id: string; channel: string; amount: number | string; fee: number | string; status: string; seller: string }[]
+  >([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -94,7 +94,7 @@ export function AdminHome() {
       const weekAgo = new Date(now.getTime() - 7 * 86400000).toISOString();
       const monthAgo = new Date(now.getTime() - 30 * 86400000).toISOString();
 
-      const [{ count: sellers }, { data: profs }, { data: orders }, { data: pays }, { data: prems }, { data: wds }] =
+      const [{ count: sellers }, { data: profs }, { data: orders }, { data: pays }, { data: prems }, { data: wds }, { data: recent }] =
         await Promise.all([
           supabase.from("profiles").select("id", { count: "exact", head: true }),
           supabase.from("profiles").select("created_at").gte("created_at", weekAgo),
@@ -102,6 +102,11 @@ export function AdminHome() {
           supabase.from("payments").select("status,fee,created_at").gte("created_at", monthAgo),
           supabase.from("premium_requests").select("id").eq("status", "menunggu"),
           supabase.from("withdrawals").select("id,amount,status").eq("status", "menunggu"),
+          supabase
+            .from("payments")
+            .select("id,channel,amount,fee,status,seller_id,profiles(store_name)")
+            .order("created_at", { ascending: false })
+            .limit(5),
         ]);
       const ord = (orders ?? []) as { total: number | string; status: string; created_at: string }[];
       const pay = (pays ?? []) as { status: string; fee: number | string; created_at: string }[];
@@ -133,6 +138,19 @@ export function AdminHome() {
         payFailed: pay.filter((p) => p.status === "gagal").length,
         daily,
       });
+      setRecentPays(
+        ((recent ?? []) as {
+          id: string; channel: string; amount: number | string; fee: number | string;
+          status: string; profiles: { store_name: string | null } | { store_name: string | null }[] | null;
+        }[]).map((r) => ({
+          id: r.id,
+          channel: r.channel,
+          amount: r.amount,
+          fee: r.fee,
+          status: r.status,
+          seller: Array.isArray(r.profiles) ? (r.profiles[0]?.store_name ?? "Toko") : (r.profiles?.store_name ?? "Toko"),
+        })),
+      );
       setLoading(false);
     })();
   }, []);
@@ -297,15 +315,15 @@ export function AdminHome() {
             </tr>
           </thead>
           <tbody>
-            {PAYMENTS.slice(0, 5).map((p) => (
+            {recentPays.map((p) => (
               <tr key={p.id} className="transition-colors hover:bg-canvas/70">
-                <Td className="tnum text-[13px] font-semibold">{p.id}</Td>
-                <Td className="text-[13.5px]">{p.store}</Td>
+                <Td className="tnum text-[13px] font-semibold">{p.id.slice(0, 8).toUpperCase()}</Td>
+                <Td className="text-[13.5px]">{p.seller}</Td>
                 <Td>
                   <Badge tone={p.channel === "QRIS" ? "blue" : "gray"}>{p.channel}</Badge>
                 </Td>
-                <Td className="tnum text-right font-semibold">{rupiah(p.amount)}</Td>
-                <Td className="tnum text-right text-muted">{rupiah(p.fee)}</Td>
+                <Td className="tnum text-right font-semibold">{rupiah(Number(p.amount))}</Td>
+                <Td className="tnum text-right text-muted">{rupiah(Number(p.fee))}</Td>
                 <Td>
                   <Badge tone={statusTone(p.status)} dot>
                     {label(p.status)}
@@ -555,13 +573,74 @@ export function AdminSellers() {
 /* ============================ PREMIUM REQUESTS =========================== */
 export function AdminPremium() {
   const { toast } = useApp();
-  const [list, setList] = useState(PREMIUM_REQUESTS);
-  const [reject, setReject] = useState<(typeof PREMIUM_REQUESTS)[number] | null>(null);
+  type PRow = {
+    id: string; plan: string; amount: number | string; proof_channel: string | null;
+    status: string; created_at: string; seller_id: string;
+    profiles: { store_name: string | null } | { store_name: string | null }[] | null;
+  };
+  const [list, setList] = useState<PRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState("Semua");
+  const [reject, setReject] = useState<PRow | null>(null);
 
-  const approve = (id: string) => {
-    setList((l) => l.map((x) => (x.id === id ? { ...x, status: "disetujui" } : x)));
+  const load = async () => {
+    setLoading(true);
+    const { data } = await supabase
+      .from("premium_requests")
+      .select("id,plan,amount,proof_channel,status,created_at,seller_id,profiles(store_name)")
+      .order("created_at", { ascending: false });
+    setList((data ?? []) as PRow[]);
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    load();
+  }, []);
+
+  const storeOf = (p: PRow) =>
+    Array.isArray(p.profiles) ? (p.profiles[0]?.store_name ?? "Toko") : (p.profiles?.store_name ?? "Toko");
+
+  const approve = async (row: PRow) => {
+    const prev = row.status;
+    setList((l) => l.map((x) => (x.id === row.id ? { ...x, status: "disetujui" } : x)));
+    const { error: e1 } = await supabase
+      .from("premium_requests")
+      .update({ status: "disetujui", reviewed_at: new Date().toISOString() })
+      .eq("id", row.id);
+    let e2: unknown = null;
+    if (!e1) {
+      const r = await supabase.from("profiles").update({ plan: "premium" }).eq("id", row.seller_id);
+      e2 = r.error;
+    }
+    if (e1 || e2) {
+      setList((l) => l.map((x) => (x.id === row.id ? { ...x, status: prev } : x)));
+      toast("Gagal menyetujui.", "bad");
+      return;
+    }
     toast("Permintaan Premium disetujui. Akses langsung aktif.");
   };
+
+  const doReject = async () => {
+    if (!reject) return;
+    const target = reject.id;
+    setReject(null);
+    setList((l) => l.map((x) => (x.id === target ? { ...x, status: "ditolak" } : x)));
+    const { error } = await supabase
+      .from("premium_requests")
+      .update({ status: "ditolak", reviewed_at: new Date().toISOString() })
+      .eq("id", target);
+    if (error) {
+      setList((l) => l.map((x) => (x.id === target ? { ...x, status: "menunggu" } : x)));
+      toast("Gagal menolak.", "bad");
+      return;
+    }
+    toast("Permintaan ditolak dan penjual diberi tahu.", "warn");
+  };
+
+  const filtered = list.filter((l) => (filter === "Semua" ? true : l.status === "menunggu"));
+  const monthStart = new Date();
+  monthStart.setDate(1);
+  const thisMonth = list.filter((l) => new Date(l.created_at) >= monthStart);
 
   return (
     <AppShell group="admin">
@@ -570,13 +649,13 @@ export function AdminPremium() {
         kicker="Operasi"
         title="Permintaan Premium"
         desc="Penjual mengunggah bukti bayar manual. Tinjau dalam 1×24 jam supaya tidak ada toko tertahan."
-        actions={<Segmented items={["Menunggu", "Semua"]} active="Semua" onChange={() => {}} />}
+        actions={<Segmented items={["Menunggu", "Semua"]} active={filter} onChange={setFilter} />}
       />
 
       <div className="mb-4 grid gap-4 sm:grid-cols-3">
-        <StatCard label="Menunggu tinjauan" value={String(list.filter((l) => l.status === "menunggu").length)} hint="rata-rata 4 jam" />
-        <StatCard label="Disetujui bulan ini" value="64" delta={21} hint="Rp31.420.000" />
-        <StatCard label="Ditolak bulan ini" value="7" hint="bukti bayar tidak jelas" />
+        <StatCard label="Menunggu tinjauan" value={String(list.filter((l) => l.status === "menunggu").length)} hint="tinjau 1×24 jam" loading={loading} />
+        <StatCard label="Disetujui bulan ini" value={String(thisMonth.filter((l) => l.status === "disetujui").length)} hint={rupiah(thisMonth.filter((l) => l.status === "disetujui").reduce((s, l) => s + Number(l.amount), 0))} loading={loading} />
+        <StatCard label="Ditolak bulan ini" value={String(thisMonth.filter((l) => l.status === "ditolak").length)} hint="bukti bayar tidak jelas" loading={loading} />
       </div>
 
       <Card pad={false}>
@@ -597,16 +676,36 @@ export function AdminPremium() {
             </tr>
           </thead>
           <tbody>
-            {list.map((p) => (
+            {loading ? (
+              <tr>
+                <td colSpan={8}>
+                  <div className="space-y-2 py-2">
+                    <Skeleton className="h-10 w-full" />
+                    <Skeleton className="h-10 w-full" />
+                  </div>
+                </td>
+              </tr>
+            ) : filtered.length === 0 ? (
+              <tr>
+                <td colSpan={8}>
+                  <div className="p-4 sm:p-5">
+                    <EmptyState icon="star" title="Tidak ada permintaan" desc="Pengajuan premium dari penjual akan muncul di sini." />
+                  </div>
+                </td>
+              </tr>
+            ) : (
+              filtered.map((p) => (
               <tr key={p.id} className="transition-colors hover:bg-canvas/70">
-                <Td className="tnum text-[13px] text-muted">{p.id}</Td>
-                <Td className="text-[13.5px] font-semibold">{p.seller}</Td>
+                <Td className="tnum text-[13px] text-muted">{p.id.slice(0, 8).toUpperCase()}</Td>
+                <Td className="text-[13.5px] font-semibold">{storeOf(p)}</Td>
                 <Td className="text-[13.5px]">{p.plan}</Td>
-                <Td className="tnum text-right font-bold">{rupiah(p.amount)}</Td>
+                <Td className="tnum text-right font-bold">{rupiah(Number(p.amount))}</Td>
                 <Td className="hidden md:table-cell">
-                  <Badge tone={p.proof === "QRIS" ? "blue" : "gray"}>{p.proof}</Badge>
+                  <Badge tone={p.proof_channel === "QRIS" ? "blue" : "gray"}>{p.proof_channel ?? "—"}</Badge>
                 </Td>
-                <Td className="text-[13px] text-muted">{p.date}</Td>
+                <Td className="text-[13px] text-muted">
+                  {new Date(p.created_at).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" })}
+                </Td>
                 <Td>
                   <Badge tone={statusTone(p.status)} dot>
                     {label(p.status)}
@@ -614,7 +713,7 @@ export function AdminPremium() {
                 </Td>
                 <Td>
                   <div className="flex justify-end gap-2">
-                    <Button size="sm" disabled={p.status !== "menunggu"} onClick={() => approve(p.id)}>
+                    <Button size="sm" disabled={p.status !== "menunggu"} onClick={() => approve(p)}>
                       Setujui
                     </Button>
                     <Button size="sm" variant="ghost" disabled={p.status !== "menunggu"} onClick={() => setReject(p)}>
@@ -623,7 +722,8 @@ export function AdminPremium() {
                   </div>
                 </Td>
               </tr>
-            ))}
+              ))
+            )}
           </tbody>
         </TableWrap>
         <div className="px-4 py-3.5 text-[13px] text-muted sm:px-5">
@@ -634,13 +734,10 @@ export function AdminPremium() {
       <ConfirmDialog
         open={!!reject}
         onClose={() => setReject(null)}
-        title={`Tolak permintaan ${reject?.id ?? ""}?`}
+        title={`Tolak permintaan ${reject?.id.slice(0, 8).toUpperCase() ?? ""}?`}
         body="Penjual tetap bisa memakai paket Gratis. Alasan penolakan dikirim ke email pemilik toko dan bisa diunggah ulang."
         confirmLabel="Tolak permintaan"
-        onConfirm={() => {
-          setList((l) => l.map((x) => (x.id === reject?.id ? { ...x, status: "ditolak" } : x)));
-          toast("Permintaan ditolak dan penjual diberi tahu.", "warn");
-        }}
+        onConfirm={doReject}
       />
     </AppShell>
   );
@@ -853,7 +950,48 @@ export function AdminWithdrawals() {
 
 /* =========================== PLATFORM ANALYTICS ========================== */
 export function AdminAnalytics() {
-  const loading = useFakeLoad([], 600);
+  const [stats, setStats] = useState({
+    gmv: 0, fee: 0, sellers: 0, premium: 0, gratis: 0,
+    daily: [] as number[], weekly: [] as { label: string; value: number }[],
+  });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    (async () => {
+      const now = new Date();
+      const { data: orders } = await supabase.from("orders").select("total,created_at");
+      const { data: pays } = await supabase.from("payments").select("fee,created_at");
+      const { data: profs } = await supabase.from("profiles").select("plan,created_at").eq("role", "seller");
+      const ord = ((orders ?? []) as { total: number | string; created_at: string }[]);
+      const gmv = ord.reduce((s, o) => s + Number(o.total), 0);
+      const fee = ((pays ?? []) as { fee: number | string }[]).reduce((s, p) => s + Number(p.fee), 0);
+      const sellers = (profs ?? []).length;
+      const premium = (profs ?? []).filter((p) => (p as { plan: string }).plan === "premium").length;
+      const daily: number[] = [];
+      for (let i = 29; i >= 0; i--) {
+        const d = new Date(now.getTime() - i * 86400000).toISOString().slice(0, 10);
+        daily.push(
+          Math.round(ord.filter((o) => o.created_at.slice(0, 10) === d).reduce((s, o) => s + Number(o.total), 0) / 1000000),
+        );
+      }
+      const weekly = [0, 1, 2, 3].map((w) => {
+        const end = new Date(now.getTime() - w * 7 * 86400000);
+        const start = new Date(now.getTime() - (w + 1) * 7 * 86400000);
+        const label = w === 0 ? "Minggu ini" : w === 1 ? "Minggu lalu" : `${w} minggu lalu`;
+        return {
+          label,
+          value: (profs ?? []).filter((p) => {
+            const c = new Date((p as { created_at: string }).created_at);
+            return c >= start && c < end;
+          }).length,
+        };
+      });
+      setStats({ gmv, fee, sellers, premium, gratis: sellers - premium, daily, weekly });
+      setLoading(false);
+    })();
+  }, []);
+
+  const avg = stats.sellers ? stats.gmv / stats.sellers : 0;
   return (
     <AppShell group="admin">
       <PageHeader
@@ -865,10 +1003,10 @@ export function AdminAnalytics() {
       />
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard label="GMV kumulatif" value="Rp18,4 M" delta={23} hint="sejak 2024" loading={loading} />
-        <StatCard label="Pendapatan platform" value="Rp624.800.000" delta={19} hint="biaya layanan + langganan" loading={loading} />
-        <StatCard label="Rata-rata GMV / toko" value="Rp8,9 jt" delta={6} hint="per bulan" loading={loading} />
-        <StatCard label="Churn langganan" value="2,4%" delta={-8} hint="turun, bagus" loading={loading} />
+        <StatCard label="GMV kumulatif" value={rupiahShort(stats.gmv)} hint="semua waktu" loading={loading} />
+        <StatCard label="Pendapatan platform" value={rupiah(stats.fee)} hint="dari biaya layanan" loading={loading} />
+        <StatCard label="Rata-rata GMV / toko" value={rupiahShort(Math.round(avg))} hint="total dibagi penjual" loading={loading} />
+        <StatCard label="Total penjual" value={String(stats.sellers)} hint={`${stats.premium} premium`} loading={loading} />
       </div>
 
       <div className="mt-4 grid gap-4 lg:grid-cols-3">
@@ -881,20 +1019,19 @@ export function AdminAnalytics() {
                 ))}
               </div>
             ) : (
-              <LineChart series={SALES_30.map((v) => v * 36)} labels={Array.from({ length: 30 }, (_, i) => `${i + 1}`)} height={210} color="#0B2E6E" format={rupiahShort} />
+              <LineChart series={stats.daily} labels={Array.from({ length: 30 }, (_, i) => `${i + 1}`)} height={210} color="#0B2E6E" format={rupiahShort} />
             )}
           </ChartFrame>
         </Card>
 
         <Card>
-          <ChartFrame title="Distribusi paket" hint="5.104 penjual terdaftar">
+          <ChartFrame title="Distribusi paket" hint={`${stats.sellers} penjual terdaftar`}>
             <Donut
-              centerValue="5.104"
+              centerValue={String(stats.sellers)}
               centerLabel="penjual"
               items={[
-                { label: "Premium bulanan", value: 1240, color: "#0A69C4" },
-                { label: "Premium tahunan", value: 686, color: "#1B9AE0" },
-                { label: "Gratis", value: 3178, color: "#0B2E6E" },
+                { label: "Premium", value: stats.premium, color: "#0A69C4" },
+                { label: "Gratis", value: stats.gratis, color: "#0B2E6E" },
               ]}
             />
           </ChartFrame>
@@ -919,12 +1056,7 @@ export function AdminAnalytics() {
         <Card>
           <ChartFrame title="Pertumbuhan penjual" hint="Penjual baru per minggu">
             <BarRows
-              data={[
-                { label: "Minggu ini", value: 184 },
-                { label: "Minggu lalu", value: 192 },
-                { label: "2 minggu lalu", value: 168 },
-                { label: "3 minggu lalu", value: 154 },
-              ]}
+              data={stats.weekly}
               format={(v) => `${v} toko`}
               color="#0B2E6E"
             />
@@ -939,8 +1071,31 @@ export function AdminAnalytics() {
 export function AdminPayments() {
   const { toast } = useApp();
   const [tab, setTab] = useState("semua");
-  const rows = PAYMENTS.filter((p) =>
-    tab === "semua" ? true : tab === "gagal" ? p.status === "gagal" || p.status === "perlu cek" : p.status === "berhasil",
+  type PayRow = {
+    id: string; order_id: string; channel: string; amount: number | string;
+    fee: number | string; external_ref: string | null; status: string; created_at: string;
+    seller_id: string; profiles: { store_name: string | null } | { store_name: string | null }[] | null;
+  };
+  const [rows, setRows] = useState<PayRow[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    (async () => {
+      setLoading(true);
+      const { data } = await supabase
+        .from("payments")
+        .select("id,order_id,channel,amount,fee,external_ref,status,created_at,seller_id,profiles(store_name)")
+        .order("created_at", { ascending: false })
+        .limit(200);
+      setRows((data ?? []) as PayRow[]);
+      setLoading(false);
+    })();
+  }, []);
+
+  const storeOf = (p: PayRow) =>
+    Array.isArray(p.profiles) ? (p.profiles[0]?.store_name ?? "Toko") : (p.profiles?.store_name ?? "Toko");
+  const filtered = rows.filter((p) =>
+    tab === "semua" ? true : tab === "gagal" ? p.status === "gagal" || p.status === "perlu_cek" : p.status === "berhasil",
   );
 
   return (
@@ -960,14 +1115,19 @@ export function AdminPayments() {
         active={tab}
         onChange={setTab}
         items={[
-          { id: "semua", label: "Semua", count: PAYMENTS.length },
-          { id: "berhasil", label: "Berhasil" },
-          { id: "masalah", label: "Gagal / perlu cek", count: 2 },
+          { id: "semua", label: "Semua", count: rows.length },
+          { id: "berhasil", label: "Berhasil", count: rows.filter((p) => p.status === "berhasil").length },
+          { id: "masalah", label: "Gagal / perlu cek", count: rows.filter((p) => p.status === "gagal" || p.status === "perlu_cek").length },
         ]}
       />
 
       <Card pad={false}>
-        {rows.length === 0 ? (
+        {loading ? (
+          <div className="space-y-3 p-4 sm:p-5">
+            <Skeleton className="h-12 w-full" />
+            <Skeleton className="h-12 w-full" />
+          </div>
+        ) : filtered.length === 0 ? (
           <div className="p-4 sm:p-5">
             <EmptyState icon="checkCircle" title="Tidak ada masalah pembayaran" desc="Semua transaksi pada periode ini cocok dengan mutasi bank." />
           </div>
@@ -986,16 +1146,21 @@ export function AdminPayments() {
               </tr>
             </thead>
             <tbody>
-              {rows.map((p) => (
+              {filtered.map((p) => (
                 <tr key={p.id} className="transition-colors hover:bg-canvas/70">
-                  <Td className="tnum text-[13px] font-semibold">{p.id}</Td>
-                  <Td className="text-[13.5px]">{p.store}</Td>
+                  <Td>
+                    <div className="tnum text-[13px] font-semibold">{p.external_ref ?? p.id.slice(0, 8).toUpperCase()}</div>
+                    <div className="tnum text-[12px] text-faint">{p.order_id}</div>
+                  </Td>
+                  <Td className="text-[13.5px]">{storeOf(p)}</Td>
                   <Td>
                     <Badge tone={p.channel === "QRIS" ? "blue" : "gray"}>{p.channel}</Badge>
                   </Td>
-                  <Td className="hidden text-[13px] text-muted md:table-cell">{p.time}</Td>
-                  <Td className="tnum text-right font-bold">{rupiah(p.amount)}</Td>
-                  <Td className="tnum text-right text-muted">{rupiah(p.fee)}</Td>
+                  <Td className="hidden text-[13px] text-muted md:table-cell">
+                    {new Date(p.created_at).toLocaleString("id-ID", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+                  </Td>
+                  <Td className="tnum text-right font-bold">{rupiah(Number(p.amount))}</Td>
+                  <Td className="tnum text-right text-muted">{rupiah(Number(p.fee))}</Td>
                   <Td>
                     <Badge tone={statusTone(p.status)} dot>
                       {label(p.status)}
@@ -1005,8 +1170,8 @@ export function AdminPayments() {
                     <div className="flex justify-end">
                       <Button
                         size="sm"
-                        variant={p.status === "gagal" || p.status === "perlu cek" ? "secondary" : "ghost"}
-                        onClick={() => toast(`Detail transaksi ${p.id} dibuka.`, "info")}
+                        variant={p.status === "gagal" || p.status === "perlu_cek" ? "secondary" : "ghost"}
+                        onClick={() => navigate(`/admin/withdrawals`)}
                       >
                         Periksa
                       </Button>
@@ -1020,7 +1185,7 @@ export function AdminPayments() {
         <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3.5 text-[13px] text-muted sm:px-5">
           <span>Total nilai pada tab ini</span>
           <span className="tnum font-bold text-ink">
-            {rupiah(rows.reduce((s, r) => s + r.amount, 0))}
+            {rupiah(filtered.reduce((s, r) => s + Number(r.amount), 0))}
           </span>
         </div>
       </Card>
@@ -1032,8 +1197,58 @@ export function AdminPayments() {
 export function AdminUsers() {
   const { toast } = useApp();
   const [q, setQ] = useState("");
-  const [suspend, setSuspend] = useState<(typeof ADMIN_USERS)[number] | null>(null);
-  const rows = ADMIN_USERS.filter((u) => u.name.toLowerCase().includes(q.toLowerCase()) || u.email.includes(q.toLowerCase()));
+  type URow = {
+    id: string; email: string; last_sign_in: string | null; role: string;
+    store_name: string; owner_name: string; city: string; plan: string; status: string;
+  };
+  const [rows, setRows] = useState<URow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [suspend, setSuspend] = useState<URow | null>(null);
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const { data: sess } = await supabase.auth.getSession();
+      const token = sess.session?.access_token;
+      if (!token) {
+        setLoading(false);
+        return;
+      }
+      const res = await fetch("/api/admin-users", { headers: { authorization: `Bearer ${token}` } });
+      const out = (await res.json()) as { users?: URow[]; error?: string };
+      if (!res.ok) {
+        toast(out.error ?? "Gagal memuat pengguna.", "bad");
+        setLoading(false);
+        return;
+      }
+      setRows(out.users ?? []);
+    } catch {
+      toast("Tidak bisa menghubungi server.", "bad");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    load();
+  }, []);
+
+  const filtered = rows.filter(
+    (u) => u.owner_name.toLowerCase().includes(q.toLowerCase()) || u.email.toLowerCase().includes(q.toLowerCase()),
+  );
+
+  const setStatus = async (row: URow, next: string) => {
+    const prev = row.status;
+    setRows((ls) => ls.map((x) => (x.id === row.id ? { ...x, status: next } : x)));
+    setSuspend(null);
+    const { error } = await supabase.from("profiles").update({ status: next }).eq("id", row.id);
+    if (error) {
+      setRows((ls) => ls.map((x) => (x.id === row.id ? { ...x, status: prev } : x)));
+      toast("Gagal mengubah status.", "bad");
+      return;
+    }
+    toast("Status akun diperbarui.", next === "ditangguhkan" ? "warn" : "ok");
+  };
 
   return (
     <AppShell group="admin">
@@ -1067,15 +1282,40 @@ export function AdminUsers() {
             </tr>
           </thead>
           <tbody>
-            {rows.map((u) => (
+            {loading ? (
+              <tr>
+                <td colSpan={7}>
+                  <div className="space-y-2 py-2">
+                    <Skeleton className="h-10 w-full" />
+                    <Skeleton className="h-10 w-full" />
+                  </div>
+                </td>
+              </tr>
+            ) : filtered.length === 0 ? (
+              <tr>
+                <td colSpan={7}>
+                  <div className="p-4 sm:p-5">
+                    <EmptyState icon="users" title="Tidak ada pengguna" desc="Coba kata kunci lain." />
+                  </div>
+                </td>
+              </tr>
+            ) : (
+              filtered.map((u) => (
               <tr key={u.id} className="transition-colors hover:bg-canvas/70">
-                <Td className="tnum text-[13px] text-muted">{u.id}</Td>
-                <Td className="text-[13.5px] font-semibold">{u.name}</Td>
+                <Td className="tnum text-[13px] text-muted">{u.id.slice(0, 8).toUpperCase()}</Td>
+                <Td>
+                  <div className="text-[13.5px] font-semibold">{u.owner_name}</div>
+                  <div className="text-[12px] text-faint">{u.store_name}</div>
+                </Td>
                 <Td className="text-[13.5px] text-muted">{u.email}</Td>
                 <Td>
-                  <Badge tone={u.role === "Admin" ? "navy" : "blue"}>{u.role}</Badge>
+                  <Badge tone={u.role === "admin" ? "navy" : "blue"}>{u.role === "admin" ? "Admin" : "Penjual"}</Badge>
                 </Td>
-                <Td className="hidden text-[13px] text-muted md:table-cell">{u.last}</Td>
+                <Td className="hidden text-[13px] text-muted md:table-cell">
+                  {u.last_sign_in
+                    ? new Date(u.last_sign_in).toLocaleString("id-ID", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })
+                    : "Belum pernah"}
+                </Td>
                 <Td>
                   <Badge tone={statusTone(u.status)} dot>
                     {label(u.status)}
@@ -1083,27 +1323,31 @@ export function AdminUsers() {
                 </Td>
                 <Td>
                   <div className="flex justify-end gap-2">
-                    <Button size="sm" variant="secondary" onClick={() => toast(`Profil ${u.name} dibuka.`, "info")}>
-                      Detail
-                    </Button>
-                    <Button size="sm" variant="ghost" onClick={() => setSuspend(u)}>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() =>
+                        setStatus(u, u.status === "ditangguhkan" ? "aktif" : "ditangguhkan")
+                      }
+                    >
                       {u.status === "ditangguhkan" ? "Aktifkan" : "Tangguhkan"}
                     </Button>
                   </div>
                 </Td>
               </tr>
-            ))}
+              ))
+            )}
           </tbody>
         </TableWrap>
         <div className="px-4 py-3.5 text-[13px] text-muted sm:px-5">
-          {rows.length} pengguna ditampilkan
+          {filtered.length} pengguna ditampilkan
         </div>
       </Card>
 
       <ConfirmDialog
         open={!!suspend}
         onClose={() => setSuspend(null)}
-        title={`${suspend?.status === "ditangguhkan" ? "Aktifkan" : "Tangguhkan"} akun ${suspend?.name}?`}
+        title={`${suspend?.status === "ditangguhkan" ? "Aktifkan" : "Tangguhkan"} akun ${suspend?.email}?`}
         body={
           suspend?.status === "ditangguhkan"
             ? "Pengguna bisa masuk kembali dengan peran yang sama seperti sebelumnya."
@@ -1111,7 +1355,10 @@ export function AdminUsers() {
         }
         confirmLabel="Konfirmasi"
         tone={suspend?.status === "ditangguhkan" ? "primary" : "danger"}
-        onConfirm={() => toast("Status akun diperbarui.", suspend?.status === "ditangguhkan" ? "ok" : "warn")}
+        onConfirm={() => {
+          if (!suspend) return;
+          setStatus(suspend, suspend.status === "ditangguhkan" ? "aktif" : "ditangguhkan");
+        }}
       />
     </AppShell>
   );

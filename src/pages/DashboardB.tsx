@@ -5,7 +5,6 @@ import { supabase } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
 import { digitsOnly, formatRibuan, isValidWA, normalizeWA } from "../lib/format";
 import {
-  NOTIFS,
   rupiah,
   useApp,
 } from "../lib/data";
@@ -2000,11 +1999,76 @@ export function AccountSettings() {
 /* ============================== NOTIFICATIONS ============================= */
 export function Notifications() {
   const { toast } = useApp();
-  const [list, setList] = useState(NOTIFS);
+  const { user } = useAuth();
+  type NItem = {
+    id: string; title: string; body: string; time: string;
+    tone: "ok" | "warn" | "info"; kind: "order" | "system"; link?: string; linkLabel?: string;
+  };
+  const [items, setItems] = useState<NItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [read, setRead] = useState<string[]>(() => {
+    try {
+      return JSON.parse(localStorage.getItem("tl_notif_read") ?? "[]");
+    } catch {
+      return [];
+    }
+  });
   const [tab, setTab] = useState("semua");
 
-  const shown = list.filter((n) =>
-    tab === "semua" ? true : tab === "belum" ? n.unread : tab === "pesanan" ? n.title.toLowerCase().includes("pesanan") || n.title.toLowerCase().includes("pembayaran") : n.tone === "warn",
+  useEffect(() => {
+    if (!user) return;
+    (async () => {
+      const [{ data: orders }, { data: wds }, { data: prods }] = await Promise.all([
+        supabase.from("orders").select("id,buyer_name,total,status,created_at").eq("seller_id", user.id).order("created_at", { ascending: false }).limit(15),
+        supabase.from("withdrawals").select("id,amount,status,created_at").eq("seller_id", user.id).order("created_at", { ascending: false }).limit(5),
+        supabase.from("products").select("id,name,stock").eq("seller_id", user.id).eq("status", "aktif"),
+      ]);
+      const fmt = (iso: string) =>
+        new Date(iso).toLocaleString("id-ID", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+      const list: NItem[] = [];
+      ((orders ?? []) as { id: string; buyer_name: string; total: number | string; status: string; created_at: string }[]).forEach((o) => {
+        if (o.status === "menunggu")
+          list.push({ id: `o-${o.id}`, title: `Pesanan baru ${o.id}`, body: `${o.buyer_name} · ${rupiah(Number(o.total))} menunggu bayar.`, time: fmt(o.created_at), tone: "warn", kind: "order", link: `/app/orders/${o.id}`, linkLabel: "Lihat pesanan" });
+        else if (o.status === "dikemas")
+          list.push({ id: `o-${o.id}`, title: `Siap dikirim ${o.id}`, body: `${o.buyer_name} sudah bayar, segera kemas.`, time: fmt(o.created_at), tone: "info", kind: "order", link: `/app/orders/${o.id}`, linkLabel: "Lihat pesanan" });
+        else if (o.status === "selesai")
+          list.push({ id: `o-${o.id}`, title: `Pesanan selesai ${o.id}`, body: `${rupiah(Number(o.total))} masuk saldo.`, time: fmt(o.created_at), tone: "ok", kind: "order", link: `/app/orders/${o.id}`, linkLabel: "Lihat pesanan" });
+        else if (o.status === "batal")
+          list.push({ id: `o-${o.id}`, title: `Pesanan batal ${o.id}`, body: `Dari ${o.buyer_name}.`, time: fmt(o.created_at), tone: "warn", kind: "order" });
+      });
+      ((wds ?? []) as { id: string; amount: number | string; status: string; created_at: string }[]).forEach((w) => {
+        list.push({
+          id: `w-${w.id}`, title: `Penarikan ${rupiah(Number(w.amount))}`,
+          body: w.status === "selesai" ? "Dana cair ke rekening." : w.status === "ditolak" ? "Ditolak admin, saldo kembali." : "Menunggu diproses admin.",
+          time: fmt(w.created_at), tone: w.status === "selesai" ? "ok" : w.status === "ditolak" ? "warn" : "info",
+          kind: "system", link: "/app/wallet", linkLabel: "Lihat saldo",
+        });
+      });
+      ((prods ?? []) as { id: string; name: string; stock: number }[])
+        .filter((p) => p.stock === 0)
+        .slice(0, 5)
+        .forEach((p) => {
+          list.push({ id: `s-${p.id}`, title: `Stok habis: ${p.name}`, body: "Tambah stok agar tetap bisa dibeli.", time: "—", tone: "warn", kind: "system", link: "/app/products", linkLabel: "Perbarui stok" });
+        });
+      setItems(list);
+      setLoading(false);
+    })();
+  }, [user?.id]);
+
+  const markRead = (ids: string[]) => {
+    setRead((r) => {
+      const next = [...new Set([...r, ...ids])];
+      try {
+        localStorage.setItem("tl_notif_read", JSON.stringify(next));
+      } catch {
+        /* abaikan */
+      }
+      return next;
+    });
+  };
+  const withUnread = items.map((n) => ({ ...n, unread: !read.includes(n.id) }));
+  const shown = withUnread.filter((n) =>
+    tab === "semua" ? true : tab === "belum" ? n.unread : tab === "pesanan" ? n.kind === "order" : n.tone === "warn",
   );
 
   return (
@@ -2018,7 +2082,7 @@ export function Notifications() {
           <Button
             variant="secondary"
             onClick={() => {
-              setList((l) => l.map((n) => ({ ...n, unread: false })));
+              markRead(items.map((n) => n.id));
               toast("Semua notifikasi ditandai sudah dibaca.", "info");
             }}
           >
@@ -2032,14 +2096,19 @@ export function Notifications() {
         active={tab}
         onChange={setTab}
         items={[
-          { id: "semua", label: "Semua", count: list.length },
-          { id: "belum", label: "Belum dibaca", count: list.filter((n) => n.unread).length },
+          { id: "semua", label: "Semua", count: items.length },
+          { id: "belum", label: "Belum dibaca", count: withUnread.filter((n) => n.unread).length },
           { id: "pesanan", label: "Pesanan & bayar" },
           { id: "sistem", label: "Peringatan sistem" },
         ]}
       />
 
-      {shown.length === 0 ? (
+      {loading ? (
+        <div className="space-y-3">
+          <Skeleton className="h-20 w-full" />
+          <Skeleton className="h-20 w-full" />
+        </div>
+      ) : shown.length === 0 ? (
         <EmptyState
           icon="bell"
           title="Tidak ada notifikasi di sini"
@@ -2076,21 +2145,16 @@ export function Notifications() {
                   </div>
                   <p className="mt-1 text-[13.5px] leading-relaxed text-muted">{n.body}</p>
                   <div className="mt-2.5 flex flex-wrap gap-2">
-                    {n.title.includes("Pesanan") && (
-                      <Button size="sm" variant="secondary" onClick={() => navigate("/app/orders/TL-2502-0192")}>
-                        Lihat pesanan
-                      </Button>
-                    )}
-                    {n.title.includes("stok") && (
-                      <Button size="sm" variant="secondary" onClick={() => navigate("/app/products/p4/edit")}>
-                        Perbarui stok
+                    {n.link && (
+                      <Button size="sm" variant="secondary" onClick={() => navigate(n.link as string)}>
+                        {n.linkLabel ?? "Lihat"}
                       </Button>
                     )}
                     {n.unread && (
                       <Button
                         size="sm"
                         variant="ghost"
-                        onClick={() => setList((l) => l.map((x) => (x.id === n.id ? { ...x, unread: false } : x)))}
+                        onClick={() => markRead([n.id])}
                       >
                         Tandai dibaca
                       </Button>

@@ -6,11 +6,8 @@ import {
   DAY_LABELS,
   FUNNEL,
   HOURLY,
-  ORDERS,
-  SALES_30,
   SOURCES,
   STATUS_LABEL,
-  TOP_PRODUCTS,
   VISITORS_30,
   angka,
   rupiah,
@@ -111,12 +108,67 @@ export function StatCard({
 /* ================================ OVERVIEW ================================ */
 export function DashboardHome() {
   const { toast } = useApp();
-  const { profile } = useAuth();
+  const { user, profile } = useAuth();
   const firstName = profile?.owner_name?.trim().split(" ")[0] || "Seller";
   const storeSlug = profile?.store_slug || "";
-  const loading = useFakeLoad([], 700);
+  type ORow = { id: string; buyer_name: string; total: number | string; status: string; created_at: string };
+  type PRow = { id: string; name: string; price: number | string; stock: number; sold: number; status: string };
+  const [orders, setOrders] = useState<ORow[]>([]);
+  const [prevOrders, setPrevOrders] = useState<ORow[]>([]);
+  const [products, setProducts] = useState<PRow[]>([]);
+  const [balance, setBalance] = useState(0);
+  const [loading, setLoading] = useState(true);
   const [check, setCheck] = useState([true, true, false, false]);
   const done = check.filter(Boolean).length;
+
+  useEffect(() => {
+    if (!user) return;
+    (async () => {
+      const now = new Date();
+      const d30 = new Date(now.getTime() - 30 * 86400000).toISOString();
+      const d60 = new Date(now.getTime() - 60 * 86400000).toISOString();
+      const [{ data: o30 }, { data: o60 }, { data: prods }, { data: ledger }] = await Promise.all([
+        supabase.from("orders").select("id,buyer_name,total,status,created_at").eq("seller_id", user.id).gte("created_at", d30).order("created_at", { ascending: false }),
+        supabase.from("orders").select("total").eq("seller_id", user.id).gte("created_at", d60).lt("created_at", d30),
+        supabase.from("products").select("id,name,price,stock,sold,status").eq("seller_id", user.id).order("sold", { ascending: false }),
+        supabase.from("ledger").select("amount").eq("seller_id", user.id),
+      ]);
+      setOrders((o30 ?? []) as ORow[]);
+      setPrevOrders((o60 ?? []) as ORow[]);
+      setProducts((prods ?? []) as PRow[]);
+      setBalance(((ledger ?? []) as { amount: number | string }[]).reduce((s, l) => s + Number(l.amount), 0));
+      setLoading(false);
+    })();
+  }, [user?.id]);
+
+  const live = orders.filter((o) => o.status !== "batal");
+  const omzet = live.reduce((s, o) => s + Number(o.total), 0);
+  const prevOmzet = (prevOrders as { total: number | string }[]).reduce((s, o) => s + Number(o.total), 0);
+  const pct = (cur: number, prev: number) => (prev > 0 ? Math.round(((cur - prev) / prev) * 100) : cur > 0 ? 100 : 0);
+  const needProcess = orders.filter((o) => o.status === "menunggu" || o.status === "dikemas").length;
+  const outOfStock = products.filter((p) => p.stock === 0);
+  const activeProducts = products.filter((p) => p.status === "aktif");
+  const stockTotal = products.reduce((s, p) => s + p.stock, 0);
+  const daily: number[] = [];
+  for (let i = 29; i >= 0; i--) {
+    const d = new Date(Date.now() - i * 86400000).toISOString().slice(0, 10);
+    daily.push(
+      Math.round(live.filter((o) => o.created_at.slice(0, 10) === d).reduce((s, o) => s + Number(o.total), 0) / 1000),
+    );
+  }
+  const avgDay = live.length ? Math.round(omzet / 30) : 0;
+  const byDay = new Map<number, number>();
+  live.forEach((o) => {
+    const dow = new Date(o.created_at).getDay();
+    byDay.set(dow, (byDay.get(dow) ?? 0) + Number(o.total));
+  });
+  const dayNames = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
+  const busiest = live.length ? dayNames[[...byDay.entries()].sort((a, b) => b[1] - a[1])[0][0]] : "—";
+  const aov = live.length ? Math.round(omzet / live.length) : 0;
+  const issues: string[] = [];
+  if (needProcess > 0) issues.push(`${needProcess} pesanan menunggu diproses`);
+  if (outOfStock.length > 0) issues.push(`${outOfStock[0].name} stok habis`);
+  const today = new Date().toLocaleString("id-ID", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
 
   return (
     <AppShell>
@@ -124,7 +176,7 @@ export function DashboardHome() {
         index="01"
         kicker="Beranda"
         title={`Selamat pagi, ${firstName}.`}
-        desc="Ringkasan toko 30 hari terakhir. Diperbarui 12 Feb 2025, 09:44 WIB."
+        desc={`Ringkasan toko 30 hari terakhir. Diperbarui ${today} WIB.`}
         actions={
           <>
             <ButtonLink to={`/s/${storeSlug}`} variant="secondary">
@@ -138,15 +190,16 @@ export function DashboardHome() {
       />
 
       {/* attention banner */}
+      {issues.length > 0 && (
       <div className="mb-5 flex flex-col gap-3 rounded-xl border border-[#F3DDba] bg-warnsoft p-4 sm:flex-row sm:items-center">
         <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-white text-warn">
           <Icon name="alert" size={19} />
         </span>
         <div className="flex-1">
-          <div className="text-[14.5px] font-bold text-ink">Ada 3 hal yang perlu diperhatikan</div>
-          <p className="text-[13.5px] text-muted">
-            1 pesanan menunggu bayar lebih dari 3 jam, Madu Hutan stok habis, jam buka Minggu belum diatur.
-          </p>
+          <div className="text-[14.5px] font-bold text-ink">
+            Ada {issues.length} hal yang perlu diperhatikan
+          </div>
+          <p className="text-[13.5px] text-muted">{issues.join(", ")}.</p>
         </div>
         <Button
           variant="secondary"
@@ -159,21 +212,27 @@ export function DashboardHome() {
           Urus sekarang
         </Button>
       </div>
+      )}
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
           label="Omzet 30 hari"
-          value="Rp38.420.000"
-          delta={18}
+          value={rupiah(omzet)}
+          delta={pct(omzet, prevOmzet)}
           hint="vs 30 hari sebelumnya"
-          spark={SALES_30.slice(-12)}
+          spark={daily.slice(-12)}
           loading={loading}
         />
-        <StatCard label="Pesanan" value="142" delta={11} hint="3 perlu diproses" spark={VISITORS_30.slice(-12)} loading={loading} />
-        <StatCard label="Pengunjung" value="2.390" delta={27} hint="62% dari tautan bio" spark={FUNNEL.map((f) => f.value)} loading={loading} />
+        <StatCard label="Pesanan" value={String(orders.length)} hint={`${needProcess} perlu diproses`} loading={loading} />
+        <StatCard
+          label="Produk"
+          value={String(activeProducts.length)}
+          hint={`${stockTotal} stok tersedia`}
+          loading={loading}
+        />
         <StatCard
           label="Saldo tersedia"
-          value="Rp4.280.000"
+          value={rupiah(balance)}
           hint="Bisa ditarik kapan saja"
           loading={loading}
           action={
@@ -201,8 +260,8 @@ export function DashboardHome() {
                 <ChartSkeleton />
               ) : (
                 <LineChart
-                  series={SALES_30}
-                  labels={DAY_LABELS}
+                  series={daily}
+                  labels={DAY_LABELS.slice(-30)}
                   format={(v) => (v >= 1000 ? `${Math.round(v / 1000)}rb` : String(v))}
                 />
               )}
@@ -210,9 +269,9 @@ export function DashboardHome() {
           </div>
           <div className="grid gap-px border-t border-line bg-line sm:grid-cols-3">
             {[
-              ["Rata-rata per hari", "Rp1.280.667"],
-              ["Hari tersibuk", "Sabtu"],
-              ["Nilai rata-rata pesanan", "Rp136.000"],
+              ["Rata-rata per hari", rupiah(avgDay)],
+              ["Hari tersibuk", busiest],
+              ["Nilai rata-rata pesanan", rupiah(aov)],
             ].map(([l, v]) => (
               <div key={l} className="bg-white px-4 py-3.5">
                 <div className="micro text-faint">{l}</div>
@@ -250,32 +309,41 @@ export function DashboardHome() {
 
           <Card>
             <CardHead title="Pesanan terbaru" icon="receipt" action={<ButtonLink to="/app/orders" variant="link">Semua</ButtonLink>} />
+            {loading ? (
+              <div className="space-y-2">
+                <Skeleton className="h-12 w-full" />
+                <Skeleton className="h-12 w-full" />
+              </div>
+            ) : orders.length === 0 ? (
+              <p className="text-[13px] text-faint">Belum ada pesanan 30 hari terakhir.</p>
+            ) : (
             <ul className="-mt-1 space-y-3">
-              {ORDERS.slice(0, 4).map((o) => (
+              {orders.slice(0, 4).map((o) => (
                 <li key={o.id}>
                   <button
                     onClick={() => navigate(`/app/orders/${o.id}`)}
                     className="group flex w-full items-center gap-3 rounded-md px-1 py-1.5 text-left transition-colors hover:bg-canvas"
                   >
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-[13.5px] font-bold text-ink">{o.customer}</span>
+                      <span className="block truncate text-[13.5px] font-bold text-ink">{o.buyer_name}</span>
                       <span className="tnum block text-[12px] text-faint">{o.id}</span>
                     </span>
                     <span className="text-right">
-                      <span className="tnum block text-[13.5px] font-bold text-ink">{rupiah(o.total)}</span>
+                      <span className="tnum block text-[13.5px] font-bold text-ink">{rupiah(Number(o.total))}</span>
                       <span
                         className={cx(
                           "block text-[11.5px] font-semibold",
                           o.status === "menunggu" ? "text-warn" : o.status === "batal" ? "text-bad" : "text-brand-700",
                         )}
                       >
-                        {STATUS_LABEL[o.status]}
+                        {STATUS_LABEL[o.status as OrderStatus]}
                       </span>
                     </span>
                   </button>
                 </li>
               ))}
             </ul>
+            )}
           </Card>
         </div>
       </div>
@@ -284,14 +352,23 @@ export function DashboardHome() {
       <Card className="mt-4">
         <CardHead
           title="Produk paling laris"
-          sub="Berdasarkan jumlah terjual, 30 hari terakhir"
+          sub="Berdasarkan jumlah terjual"
           icon="star"
           action={<ButtonLink to="/app/products" variant="link">Kelola produk</ButtonLink>}
         />
-        <BarRows
-          data={TOP_PRODUCTS.map((t) => ({ label: t.label, value: t.value, note: rupiah(t.revenue) + " omzet" }))}
-          format={(v) => `${v} terjual`}
-        />
+        {loading ? (
+          <div className="space-y-2">
+            <Skeleton className="h-8 w-full" />
+            <Skeleton className="h-8 w-2/3" />
+          </div>
+        ) : products.length === 0 ? (
+          <p className="text-[13px] text-faint">Belum ada produk. Tambahkan dulu di halaman Produk.</p>
+        ) : (
+          <BarRows
+            data={products.slice(0, 5).map((t) => ({ label: t.name, value: t.sold, note: rupiah(Number(t.price)) }))}
+            format={(v) => `${v} terjual`}
+          />
+        )}
       </Card>
     </AppShell>
   );
@@ -300,12 +377,61 @@ export function DashboardHome() {
 /* ================================ ANALYTICS =============================== */
 export function Analytics() {
   const { toast } = useApp();
+  const { user } = useAuth();
   const [period, setPeriod] = useState("30 hari");
   const [failed, setFailed] = useState(false);
-  const loading = useFakeLoad([period], 600);
+  type AOrder = { total: number | string; status: string; created_at: string };
+  type AProd = { name: string; price: number | string; sold: number };
+  const [orders, setOrders] = useState<AOrder[]>([]);
+  const [products, setProducts] = useState<AProd[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const mul = period === "7 hari" ? 0.26 : period === "90 hari" ? 2.8 : 1;
-  const series = SALES_30.map((v) => Math.round(v * mul));
+  useEffect(() => {
+    if (!user) return;
+    (async () => {
+      setLoading(true);
+      const days = period === "7 hari" ? 7 : period === "90 hari" ? 90 : 30;
+      const since = new Date(Date.now() - days * 86400000).toISOString();
+      const [{ data: o }, { data: p }] = await Promise.all([
+        supabase.from("orders").select("total,status,created_at").eq("seller_id", user.id).gte("created_at", since).order("created_at", { ascending: true }),
+        supabase.from("products").select("name,price,sold").eq("seller_id", user.id).order("sold", { ascending: false }).limit(5),
+      ]);
+      setOrders((o ?? []) as AOrder[]);
+      setProducts((p ?? []) as AProd[]);
+      setLoading(false);
+    })();
+  }, [user?.id, period]);
+
+  const live = orders.filter((o) => o.status !== "batal");
+  const omzet = live.reduce((s, o) => s + Number(o.total), 0);
+  const aov = live.length ? Math.round(omzet / live.length) : 0;
+  const doneCount = live.filter((o) => o.status === "selesai").length;
+  const days = period === "7 hari" ? 7 : period === "90 hari" ? 90 : 30;
+  const dayKeys: string[] = [];
+  for (let i = days - 1; i >= 0; i--) dayKeys.push(new Date(Date.now() - i * 86400000).toISOString().slice(0, 10));
+  const series = dayKeys.map((k) =>
+    Math.round(live.filter((o) => o.created_at.slice(0, 10) === k).reduce((s, o) => s + Number(o.total), 0) / 1000),
+  );
+  const countSeries = dayKeys.map((k) => live.filter((o) => o.created_at.slice(0, 10) === k).length);
+  const labels = dayKeys.map((k) => String(new Date(k + "T00:00:00").getDate()));
+  const stCount = (s: string) => orders.filter((o) => o.status === s).length;
+  // Rekap per minggu kalender dalam periode.
+  const weeks: { w: string; n: number; omz: number; done: number }[] = [];
+  const weekCount = Math.max(1, Math.ceil(days / 7));
+  for (let w = 0; w < weekCount; w++) {
+    const end = new Date(Date.now() - w * 7 * 86400000);
+    const start = new Date(Date.now() - (w + 1) * 7 * 86400000);
+    const inW = live.filter((o) => {
+      const c = new Date(o.created_at);
+      return c >= start && c < end;
+    });
+    weeks.push({
+      w: `${start.toLocaleDateString("id-ID", { day: "numeric", month: "short" })} – ${end.toLocaleDateString("id-ID", { day: "numeric", month: "short" })}`,
+      n: inW.length,
+      omz: inW.reduce((s, o) => s + Number(o.total), 0),
+      done: inW.filter((o) => o.status === "selesai").length,
+    });
+  }
 
   return (
     <AppShell>
@@ -325,17 +451,17 @@ export function Analytics() {
       />
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard label="Omzet" value={rupiah(38420000 * mul)} delta={18} hint="Setelah potongan diskon" loading={loading} />
-        <StatCard label="Pesanan" value={angka(Math.round(142 * mul))} delta={11} hint="1,9% dibatalkan" loading={loading} />
-        <StatCard label="Rata-rata nilai pesanan" value={rupiah(270563)} delta={6} hint="Naik karena paket hampers" loading={loading} />
-        <StatCard label="Konversi" value="3,8%" delta={-3} hint="Pengunjung → pesanan" loading={loading} />
+        <StatCard label="Omzet" value={rupiah(omzet)} hint="Setelah potongan diskon" loading={loading} />
+        <StatCard label="Pesanan" value={angka(orders.length)} hint={`${stCount("batal")} dibatalkan`} loading={loading} />
+        <StatCard label="Rata-rata nilai pesanan" value={rupiah(aov)} hint="Omzet dibagi pesanan" loading={loading} />
+        <StatCard label="Tingkat selesai" value={live.length ? `${Math.round((doneCount / live.length) * 100)}%` : "—"} hint="Pesanan selesai" loading={loading} />
       </div>
 
       <Card className="mt-4">
         <ChartFrame
           title={`Omzet ${period}`}
           hint="Geser kursor pada grafik untuk melihat angka per hari"
-          legend={<Legend items={[{ color: "#0A69C4", label: "Omzet" }, { color: "#1B9AE0", label: "Pengunjung" }]} />}
+          legend={<Legend items={[{ color: "#0A69C4", label: "Omzet" }]} />}
           right={
             <button
               onClick={() => setFailed((f) => !f)}
@@ -350,17 +476,7 @@ export function Analytics() {
           ) : loading ? (
             <ChartSkeleton height={220} />
           ) : (
-            <div className="space-y-2">
-              <LineChart series={series} labels={DAY_LABELS} height={150} format={rupiahShort} />
-              <LineChart
-                series={VISITORS_30.map((v) => Math.round(v * mul))}
-                labels={DAY_LABELS}
-                height={110}
-                color="#1B9AE0"
-                format={(v) => String(v)}
-                yTicks={3}
-              />
-            </div>
+            <LineChart series={series} labels={labels} height={150} format={rupiahShort} />
           )}
         </ChartFrame>
       </Card>
@@ -370,7 +486,7 @@ export function Analytics() {
           <ChartFrame title="Pesanan per hari" hint="Jumlah pesanan masuk, bukan nilai">
             {loading ? <ChartSkeleton /> : (
               <BarChart
-                data={DAY_LABELS.slice(-14).map((l, i) => ({ label: l, value: Math.max(1, Math.round((SALES_30.slice(-14)[i] / 1400) * 12)) }))}
+                data={labels.slice(-14).map((l, i) => ({ label: l, value: countSeries.slice(-14)[i] }))}
                 format={(v) => String(v)}
               />
             )}
@@ -378,16 +494,16 @@ export function Analytics() {
         </Card>
 
         <Card>
-          <ChartFrame title="Status pesanan" hint="142 pesanan pada periode ini">
+          <ChartFrame title="Status pesanan" hint={`${orders.length} pesanan pada periode ini`}>
             <Donut
-              centerValue="142"
+              centerValue={String(orders.length)}
               centerLabel="pesanan"
               items={[
-                { label: "Selesai", value: 104, color: "#0E9F6E" },
-                { label: "Sedang dikirim", value: 18, color: "#0A69C4" },
-                { label: "Dikemas", value: 11, color: "#1B9AE0" },
-                { label: "Menunggu bayar", value: 5, color: "#B45309" },
-                { label: "Dibatalkan", value: 4, color: "#C62828" },
+                { label: "Selesai", value: stCount("selesai"), color: "#0E9F6E" },
+                { label: "Sedang dikirim", value: stCount("dikirim"), color: "#0A69C4" },
+                { label: "Dikemas", value: stCount("dikemas"), color: "#1B9AE0" },
+                { label: "Menunggu bayar", value: stCount("menunggu"), color: "#B45309" },
+                { label: "Dibatalkan", value: stCount("batal"), color: "#C62828" },
               ]}
             />
           </ChartFrame>
@@ -396,7 +512,16 @@ export function Analytics() {
 
       <Card className="mt-4">
         <CardHead title="Produk terlaris" sub="Peringkat berdasarkan jumlah terjual" icon="box" />
-        <BarRows data={TOP_PRODUCTS.map((t) => ({ label: t.label, value: t.value, note: rupiahShort(t.revenue) }))} format={(v) => `${v} pcs`} />
+        {loading ? (
+          <div className="space-y-2">
+            <Skeleton className="h-8 w-full" />
+            <Skeleton className="h-8 w-2/3" />
+          </div>
+        ) : products.length === 0 ? (
+          <p className="text-[13px] text-faint">Belum ada produk.</p>
+        ) : (
+          <BarRows data={products.map((t) => ({ label: t.name, value: t.sold, note: rupiah(Number(t.price)) }))} format={(v) => `${v} pcs`} />
+        )}
       </Card>
 
       <Card className="mt-4" pad={false}>
@@ -409,33 +534,23 @@ export function Analytics() {
               <Th>Minggu</Th>
               <Th className="text-right">Pesanan</Th>
               <Th className="text-right">Omzet</Th>
-              <Th className="text-right">Diskon</Th>
-              <Th className="text-right">Pengunjung</Th>
-              <Th className="text-right">Konversi</Th>
+              <Th className="text-right">Selesai</Th>
             </tr>
           </thead>
           <tbody>
-            {[
-              ["6 – 12 Feb", 38, 10420000, 336000, 641, "5,9%"],
-              ["30 Jan – 5 Feb", 34, 9180000, 224000, 588, "5,8%"],
-              ["23 – 29 Jan", 31, 8640000, 168000, 552, "5,6%"],
-              ["16 – 22 Jan", 25, 6730000, 112000, 461, "5,4%"],
-              ["9 – 15 Jan", 14, 3450000, 84000, 148, "9,5%"],
-            ].map(([w, o, omz, disc, vis, conv]) => (
-              <tr key={String(w)} className="transition-colors hover:bg-canvas/70">
-                <Td className="font-semibold text-ink">{w}</Td>
-                <Td className="tnum text-right">{o}</Td>
-                <Td className="tnum text-right font-semibold">{rupiah(Number(omz))}</Td>
-                <Td className="tnum text-right text-warn">−{rupiah(Number(disc))}</Td>
-                <Td className="tnum text-right">{vis}</Td>
-                <Td className="tnum text-right font-semibold text-brand-700">{conv}</Td>
+            {weeks.map((r) => (
+              <tr key={r.w} className="transition-colors hover:bg-canvas/70">
+                <Td className="font-semibold text-ink">{r.w}</Td>
+                <Td className="tnum text-right">{r.n}</Td>
+                <Td className="tnum text-right font-semibold">{rupiah(r.omz)}</Td>
+                <Td className="tnum text-right font-semibold text-brand-700">{r.done}</Td>
               </tr>
             ))}
           </tbody>
         </TableWrap>
         <div className="flex items-center justify-between px-4 py-3.5 text-[12.5px] text-faint sm:px-5">
-          <span>Menampilkan 5 dari 5 minggu</span>
-          <span className="micro">Sumber: TokoLink Analytics</span>
+          <span>Menampilkan {weeks.length} minggu terakhir</span>
+          <span className="micro">Sumber: pesanan tokomu</span>
         </div>
       </Card>
     </AppShell>
