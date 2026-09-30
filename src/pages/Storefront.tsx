@@ -38,6 +38,7 @@ export type StoreProfile = {
   avatar_url: string | null;
   cover_url: string | null;
   bio: string | null;
+  address: string | null;
   is_closed: boolean | null;
 };
 
@@ -57,7 +58,7 @@ function usePublicStore(slug: string) {
       setNotFound(false);
       const { data: prof } = await supabase
         .from("profiles")
-        .select("id,store_name,store_slug,city,owner_name,wa_number,avatar_url,cover_url,bio,is_closed")
+        .select("id,store_name,store_slug,city,owner_name,wa_number,avatar_url,cover_url,bio,address,is_closed")
         .eq("store_slug", slug)
         .maybeSingle();
       if (!prof) {
@@ -215,7 +216,7 @@ function Stepper({
   );
 }
 
-function ProductCard({ p, slug, accent, hideAdd, className = "", onAdd }: { p: Product; slug: string; accent?: string; hideAdd?: boolean; className?: string; onAdd: (p: Product) => void }) {
+function ProductCard({ p, slug, hideAdd, className = "", onAdd }: { p: Product; slug: string; hideAdd?: boolean; className?: string; onAdd: (p: Product) => void }) {
   const out = p.stock === 0;
   return (
     <article className={`group relative flex flex-col overflow-hidden rounded-lg border border-line bg-white transition-[border-color,box-shadow,transform] duration-150 hover:-translate-y-0.5 hover:border-brand-300 hover:shadow-card ${className}`}>
@@ -250,7 +251,7 @@ function ProductCard({ p, slug, accent, hideAdd, className = "", onAdd }: { p: P
         </Link>
         <div className="mt-2 flex items-end justify-between gap-2">
           <div>
-            <div className="tnum text-[15.5px] font-bold text-brand-700" style={accent ? { color: accent } : undefined}>{rupiah(p.price)}</div>
+            <div className="tnum text-[15.5px] font-bold text-brand-700">{rupiah(p.price)}</div>
             <div className="text-[11.5px] text-faint">{p.unit}</div>
           </div>
           {!hideAdd && (
@@ -259,7 +260,6 @@ function ProductCard({ p, slug, accent, hideAdd, className = "", onAdd }: { p: P
             onClick={() => onAdd(p)}
             aria-label={`Tambah ${p.name} ke keranjang`}
             className="grid h-9 w-9 place-items-center rounded-md bg-brand-600 text-white transition-all duration-150 hover:bg-brand-700 active:translate-y-px disabled:pointer-events-none disabled:bg-linesoft disabled:text-faint"
-            style={accent ? { backgroundColor: accent } : undefined}
           >
             <Icon name="plus" size={17} strokeWidth={2.4} />
           </button>
@@ -314,6 +314,7 @@ export function StoreHome({ slug }: { slug: string }) {
     icon === "wa" ? "wa" : icon === "ig" ? "ig" : icon === "fb" ? "fb" : icon === "doc" ? "receipt" : icon === "store" ? "store" : "link";
 
   const cats = useMemo(() => ["Semua", ...Array.from(new Set(items.map((p) => p.cat)))], [items]);
+  const soldTotal = useMemo(() => items.reduce((s, p) => s + p.sold, 0), [items]);
   const list = useMemo(
     () =>
       items.filter((p) => (cat === "Semua" ? true : p.cat === cat)).filter((p) =>
@@ -475,6 +476,15 @@ export function StoreHome({ slug }: { slug: string }) {
                     <Icon name="pin" size={14} className="text-faint" /> {city}
                   </span>
                 )}
+                {soldTotal > 0 && (
+                  <span className="flex items-center gap-1.5">
+                    <Icon name="star" size={14} className="text-warn" />{" "}
+                    <span className="tnum font-semibold text-ink">{soldTotal} terjual</span>
+                  </span>
+                )}
+                <span className="flex items-center gap-1.5">
+                  <Icon name="clock" size={14} className="text-faint" /> {todayHours || "Lihat jam di bawah"}
+                </span>
               </div>
               {store?.bio && (
                 <p className="mt-3 max-w-2xl text-[14px] leading-relaxed text-muted">{store.bio}</p>
@@ -535,7 +545,7 @@ export function StoreHome({ slug }: { slug: string }) {
           <div className="mt-7">
             <div className="flex flex-wrap items-end justify-between gap-3">
             <div>
-              <div className="micro mb-1.5 text-brand-600" style={{ color: theme.accent }}>01 / Katalog</div>
+              <div className="micro mb-1.5 text-brand-600">01 / Katalog</div>
               <h2 className="text-[22px] font-extrabold tracking-[-0.02em] text-ink">Produk dijual</h2>
             </div>
             <div className="relative w-full sm:w-64">
@@ -561,7 +571,6 @@ export function StoreHome({ slug }: { slug: string }) {
                     ? "border-navy-800 bg-navy-800 text-white"
                     : "border-line bg-white text-muted hover:border-brand-300 hover:text-brand-700",
                 )}
-                style={cat === c ? { backgroundColor: theme.accent, borderColor: theme.accent } : undefined}
               >
                 {c}
               </button>
@@ -609,7 +618,6 @@ export function StoreHome({ slug }: { slug: string }) {
                     key={p.id}
                     p={p}
                     slug={slug}
-                    accent={theme.accent}
                     hideAdd={!theme.cart || closed}
                     className={theme.layout === "Sorotan" && i === 0 ? "col-span-2 lg:col-span-2" : ""}
                     onAdd={onAdd}
@@ -624,7 +632,7 @@ export function StoreHome({ slug }: { slug: string }) {
         <div className="mt-8 grid gap-4 lg:grid-cols-3">
           {theme.hours && (
           <div className="rounded-xl border border-line bg-white p-5 lg:col-span-2">
-            <div className="micro mb-3 text-brand-600" style={{ color: theme.accent }}>02 / Jam buka</div>
+            <div className="micro mb-3 text-brand-600">02 / Jam buka</div>
             <ul className="grid gap-x-6 gap-y-1.5 sm:grid-cols-2">
               {hourRows.length === 0 ? (
                 <li className="text-[13px] text-faint">Jam operasional belum diatur penjual.</li>
@@ -644,9 +652,9 @@ export function StoreHome({ slug }: { slug: string }) {
               )}
             </ul>
             <div className="mt-4 flex flex-wrap gap-x-6 gap-y-2 border-t border-linesoft pt-4 text-[13.5px] text-muted">
-              {city && (
+              {(store?.address || city) && (
                 <span className="flex items-center gap-2">
-                  <Icon name="pin" size={15} className="text-brand-500" /> {city}
+                  <Icon name="pin" size={15} className="text-brand-500" /> {store?.address || city}
                 </span>
               )}
               <span className="flex items-center gap-2">
@@ -771,7 +779,7 @@ export function ProductDetail({ id, slug }: { id: string; slug: string }) {
       const sellerId = (data as DbProduct).seller_id;
       const { data: prof } = await supabase
         .from("profiles")
-        .select("id,store_name,store_slug,city,owner_name,wa_number,avatar_url,cover_url,bio,is_closed")
+        .select("id,store_name,store_slug,city,owner_name,wa_number,avatar_url,cover_url,bio,address,is_closed")
         .eq("id", sellerId)
         .maybeSingle();
       setStore((prof as StoreProfile | null) ?? null);
@@ -1146,7 +1154,7 @@ function useOrderStatus(orderId: string, token: string) {
 
 function orderStore(o: TrackedOrder | null): StoreProfile | null {
   if (!o) return null;
-  return { id: "", store_name: o.store, store_slug: o.slug, city: null, owner_name: null, wa_number: null, avatar_url: null, cover_url: null, bio: null, is_closed: null };
+  return { id: "", store_name: o.store, store_slug: o.slug, city: null, owner_name: null, wa_number: null, avatar_url: null, cover_url: null, bio: null, address: null, is_closed: null };
 }
 
 /** Beacon kunjungan: 1x per sesi per toko (anti-spam + hemat kuota). */
