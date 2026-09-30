@@ -10,6 +10,7 @@ import {
 } from "react";
 import clsx from "clsx";
 import { Link, navigate } from "../lib/router";
+import { searchCities } from "../lib/cities";
 import { useApp } from "../lib/data";
 
 export const cx = clsx;
@@ -102,6 +103,7 @@ const PATHS: Record<string, ReactNode> = {
   left: <path d="M14 7.5 9.5 12 14 16.5" />,
   down: <path d="M12 5.5v13M6.5 13l5.5 5.5L17.5 13" />,
   up: <path d="M12 18.5v-13M6.5 11l5.5-5.5L17.5 11" />,
+  fb: <path d="M13.5 21v-7h2.5l.5-3h-3V9.5c0-.9.3-1.5 1.6-1.5h1.7V5.2c-.3-.1-1.2-.2-2.2-.2-2.3 0-3.9 1.4-3.9 4V11H8v3h2.5v7h3z" />,
   arrowUp: <path d="M12 19V5M6.5 10.5 12 5l5.5 5.5" />,
   arrowDown: <path d="M12 5v14M6.5 13.5 12 19l5.5-5.5" />,
   arrowRight: <path d="M5 12h14M13.5 6.5 19 12l-5.5 5.5" />,
@@ -1117,5 +1119,65 @@ export function QuickLink({ to, icon, label }: { to: string; icon: string; label
       {label}
       <Icon name="right" size={13} className="transition-transform duration-150 group-hover:translate-x-0.5" />
     </button>
+  );
+}
+
+/* ------------------------- combobox kota/kabupaten ------------------------ */
+/** Ketik untuk mencari (daftar instan + tetap boleh ketik manual). */
+export function CityCombobox({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const [q, setQ] = useState(value);
+  const results = searchCities(q);
+  const pick = (c: string) => {
+    onChange(c);
+    setQ(c);
+    setOpen(false);
+  };
+  return (
+    <div className="relative">
+      <Input
+        value={q}
+        onChange={(e) => {
+          setQ(e.target.value);
+          onChange(e.target.value);
+          setOpen(true);
+        }}
+        onFocus={() => setOpen(true)}
+        onBlur={() => window.setTimeout(() => setOpen(false), 150)}
+        placeholder="Ketik kota…"
+        autoComplete="off"
+        className="pr-9"
+        aria-label="Kota atau kabupaten"
+      />
+      <Icon
+        name="search"
+        size={15}
+        className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-faint"
+      />
+      {open &&
+        (results.length > 0 ? (
+          <ul className="absolute inset-x-0 top-full z-30 mt-1 max-h-52 overflow-y-auto rounded-md border border-line bg-white py-1 shadow-lift">
+            {results.map((c) => (
+              <li key={c}>
+                <button
+                  type="button"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => pick(c)}
+                  className="flex w-full items-center px-3 py-2 text-left text-[13.5px] text-ink hover:bg-brand-50"
+                >
+                  <Icon name="pin" size={14} className="mr-2 shrink-0 text-faint" />
+                  {c}
+                </button>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          q.trim() && (
+            <div className="absolute inset-x-0 top-full z-30 mt-1 rounded-md border border-line bg-white px-3 py-2 text-[12.5px] text-muted shadow-lift">
+              Tidak ketemu — ketikanmu tetap dipakai.
+            </div>
+          )
+        ))}
+    </div>
   );
 }

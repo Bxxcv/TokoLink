@@ -139,8 +139,12 @@ function StoreSwitcher({ admin = false }: { admin?: boolean }) {
   const storeSub = admin ? "Admin Master" : `tokolink.id/${profile?.store_slug || ""}`;
   return (
     <div className="flex items-center gap-2.5">
-      <span className="flex h-9 w-9 items-center justify-center rounded-md bg-navy-800 text-brand-300">
-        <LogoMark size={22} />
+      <span className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-md bg-navy-800 text-brand-300">
+        {profile?.avatar_url && !admin ? (
+          <img src={profile.avatar_url} alt="" className="h-full w-full object-cover" />
+        ) : (
+          <LogoMark size={22} />
+        )}
       </span>
       <span className="hidden leading-tight sm:block">
         <span className="block text-[14px] font-extrabold text-ink">{storeName}</span>

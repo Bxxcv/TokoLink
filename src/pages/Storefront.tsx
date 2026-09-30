@@ -5,12 +5,12 @@ import { rupiah, useApp, type Product } from "../lib/data";
 import { supabase } from "../lib/supabase";
 import { mapProduct, type DbProduct } from "../lib/products";
 import { normalizeWA } from "../lib/format";
-import { searchCities } from "../lib/cities";
 import { Logo, LogoMark } from "../components/Logo";
 import {
   Badge,
   Button,
   ButtonLink,
+  CityCombobox,
   ConfirmDialog,
   EmptyState,
   Field,
@@ -288,6 +288,31 @@ export function StoreHome({ slug }: { slug: string }) {
   }, [slug]);
   useVisitBeacon(store?.id, `/s/${slug}`);
 
+  // Tautan bio seller (aktif, berurutan) — diklik menambah hitungan.
+  const [bioLinks, setBioLinks] = useState<{ id: string; label: string; url: string; icon: string | null; clicks: number }[]>([]);
+  useEffect(() => {
+    if (!store) return;
+    (async () => {
+      const { data } = await supabase
+        .from("bio_links")
+        .select("id,label,url,icon,clicks")
+        .eq("seller_id", store.id)
+        .eq("is_active", true)
+        .order("sort_order", { ascending: true });
+      setBioLinks((data ?? []) as { id: string; label: string; url: string; icon: string | null; clicks: number }[]);
+    })();
+  }, [store]);
+
+  const openBio = (l: { id: string; url: string; clicks: number }) => {
+    setBioLinks((ls) => ls.map((x) => (x.id === l.id ? { ...x, clicks: x.clicks + 1 } : x)));
+    supabase.from("bio_links").update({ clicks: l.clicks + 1 }).eq("id", l.id).then(() => {}, () => {});
+    const href = /^https?:\/\//i.test(l.url) ? l.url : `https://${l.url}`;
+    window.open(href, "_blank");
+  };
+
+  const bioIcon = (icon: string | null) =>
+    icon === "wa" ? "wa" : icon === "ig" ? "ig" : icon === "fb" ? "fb" : icon === "doc" ? "receipt" : icon === "store" ? "store" : "link";
+
   const cats = useMemo(() => ["Semua", ...Array.from(new Set(items.map((p) => p.cat)))], [items]);
   const list = useMemo(
     () =>
@@ -511,11 +536,26 @@ export function StoreHome({ slug }: { slug: string }) {
           </div>
         </div>
 
-        {/* catalog */}
-        <div className="mt-7">
-          <div className="flex flex-wrap items-end justify-between gap-3">
+          {/* catalog */}
+          <div className="mt-7">
+            {bioLinks.length > 0 && (
+              <div className="mb-5 flex flex-wrap gap-2">
+                {bioLinks.map((l) => (
+                  <button
+                    key={l.id}
+                    onClick={() => openBio(l)}
+                    className="group inline-flex items-center gap-2 rounded-md border border-line bg-white px-3 py-2 text-[13px] font-semibold text-muted transition-colors duration-150 hover:border-brand-300 hover:bg-brand-50 hover:text-brand-700"
+                  >
+                    <Icon name={bioIcon(l.icon)} size={15} className="text-brand-500" />
+                    {l.label}
+                    <Icon name="right" size={13} className="text-faint transition-transform group-hover:translate-x-0.5" />
+                  </button>
+                ))}
+              </div>
+            )}
+            <div className="flex flex-wrap items-end justify-between gap-3">
             <div>
-              <div className="micro mb-1.5 text-brand-600">01 / Katalog</div>
+              <div className="micro mb-1.5 text-brand-600" style={{ color: theme.accent }}>01 / Katalog</div>
               <h2 className="text-[22px] font-extrabold tracking-[-0.02em] text-ink">Produk dijual</h2>
             </div>
             <div className="relative w-full sm:w-64">
@@ -604,7 +644,7 @@ export function StoreHome({ slug }: { slug: string }) {
         <div className="mt-8 grid gap-4 lg:grid-cols-3">
           {theme.hours && (
           <div className="rounded-xl border border-line bg-white p-5 lg:col-span-2">
-            <div className="micro mb-3 text-brand-600">02 / Jam buka</div>
+            <div className="micro mb-3 text-brand-600" style={{ color: theme.accent }}>02 / Jam buka</div>
             <ul className="grid gap-x-6 gap-y-1.5 sm:grid-cols-2">
               {hourRows.length === 0 ? (
                 <li className="text-[13px] text-faint">Jam operasional belum diatur penjual.</li>
@@ -1355,66 +1395,6 @@ export function Cart() {
 }
 
 /* -------------------------------- checkout -------------------------------- */
-/* ------------------------- combobox kota/kabupaten ------------------------ */
-/** Ketik untuk mencari (daftar instan + tetap boleh ketik manual). */
-function CityCombobox({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-  const [open, setOpen] = useState(false);
-  const [q, setQ] = useState(value);
-  const results = searchCities(q);
-  const pick = (c: string) => {
-    onChange(c);
-    setQ(c);
-    setOpen(false);
-  };
-  return (
-    <div className="relative">
-      <Input
-        value={q}
-        onChange={(e) => {
-          setQ(e.target.value);
-          onChange(e.target.value);
-          setOpen(true);
-        }}
-        onFocus={() => setOpen(true)}
-        onBlur={() => window.setTimeout(() => setOpen(false), 150)}
-        placeholder="Ketik kota…"
-        autoComplete="off"
-        className="pr-9"
-        aria-label="Kota atau kabupaten"
-      />
-      <Icon
-        name="search"
-        size={15}
-        className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-faint"
-      />
-      {open &&
-        (results.length > 0 ? (
-          <ul className="absolute inset-x-0 top-full z-30 mt-1 max-h-52 overflow-y-auto rounded-md border border-line bg-white py-1 shadow-lift">
-            {results.map((c) => (
-              <li key={c}>
-                <button
-                  type="button"
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => pick(c)}
-                  className="flex w-full items-center px-3 py-2 text-left text-[13.5px] text-ink hover:bg-brand-50"
-                >
-                  <Icon name="pin" size={14} className="mr-2 shrink-0 text-faint" />
-                  {c}
-                </button>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          q.trim() && (
-            <div className="absolute inset-x-0 top-full z-30 mt-1 rounded-md border border-line bg-white px-3 py-2 text-[12.5px] text-muted shadow-lift">
-              Tidak ketemu — ketikanmu tetap dipakai.
-            </div>
-          )
-        ))}
-    </div>
-  );
-}
-
 export function Checkout() {
   const { cart, toast, promo, clear } = useApp();
   const { items, subtotal, discount, shipping, total } = useTotals(promo);

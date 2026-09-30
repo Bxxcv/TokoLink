@@ -17,6 +17,7 @@ import {
   ButtonLink,
   Card,
   CardHead,
+  CityCombobox,
   ConfirmDialog,
   EmptyState,
   ErrorState,
@@ -310,6 +311,8 @@ export function Withdraw() {
   const [fieldErr, setFieldErr] = useState("");
   const [loading, setLoading] = useState(false);
   const [confirm, setConfirm] = useState(false);
+  const [banks, setBanks] = useState<{ id: string; bank: string; account_number: string; holder: string }[]>([]);
+  const [pickedBank, setPickedBank] = useState("");
   const [history, setHistory] = useState<{ amount: number | string; status: string; created_at: string; bank: string }[]>([]);
   const fee = 6500;
   const value = Number(amount || 0);
@@ -324,8 +327,37 @@ export function Withdraw() {
         .order("created_at", { ascending: false })
         .limit(5);
       setHistory((data ?? []) as { amount: number | string; status: string; created_at: string; bank: string }[]);
+      const { data: saved } = await supabase
+        .from("seller_banks")
+        .select("id,bank,account_number,holder")
+        .eq("seller_id", user.id)
+        .order("created_at", { ascending: true });
+      const rows = (saved ?? []) as { id: string; bank: string; account_number: string; holder: string }[];
+      setBanks(rows);
+      if (rows.length > 0 && !pickedBank) {
+        setPickedBank(rows[0].id);
+        setBankName(rows[0].bank);
+        setAcctNum(rows[0].account_number);
+        setAcctName(rows[0].holder);
+      }
     })();
   }, [user?.id]);
+
+  const pickBank = (id: string) => {
+    setPickedBank(id);
+    if (!id) {
+      setBankName("BCA");
+      setAcctNum("");
+      setAcctName("");
+      return;
+    }
+    const b = banks.find((x) => x.id === id);
+    if (b) {
+      setBankName(b.bank);
+      setAcctNum(b.account_number);
+      setAcctName(b.holder);
+    }
+  };
 
   const submit = () => {
     if (value < 50000) return setErr("Penarikan minimal Rp50.000.");
@@ -342,6 +374,19 @@ export function Withdraw() {
     setConfirm(false);
     setLoading(true);
     try {
+      // Rekening baru (bukan dari daftar tersimpan) otomatis disimpan.
+      if (!pickedBank) {
+        const { data: saved } = await supabase
+          .from("seller_banks")
+          .insert({ seller_id: user.id, bank: bankName, account_number: digitsOnly(acctNum), holder: acctName.trim() })
+          .select("id,bank,account_number,holder")
+          .single();
+        if (saved) {
+          const row = saved as { id: string; bank: string; account_number: string; holder: string };
+          setBanks((bs) => [...bs, row]);
+          setPickedBank(row.id);
+        }
+      }
       const { error } = await supabase.from("withdrawals").insert({
         seller_id: user.id,
         bank: bankName,
@@ -412,27 +457,73 @@ export function Withdraw() {
 
             <Field label="Rekening tujuan" required error={fieldErr}>
               <div className="grid gap-3">
-                <div className="grid grid-cols-2 gap-3">
-                  <Select value={bankName} onChange={(e) => setBankName(e.target.value)} aria-label="Nama bank">
-                    {["BCA", "BRI", "Mandiri", "BNI", "CIMB", "Danamon", "BSI", "DANA", "OVO", "GoPay"].map((b) => (
-                      <option key={b}>{b}</option>
+                {banks.length > 0 && (
+                  <div className="grid gap-2">
+                    {banks.map((b) => (
+                      <label
+                        key={b.id}
+                        className={cx(
+                          "flex cursor-pointer items-center gap-3 rounded-lg border p-3 transition-colors duration-150",
+                          pickedBank === b.id ? "border-brand-500 bg-brand-50" : "border-line hover:border-brand-200",
+                        )}
+                      >
+                        <input
+                          type="radio"
+                          name="bankpick"
+                          checked={pickedBank === b.id}
+                          onChange={() => pickBank(b.id)}
+                          className="h-4 w-4 accent-[#0A69C4]"
+                        />
+                        <span className="flex-1">
+                          <span className="block text-[14px] font-bold text-ink">
+                            {b.bank} •••• {b.account_number.slice(-4)}
+                          </span>
+                          <span className="block text-[12.5px] text-faint">{b.holder}</span>
+                        </span>
+                      </label>
                     ))}
-                  </Select>
-                  <Input
-                    value={acctNum ? Number(digitsOnly(acctNum)).toLocaleString("id-ID").replace(/\./g, " ") : ""}
-                    inputMode="numeric"
-                    onChange={(e) => setAcctNum(digitsOnly(e.target.value))}
-                    placeholder="1234 5678 90"
-                    className="tnum"
-                    aria-label="Nomor rekening"
-                  />
-                </div>
-                <Input
-                  value={acctName}
-                  onChange={(e) => setAcctName(e.target.value)}
-                  placeholder="Nama pemilik rekening"
-                  aria-label="Nama pemilik rekening"
-                />
+                    <label
+                      className={cx(
+                        "flex cursor-pointer items-center gap-3 rounded-lg border border-dashed p-3 transition-colors duration-150",
+                        pickedBank === "" ? "border-brand-500 bg-brand-50" : "border-line hover:border-brand-200",
+                      )}
+                    >
+                      <input
+                        type="radio"
+                        name="bankpick"
+                        checked={pickedBank === ""}
+                        onChange={() => pickBank("")}
+                        className="h-4 w-4 accent-[#0A69C4]"
+                      />
+                      <span className="text-[13.5px] font-bold text-muted">+ Rekening lain</span>
+                    </label>
+                  </div>
+                )}
+                {(banks.length === 0 || pickedBank === "") && (
+                  <>
+                    <div className="grid grid-cols-2 gap-3">
+                      <Select value={bankName} onChange={(e) => setBankName(e.target.value)} aria-label="Nama bank">
+                        {["BCA", "BRI", "Mandiri", "BNI", "CIMB", "Danamon", "BSI", "DANA", "OVO", "GoPay"].map((b) => (
+                          <option key={b}>{b}</option>
+                        ))}
+                      </Select>
+                      <Input
+                        value={acctNum ? Number(digitsOnly(acctNum)).toLocaleString("id-ID").replace(/\./g, " ") : ""}
+                        inputMode="numeric"
+                        onChange={(e) => setAcctNum(digitsOnly(e.target.value))}
+                        placeholder="1234 5678 90"
+                        className="tnum"
+                        aria-label="Nomor rekening"
+                      />
+                    </div>
+                    <Input
+                      value={acctName}
+                      onChange={(e) => setAcctName(e.target.value)}
+                      placeholder="Nama pemilik rekening"
+                      aria-label="Nama pemilik rekening"
+                    />
+                  </>
+                )}
               </div>
             </Field>
 
@@ -598,6 +689,28 @@ export function BioLinks() {
     }
   };
 
+  /** Tebak ikon dari URL: wa.me → WA, instagram → IG, facebook → FB. */
+  const detectIcon = (url: string) => {
+    const u = url.toLowerCase();
+    if (u.includes("wa.me") || u.includes("whatsapp")) return "wa";
+    if (u.includes("instagram") || u.includes("instagr.am")) return "ig";
+    if (u.includes("facebook") || u.includes("fb.me") || u.includes("fb.com")) return "fb";
+    if (u.includes("tokopedia") || u.includes("shopee") || u.includes("tiktok")) return "store";
+    return "link";
+  };
+
+  const saveUrl = async (id: string, url: string) => {
+    const icon = detectIcon(url);
+    setLinks((ls) => ls.map((x) => (x.id === id ? { ...x, url, icon } : x)));
+    const { error } = await supabase.from("bio_links").update({ url, icon }).eq("id", id);
+    if (error) {
+      toast("Gagal menyimpan tautan.", "bad");
+      load();
+    } else {
+      toast("Ikon tautan disesuaikan otomatis.");
+    }
+  };
+
   const addLink = async () => {
     if (!user) return;
     const maxOrder = links.reduce((s, l) => Math.max(s, l.sort_order), -1);
@@ -713,7 +826,7 @@ export function BioLinks() {
                   <Input
                     value={l.url}
                     onChange={(e) => setLinks((ls) => ls.map((x) => (x.id === l.id ? { ...x, url: e.target.value } : x)))}
-                    onBlur={(e) => saveField(l.id, { url: e.target.value })}
+                    onBlur={(e) => saveUrl(l.id, e.target.value)}
                     className="mt-0.5 h-8 border-transparent bg-transparent px-2 text-[13px] text-muted hover:border-line focus:bg-white"
                     aria-label="Alamat tautan"
                   />
@@ -976,7 +1089,6 @@ export function Theme() {
               {[
                 ["hours", "Jam buka", "Pembeli tahu kapan Anda melayani."],
                 ["qr", "QR toko", "QR bisa dipindai langsung dari halaman."],
-                ["reviews", "Ulasan pembeli", "Tampilkan rating dan komentar terakhir."],
                 ["cart", "Keranjang belanja", "Wajib bila Anda ingin pembelian lewat halaman."],
               ].map(([k, t, d]) => (
                 <li key={k} className="flex items-center justify-between gap-4 py-3.5">
@@ -1137,7 +1249,7 @@ export function Discount() {
       .from("discount_codes")
       .select("*")
       .eq("seller_id", user.id)
-      .order("created_at", { ascending: false });
+      .order("code", { ascending: true });
     if (error) {
       setLoading(false);
       setLoadError(error.message);
@@ -1905,20 +2017,21 @@ export function StoreSettings() {
                 </Field>
               </FieldRow>
               <FieldRow cols={2}>
-                <Field label="Kategori utama" required>
-                  <Select value={f.cat} onChange={(e) => setF({ ...f, cat: e.target.value })}>
+                <Field label="Kategori utama" required hint="Bebas isi sendiri, atau pilih saran.">
+                  <Input
+                    value={f.cat}
+                    onChange={(e) => setF({ ...f, cat: e.target.value })}
+                    placeholder="Kue & Snack"
+                    list="store-cat-list"
+                  />
+                  <datalist id="store-cat-list">
                     {["Kue & Snack", "Sambal & Bumbu", "Kopi & Minuman", "Panen & Herbal", "Fashion", "Kerajinan"].map((c) => (
-                      <option key={c}>{c}</option>
+                      <option key={c} value={c} />
                     ))}
-                  </Select>
+                  </datalist>
                 </Field>
                 <Field label="Kota asal" required>
-                  <Select value={f.city} onChange={(e) => setF({ ...f, city: e.target.value })}>
-                    <option value="">Pilih kota…</option>
-                    {["Bandung", "Cimahi", "Jakarta Selatan", "Surabaya", "Yogyakarta"].map((c) => (
-                      <option key={c}>{option(c)}</option>
-                    ))}
-                  </Select>
+                  <CityCombobox value={f.city} onChange={(v) => setF({ ...f, city: v })} />
                 </Field>
               </FieldRow>
               <Field label="Deskripsi singkat" hint="Maksimal 200 karakter.">
@@ -1985,11 +2098,17 @@ export function StoreSettings() {
           <div className="notch rounded-xl border border-line bg-navy-900 p-5 text-white">
             <div className="micro text-brand-300">Paket saat ini</div>
             <div className="mt-2 flex items-baseline gap-2">
-              <span className="text-[24px] font-extrabold">Premium</span>
-              <span className="tnum text-[15px] text-white/60">Rp59.000/bln</span>
+              <span className="text-[24px] font-extrabold">
+                {(profile?.plan ?? "gratis") === "premium" ? "Premium" : "Gratis"}
+              </span>
+              <span className="tnum text-[15px] text-white/60">
+                {(profile?.plan ?? "gratis") === "premium" ? "aktif" : "Rp59.000/bln bila upgrade"}
+              </span>
             </div>
             <p className="mt-2 text-[13px] leading-relaxed text-white/65">
-              Perpanjang otomatis 12 Mar 2025. Biaya QRIS 0,5% dan laporan bisa diunduh.
+              {(profile?.plan ?? "gratis") === "premium"
+                ? "Biaya QRIS 0,5% dan laporan bisa diunduh."
+                : "Naik ke Premium untuk biaya QRIS 0,5% dan laporan unduhan."}
             </p>
             <Segmented
               items={["Bulanan", "Tahunan"]}
@@ -2068,10 +2187,6 @@ export function StoreSettings() {
       />
     </AppShell>
   );
-}
-
-function option(c: string) {
-  return c;
 }
 
 /* ================================== ACCOUNT ================================ */
