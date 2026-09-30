@@ -514,25 +514,25 @@ export function StoreHome({ slug }: { slug: string }) {
               Pesanan sebelum 15.00 dikirim hari ini juga.
             </span>
           </div>
+          {bioLinks.length > 0 && (
+            <div className="mt-4 flex flex-wrap gap-2 border-t border-linesoft pt-4">
+              {bioLinks.map((l) => (
+                <button
+                  key={l.id}
+                  onClick={() => openBio(l)}
+                  className="group inline-flex items-center gap-2 rounded-md border border-line bg-canvas px-3 py-2 text-[13px] font-semibold text-muted transition-colors duration-150 hover:border-brand-300 hover:bg-brand-50 hover:text-brand-700"
+                >
+                  <Icon name={bioIcon(l.icon)} size={15} className="text-brand-500" />
+                  {l.label}
+                  <Icon name="right" size={13} className="text-faint transition-transform group-hover:translate-x-0.5" />
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
           {/* catalog */}
           <div className="mt-7">
-            {bioLinks.length > 0 && (
-              <div className="mb-5 flex flex-wrap gap-2">
-                {bioLinks.map((l) => (
-                  <button
-                    key={l.id}
-                    onClick={() => openBio(l)}
-                    className="group inline-flex items-center gap-2 rounded-md border border-line bg-white px-3 py-2 text-[13px] font-semibold text-muted transition-colors duration-150 hover:border-brand-300 hover:bg-brand-50 hover:text-brand-700"
-                  >
-                    <Icon name={bioIcon(l.icon)} size={15} className="text-brand-500" />
-                    {l.label}
-                    <Icon name="right" size={13} className="text-faint transition-transform group-hover:translate-x-0.5" />
-                  </button>
-                ))}
-              </div>
-            )}
             <div className="flex flex-wrap items-end justify-between gap-3">
             <div>
               <div className="micro mb-1.5 text-brand-600" style={{ color: theme.accent }}>01 / Katalog</div>
