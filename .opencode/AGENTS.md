@@ -170,7 +170,16 @@ UI = perubahan keputusan produk, bukan keputusan teknis biasa.
      Kalau masih ada import dari `lib/data.tsx` di file itu untuk data
      yang seharusnya real (bukan konstanta UI seperti daftar ikon/tema),
      task itu BELUM selesai — jangan dicentang.
-   - **Pengecualian yang boleh** (bukan pelanggaran): `Landing.tsx`
+   - **Pengecekan grep di atas TIDAK CUKUP** — sudah kejadian 2x data
+     contoh lolos karena ditulis LANGSUNG di kode (array literal, nama
+     hardcode), bukan lewat import `data.tsx`. Contoh nyata yang
+     kejadian: array 4 tautan contoh ditulis langsung di
+     `Storefront.tsx` (bukan query `bio_links`), dan nama admin
+     `"Dwi Handoko"` ditulis langsung di `layout.tsx`. **Sebelum
+     centang task manapun yang render data, baca ulang JSX-nya dan
+     tanya diri sendiri: "angka/teks/array ini asalnya dari mana —
+     Supabase, atau saya ketik sendiri?"** Kalau jawabannya "saya ketik
+     sendiri" dan itu bukan pengecualian di bawah, itu pelanggaran.
      (copy marketing statis, bukan data pengguna), dan konstanta murni
      UI (nama ikon, daftar warna tema, label statis) — itu bukan "data
      produk", boleh tetap di `data.tsx` atau file constants terpisah.

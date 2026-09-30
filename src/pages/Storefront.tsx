@@ -5,12 +5,12 @@ import { rupiah, useApp, type Product } from "../lib/data";
 import { supabase } from "../lib/supabase";
 import { mapProduct, type DbProduct } from "../lib/products";
 import { normalizeWA } from "../lib/format";
+import { searchCities } from "../lib/cities";
 import { Logo, LogoMark } from "../components/Logo";
 import {
   Badge,
   Button,
   ButtonLink,
-  CityCombobox,
   ConfirmDialog,
   EmptyState,
   Field,
@@ -38,7 +38,6 @@ export type StoreProfile = {
   avatar_url: string | null;
   cover_url: string | null;
   bio: string | null;
-  address: string | null;
   is_closed: boolean | null;
 };
 
@@ -58,7 +57,7 @@ function usePublicStore(slug: string) {
       setNotFound(false);
       const { data: prof } = await supabase
         .from("profiles")
-        .select("id,store_name,store_slug,city,owner_name,wa_number,avatar_url,cover_url,bio,address,is_closed")
+        .select("id,store_name,store_slug,city,owner_name,wa_number,avatar_url,cover_url,bio,is_closed")
         .eq("store_slug", slug)
         .maybeSingle();
       if (!prof) {
@@ -216,7 +215,7 @@ function Stepper({
   );
 }
 
-function ProductCard({ p, slug, hideAdd, className = "", onAdd }: { p: Product; slug: string; hideAdd?: boolean; className?: string; onAdd: (p: Product) => void }) {
+function ProductCard({ p, slug, accent, hideAdd, className = "", onAdd }: { p: Product; slug: string; accent?: string; hideAdd?: boolean; className?: string; onAdd: (p: Product) => void }) {
   const out = p.stock === 0;
   return (
     <article className={`group relative flex flex-col overflow-hidden rounded-lg border border-line bg-white transition-[border-color,box-shadow,transform] duration-150 hover:-translate-y-0.5 hover:border-brand-300 hover:shadow-card ${className}`}>
@@ -251,7 +250,7 @@ function ProductCard({ p, slug, hideAdd, className = "", onAdd }: { p: Product; 
         </Link>
         <div className="mt-2 flex items-end justify-between gap-2">
           <div>
-            <div className="tnum text-[15.5px] font-bold text-brand-700">{rupiah(p.price)}</div>
+            <div className="tnum text-[15.5px] font-bold text-brand-700" style={accent ? { color: accent } : undefined}>{rupiah(p.price)}</div>
             <div className="text-[11.5px] text-faint">{p.unit}</div>
           </div>
           {!hideAdd && (
@@ -260,6 +259,7 @@ function ProductCard({ p, slug, hideAdd, className = "", onAdd }: { p: Product; 
             onClick={() => onAdd(p)}
             aria-label={`Tambah ${p.name} ke keranjang`}
             className="grid h-9 w-9 place-items-center rounded-md bg-brand-600 text-white transition-all duration-150 hover:bg-brand-700 active:translate-y-px disabled:pointer-events-none disabled:bg-linesoft disabled:text-faint"
+            style={accent ? { backgroundColor: accent } : undefined}
           >
             <Icon name="plus" size={17} strokeWidth={2.4} />
           </button>
@@ -288,33 +288,7 @@ export function StoreHome({ slug }: { slug: string }) {
   }, [slug]);
   useVisitBeacon(store?.id, `/s/${slug}`);
 
-  // Tautan bio seller (aktif, berurutan) — diklik menambah hitungan.
-  const [bioLinks, setBioLinks] = useState<{ id: string; label: string; url: string; icon: string | null; clicks: number }[]>([]);
-  useEffect(() => {
-    if (!store) return;
-    (async () => {
-      const { data } = await supabase
-        .from("bio_links")
-        .select("id,label,url,icon,clicks")
-        .eq("seller_id", store.id)
-        .eq("is_active", true)
-        .order("sort_order", { ascending: true });
-      setBioLinks((data ?? []) as { id: string; label: string; url: string; icon: string | null; clicks: number }[]);
-    })();
-  }, [store]);
-
-  const openBio = (l: { id: string; url: string; clicks: number }) => {
-    setBioLinks((ls) => ls.map((x) => (x.id === l.id ? { ...x, clicks: x.clicks + 1 } : x)));
-    supabase.from("bio_links").update({ clicks: l.clicks + 1 }).eq("id", l.id).then(() => {}, () => {});
-    const href = /^https?:\/\//i.test(l.url) ? l.url : `https://${l.url}`;
-    window.open(href, "_blank");
-  };
-
-  const bioIcon = (icon: string | null) =>
-    icon === "wa" ? "wa" : icon === "ig" ? "ig" : icon === "fb" ? "fb" : icon === "doc" ? "receipt" : icon === "store" ? "store" : "link";
-
   const cats = useMemo(() => ["Semua", ...Array.from(new Set(items.map((p) => p.cat)))], [items]);
-  const soldTotal = useMemo(() => items.reduce((s, p) => s + p.sold, 0), [items]);
   const list = useMemo(
     () =>
       items.filter((p) => (cat === "Semua" ? true : p.cat === cat)).filter((p) =>
@@ -399,6 +373,35 @@ export function StoreHome({ slug }: { slug: string }) {
     })();
   }, [store]);
 
+  // Tautan bio (WhatsApp/Instagram/dll yang diatur seller di halaman
+  // Tautan bio) — sebelumnya halaman ini tidak pernah query bio_links sama
+  // sekali, jadi yang tampil selalu 4 tautan contoh yang di-hardcode. Sudah
+  // diperbaiki 30 Sep 2026.
+  const [bioLinks, setBioLinks] = useState<
+    { id: string; label: string; url: string; icon: string | null }[]
+  >([]);
+  useEffect(() => {
+    if (!store) return;
+    (async () => {
+      const { data } = await supabase
+        .from("bio_links")
+        .select("id,label,url,icon")
+        .eq("seller_id", store.id)
+        .eq("is_active", true)
+        .order("sort_order", { ascending: true });
+      setBioLinks((data ?? []) as { id: string; label: string; url: string; icon: string | null }[]);
+    })();
+  }, [store]);
+  const openBioLink = (l: { id: string; url: string }) => {
+    // Hitung klik best-effort, jangan blokir navigasi kalau gagal.
+    supabase.rpc("increment_bio_link_click", { p_id: l.id }).then(
+      () => {},
+      () => {},
+    );
+    const href = /^https?:\/\//i.test(l.url) ? l.url : `https://${l.url}`;
+    window.open(href, "_blank", "noopener,noreferrer");
+  };
+
   if (notFound) {
     return (
       <div className="min-h-screen bg-canvas pb-24">
@@ -476,15 +479,6 @@ export function StoreHome({ slug }: { slug: string }) {
                     <Icon name="pin" size={14} className="text-faint" /> {city}
                   </span>
                 )}
-                {soldTotal > 0 && (
-                  <span className="flex items-center gap-1.5">
-                    <Icon name="star" size={14} className="text-warn" />{" "}
-                    <span className="tnum font-semibold text-ink">{soldTotal} terjual</span>
-                  </span>
-                )}
-                <span className="flex items-center gap-1.5">
-                  <Icon name="clock" size={14} className="text-faint" /> {todayHours || "Lihat jam di bawah"}
-                </span>
               </div>
               {store?.bio && (
                 <p className="mt-3 max-w-2xl text-[14px] leading-relaxed text-muted">{store.bio}</p>
@@ -524,15 +518,17 @@ export function StoreHome({ slug }: { slug: string }) {
               Pesanan sebelum 15.00 dikirim hari ini juga.
             </span>
           </div>
+
+          {/* bio links */}
           {bioLinks.length > 0 && (
             <div className="mt-4 flex flex-wrap gap-2 border-t border-linesoft pt-4">
               {bioLinks.map((l) => (
                 <button
                   key={l.id}
-                  onClick={() => openBio(l)}
+                  onClick={() => openBioLink(l)}
                   className="group inline-flex items-center gap-2 rounded-md border border-line bg-canvas px-3 py-2 text-[13px] font-semibold text-muted transition-colors duration-150 hover:border-brand-300 hover:bg-brand-50 hover:text-brand-700"
                 >
-                  <Icon name={bioIcon(l.icon)} size={15} className="text-brand-500" />
+                  <Icon name={l.icon || "link"} size={15} className="text-brand-500" />
                   {l.label}
                   <Icon name="right" size={13} className="text-faint transition-transform group-hover:translate-x-0.5" />
                 </button>
@@ -541,9 +537,9 @@ export function StoreHome({ slug }: { slug: string }) {
           )}
         </div>
 
-          {/* catalog */}
-          <div className="mt-7">
-            <div className="flex flex-wrap items-end justify-between gap-3">
+        {/* catalog */}
+        <div className="mt-7">
+          <div className="flex flex-wrap items-end justify-between gap-3">
             <div>
               <div className="micro mb-1.5 text-brand-600">01 / Katalog</div>
               <h2 className="text-[22px] font-extrabold tracking-[-0.02em] text-ink">Produk dijual</h2>
@@ -571,6 +567,7 @@ export function StoreHome({ slug }: { slug: string }) {
                     ? "border-navy-800 bg-navy-800 text-white"
                     : "border-line bg-white text-muted hover:border-brand-300 hover:text-brand-700",
                 )}
+                style={cat === c ? { backgroundColor: theme.accent, borderColor: theme.accent } : undefined}
               >
                 {c}
               </button>
@@ -618,6 +615,7 @@ export function StoreHome({ slug }: { slug: string }) {
                     key={p.id}
                     p={p}
                     slug={slug}
+                    accent={theme.accent}
                     hideAdd={!theme.cart || closed}
                     className={theme.layout === "Sorotan" && i === 0 ? "col-span-2 lg:col-span-2" : ""}
                     onAdd={onAdd}
@@ -652,9 +650,9 @@ export function StoreHome({ slug }: { slug: string }) {
               )}
             </ul>
             <div className="mt-4 flex flex-wrap gap-x-6 gap-y-2 border-t border-linesoft pt-4 text-[13.5px] text-muted">
-              {(store?.address || city) && (
+              {city && (
                 <span className="flex items-center gap-2">
-                  <Icon name="pin" size={15} className="text-brand-500" /> {store?.address || city}
+                  <Icon name="pin" size={15} className="text-brand-500" /> {city}
                 </span>
               )}
               <span className="flex items-center gap-2">
@@ -779,7 +777,7 @@ export function ProductDetail({ id, slug }: { id: string; slug: string }) {
       const sellerId = (data as DbProduct).seller_id;
       const { data: prof } = await supabase
         .from("profiles")
-        .select("id,store_name,store_slug,city,owner_name,wa_number,avatar_url,cover_url,bio,address,is_closed")
+        .select("id,store_name,store_slug,city,owner_name,wa_number,avatar_url,cover_url,bio,is_closed")
         .eq("id", sellerId)
         .maybeSingle();
       setStore((prof as StoreProfile | null) ?? null);
@@ -1154,7 +1152,7 @@ function useOrderStatus(orderId: string, token: string) {
 
 function orderStore(o: TrackedOrder | null): StoreProfile | null {
   if (!o) return null;
-  return { id: "", store_name: o.store, store_slug: o.slug, city: null, owner_name: null, wa_number: null, avatar_url: null, cover_url: null, bio: null, address: null, is_closed: null };
+  return { id: "", store_name: o.store, store_slug: o.slug, city: null, owner_name: null, wa_number: null, avatar_url: null, cover_url: null, bio: null, is_closed: null };
 }
 
 /** Beacon kunjungan: 1x per sesi per toko (anti-spam + hemat kuota). */
@@ -1383,6 +1381,66 @@ export function Cart() {
 }
 
 /* -------------------------------- checkout -------------------------------- */
+/* ------------------------- combobox kota/kabupaten ------------------------ */
+/** Ketik untuk mencari (daftar instan + tetap boleh ketik manual). */
+function CityCombobox({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const [q, setQ] = useState(value);
+  const results = searchCities(q);
+  const pick = (c: string) => {
+    onChange(c);
+    setQ(c);
+    setOpen(false);
+  };
+  return (
+    <div className="relative">
+      <Input
+        value={q}
+        onChange={(e) => {
+          setQ(e.target.value);
+          onChange(e.target.value);
+          setOpen(true);
+        }}
+        onFocus={() => setOpen(true)}
+        onBlur={() => window.setTimeout(() => setOpen(false), 150)}
+        placeholder="Ketik kota…"
+        autoComplete="off"
+        className="pr-9"
+        aria-label="Kota atau kabupaten"
+      />
+      <Icon
+        name="search"
+        size={15}
+        className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-faint"
+      />
+      {open &&
+        (results.length > 0 ? (
+          <ul className="absolute inset-x-0 top-full z-30 mt-1 max-h-52 overflow-y-auto rounded-md border border-line bg-white py-1 shadow-lift">
+            {results.map((c) => (
+              <li key={c}>
+                <button
+                  type="button"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => pick(c)}
+                  className="flex w-full items-center px-3 py-2 text-left text-[13.5px] text-ink hover:bg-brand-50"
+                >
+                  <Icon name="pin" size={14} className="mr-2 shrink-0 text-faint" />
+                  {c}
+                </button>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          q.trim() && (
+            <div className="absolute inset-x-0 top-full z-30 mt-1 rounded-md border border-line bg-white px-3 py-2 text-[12.5px] text-muted shadow-lift">
+              Tidak ketemu — ketikanmu tetap dipakai.
+            </div>
+          )
+        ))}
+    </div>
+  );
+}
+
 export function Checkout() {
   const { cart, toast, promo, clear } = useApp();
   const { items, subtotal, discount, shipping, total } = useTotals(promo);

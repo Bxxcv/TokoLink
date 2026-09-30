@@ -139,12 +139,8 @@ function StoreSwitcher({ admin = false }: { admin?: boolean }) {
   const storeSub = admin ? "Admin Master" : `tokolink.id/${profile?.store_slug || ""}`;
   return (
     <div className="flex items-center gap-2.5">
-      <span className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-md bg-navy-800 text-brand-300">
-        {profile?.avatar_url && !admin ? (
-          <img src={profile.avatar_url} alt="" className="h-full w-full object-cover" />
-        ) : (
-          <LogoMark size={22} />
-        )}
+      <span className="flex h-9 w-9 items-center justify-center rounded-md bg-navy-800 text-brand-300">
+        <LogoMark size={22} />
       </span>
       <span className="hidden leading-tight sm:block">
         <span className="block text-[14px] font-extrabold text-ink">{storeName}</span>
@@ -170,6 +166,10 @@ export function AppShell({
   // Nama & toko ikut profil yang login; admin tetap pakai label mock sampai Fase 6.
   const sellerName = profile?.owner_name || "";
   const storeSlug = profile?.store_slug || "";
+  // Admin belum ada halaman profil sendiri (Fase 6, AdminUsers) — sementara
+  // pakai nama akun yang login kalau ada, jangan nama orang yang dikarang.
+  const displayName = admin ? profile?.owner_name || "Admin" : sellerName;
+  const avatarSrc = profile?.avatar_url || null;
 
   const mobileItems = (admin ? ADMIN_NAV[1].items : [
     SELLER_NAV[0].items[0],
@@ -215,10 +215,10 @@ export function AppShell({
             </div>
           )}
           <div className="flex items-center gap-2.5 px-1.5">
-            <Avatar name={admin ? "Dwi Handoko" : sellerName} size={34} />
+            <Avatar name={displayName} src={avatarSrc} size={34} />
             <div className="min-w-0 flex-1 leading-tight">
               <div className="truncate text-[13.5px] font-bold text-ink">
-                {admin ? "Dwi Handoko" : sellerName}
+                {displayName}
               </div>
               <div className="truncate text-[11.5px] text-faint">{admin ? "Super admin" : "Pemilik toko"}</div>
             </div>
@@ -303,7 +303,7 @@ export function AppShell({
               <Dropdown
                   trigger={() => (
                     <span className="rounded-md p-1 transition-colors hover:bg-canvas">
-                      <Avatar name={admin ? "Dwi Handoko" : sellerName} size={34} />
+                      <Avatar name={displayName} src={avatarSrc} size={34} />
                     </span>
                   )}
                 items={[
@@ -392,10 +392,10 @@ export function AppShell({
           </div>
           <div className="shrink-0 border-t border-line p-4">
             <div className="flex items-center gap-2.5 px-1">
-              <Avatar name={admin ? "Dwi Handoko" : sellerName} size={36} />
+              <Avatar name={displayName} src={avatarSrc} size={36} />
               <div className="min-w-0 flex-1 leading-tight">
                 <div className="truncate text-[14px] font-bold text-ink">
-                  {admin ? "Dwi Handoko" : sellerName}
+                  {displayName}
                 </div>
                 <div className="truncate text-[12px] text-faint">{admin ? "Super admin" : "Pemilik toko"}</div>
               </div>

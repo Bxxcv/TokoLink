@@ -112,11 +112,20 @@ diperlukan di titik ini atau nanti).
       yang bisa akses & ubah status ini (RLS + cek di UI).
 
 ## Fase 5 — Bio, Tema, Diskon, Jam, QR
-- [ ] **BioLinks**: CRUD `bio_links`, termasuk urutan (`sort_order`) bisa
-      diatur. Done When: toggle aktif/nonaktif pakai optimistic update.
-- [ ] **Discount**: CRUD `discount_codes`. Done When: cegah 2 kode aktif
-      dengan nama sama per seller (constraint sudah ada di schema, tapi
-      pesan error di UI harus jelas, bukan raw SQL error).
+- [x] **BioLinks**: CRUD `bio_links` sudah ada. **Diperbaiki 30 Sep 2026:**
+      ikon sekarang otomatis terdeteksi dari URL (wa.me/whatsapp→wa,
+      instagram→ig, facebook→fb, tiktok→tt) lewat `detectLinkIcon()`, DAN
+      halaman toko publik (`StoreHome`) sekarang benar-benar query
+      `bio_links` — sebelumnya section itu **hardcode 4 tautan contoh**,
+      tidak pernah baca database sama sekali (lolos dari pengecekan
+      karena bukan import dari `data.tsx` — lihat aturan #9 `AGENTS.md`
+      yang sudah diperluas cakupannya).
+- [ ] **Discount**: CRUD `discount_codes`. **Bug ditemukan 30 Sep 2026:**
+      kolom `created_at` tidak pernah ada di `schema.sql` (salah desain
+      awal), bikin halaman ini selalu gagal load. Sudah ada migrasinya
+      (`database/migrate_discount_created_at.sql`), TAPI belum dijalankan
+      user — jalankan dulu sebelum task ini dianggap jalan. Done When
+      lain (cegah 2 kode aktif nama sama) masih perlu dicek ulang.
 - [ ] **Hours**: CRUD `store_hours` (7 baris per seller), badge buka/tutup
       di `StoreHome`. Done When: badge dihitung dari waktu server/user
       device dibandingkan `open_time`/`close_time` — tentukan timezone
@@ -128,7 +137,9 @@ diperlukan di titik ini atau nanti).
       dikerjakan). **CATATAN BELUM SELESAI:** field kategori/bio/alamat/
       email di form masih lokal saja, TIDAK ada kolomnya di
       `database/schema.sql` → lihat Backlog di bawah, harus dibereskan
-      sebelum fitur ini dianggap 100%.
+      sebelum fitur ini dianggap 100%. **Keputusan user 30 Sep 2026:**
+      kategori & kota HARUS bisa diisi bebas (custom) oleh seller, tidak
+      boleh dikunci ke daftar tetap — lihat Backlog.
 
 ## Fase 6 — Admin Master
 - [ ] `AdminHome`, `AdminSellers`, `AdminAnalytics`: agregat dari
@@ -169,3 +180,22 @@ diperlukan di titik ini atau nanti).
       0-7 stabil, bukan disisipkan.
 - [ ] **Halaman "buat kata sandi baru"** untuk link reset password (saat
       ini mengarah ke `/`). Syarat sebelum Forgot Password dianggap penuh.
+- [ ] **Kategori & kota bebas diisi (custom)** — saat ini terkunci ke
+      daftar tetap di `StoreSettings` dan di semua tempat lain yang punya
+      sistem kategori (Products). Ganti jadi input bebas + saran/autofill,
+      bukan dropdown terkunci. Kota: ketik → tampilkan saran alamat yang
+      cocok (butuh API geocoding — user belum pilih providernya, tanya
+      dulu sebelum pasang dependency baru, lihat `AGENTS.md` aturan #3).
+- [ ] **Rekening tujuan penarikan (Withdraw) jadi tersimpan, bisa lebih
+      dari satu** — saat ini seller ketik ulang nomor rekening tiap kali
+      mau tarik dana. Perlu tabel baru (mis. `seller_bank_accounts`),
+      seller bisa tambah beberapa rekening dan pilih salah satu saat
+      withdraw. Desain skema dulu, USULKAN ke user sebelum eksekusi.
+- [ ] **Halaman upgrade Premium** — `StoreSettings` bagian paket
+      langganan belum ada tujuan/halaman lanjutan untuk benar-benar
+      mengajukan upgrade ke `premium_requests`. Sambungkan ke alur yang
+      sudah ada di Fase 6 (`AdminPremium`), jangan bikin alur baru.
+- [ ] **Sistem tema per-warna beda desain** (bukan cuma ganti warna
+      tombol) — keputusan desain besar, bahas dulu bentuknya seperti apa
+      sebelum ngoding (lihat catatan di `docs/PRD.md` kalau sudah
+      diperbarui).

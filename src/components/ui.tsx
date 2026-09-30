@@ -10,7 +10,6 @@ import {
 } from "react";
 import clsx from "clsx";
 import { Link, navigate } from "../lib/router";
-import { searchCities } from "../lib/cities";
 import { useApp } from "../lib/data";
 
 export const cx = clsx;
@@ -103,7 +102,6 @@ const PATHS: Record<string, ReactNode> = {
   left: <path d="M14 7.5 9.5 12 14 16.5" />,
   down: <path d="M12 5.5v13M6.5 13l5.5 5.5L17.5 13" />,
   up: <path d="M12 18.5v-13M6.5 11l5.5-5.5L17.5 11" />,
-  fb: <path d="M13.5 21v-7h2.5l.5-3h-3V9.5c0-.9.3-1.5 1.6-1.5h1.7V5.2c-.3-.1-1.2-.2-2.2-.2-2.3 0-3.9 1.4-3.9 4V11H8v3h2.5v7h3z" />,
   arrowUp: <path d="M12 19V5M6.5 10.5 12 5l5.5 5.5" />,
   arrowDown: <path d="M12 5v14M6.5 13.5 12 19l5.5-5.5" />,
   arrowRight: <path d="M5 12h14M13.5 6.5 19 12l-5.5 5.5" />,
@@ -186,6 +184,12 @@ const PATHS: Record<string, ReactNode> = {
   wa: (
     <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413Z" />
   ),
+  fb: (
+    <path d="M13.5 21.5v-8.2h2.75l.41-3.2h-3.16V8.05c0-.93.26-1.56 1.59-1.56h1.7V3.62C15.9 3.53 15 3.47 13.96 3.47c-2.36 0-3.98 1.44-3.98 4.08v2.55H7.24v3.2h2.74v8.2z" />
+  ),
+  tt: (
+    <path d="M16.6 3h-3.1v12.2a2.6 2.6 0 1 1-2.6-2.8c.28 0 .55.04.8.11V9.4a5.7 5.7 0 1 0 4.9 5.65V9.2a7.6 7.6 0 0 0 4.4 1.4V7.5a4.4 4.4 0 0 1-4.4-4.4z" />
+  ),
   ig: (
     <>
       <rect x="4" y="4" width="16" height="16" rx="4.5" />
@@ -249,7 +253,7 @@ export function Icon({
 }) {
   // Solid brand glyphs (e.g. WhatsApp) are drawn as fill shapes — stroking
   // them would render as overlapping outlines, so they opt out of stroke.
-  const filled = name === "wa";
+  const filled = name === "wa" || name === "fb" || name === "tt";
   return (
     <svg
       viewBox="0 0 24 24"
@@ -1067,13 +1071,23 @@ export function Progress({ value, tone = "blue" }: { value: number; tone?: "blue
   );
 }
 
-export function Avatar({ name, size = 36 }: { name: string; size?: number }) {
+export function Avatar({ name, size = 36, src }: { name: string; size?: number; src?: string | null }) {
   const initials = name
     .split(" ")
     .slice(0, 2)
     .map((w) => w[0])
     .join("")
     .toUpperCase();
+  if (src) {
+    return (
+      <span
+        className="inline-flex shrink-0 items-center justify-center overflow-hidden rounded-md bg-navy-800"
+        style={{ width: size, height: size }}
+      >
+        <img src={src} alt="" className="h-full w-full object-cover" />
+      </span>
+    );
+  }
   return (
     <span
       className="inline-flex items-center justify-center rounded-md bg-navy-800 font-bold text-brand-300"
@@ -1119,65 +1133,5 @@ export function QuickLink({ to, icon, label }: { to: string; icon: string; label
       {label}
       <Icon name="right" size={13} className="transition-transform duration-150 group-hover:translate-x-0.5" />
     </button>
-  );
-}
-
-/* ------------------------- combobox kota/kabupaten ------------------------ */
-/** Ketik untuk mencari (daftar instan + tetap boleh ketik manual). */
-export function CityCombobox({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-  const [open, setOpen] = useState(false);
-  const [q, setQ] = useState(value);
-  const results = searchCities(q);
-  const pick = (c: string) => {
-    onChange(c);
-    setQ(c);
-    setOpen(false);
-  };
-  return (
-    <div className="relative">
-      <Input
-        value={q}
-        onChange={(e) => {
-          setQ(e.target.value);
-          onChange(e.target.value);
-          setOpen(true);
-        }}
-        onFocus={() => setOpen(true)}
-        onBlur={() => window.setTimeout(() => setOpen(false), 150)}
-        placeholder="Ketik kota…"
-        autoComplete="off"
-        className="pr-9"
-        aria-label="Kota atau kabupaten"
-      />
-      <Icon
-        name="search"
-        size={15}
-        className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-faint"
-      />
-      {open &&
-        (results.length > 0 ? (
-          <ul className="absolute inset-x-0 top-full z-30 mt-1 max-h-52 overflow-y-auto rounded-md border border-line bg-white py-1 shadow-lift">
-            {results.map((c) => (
-              <li key={c}>
-                <button
-                  type="button"
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => pick(c)}
-                  className="flex w-full items-center px-3 py-2 text-left text-[13.5px] text-ink hover:bg-brand-50"
-                >
-                  <Icon name="pin" size={14} className="mr-2 shrink-0 text-faint" />
-                  {c}
-                </button>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          q.trim() && (
-            <div className="absolute inset-x-0 top-full z-30 mt-1 rounded-md border border-line bg-white px-3 py-2 text-[12.5px] text-muted shadow-lift">
-              Tidak ketemu — ketikanmu tetap dipakai.
-            </div>
-          )
-        ))}
-    </div>
   );
 }
