@@ -140,7 +140,17 @@ diperlukan di titik ini atau nanti).
 - [ ] `AdminSystem`: **tanya user dulu** isinya apa sebelum implementasi.
 
 ## Fase 7 — Deploy
-- [ ] Setup/verifikasi project Vercel + repo GitHub tersambung
+- [x] Setup/verifikasi project Vercel + repo GitHub tersambung (live di
+      tokolink-kappa.vercel.app)
+- [x] `vercel.json` rewrite ditambahkan (30 Sep 2026) — sebelumnya
+      refresh di halaman selain `/` (mis. `/login`, `/app/...`) 404
+      karena belum ada SPA fallback rule. Kalau menambah endpoint baru
+      di `api/`, JANGAN hapus baris `/api/(.*)` di `vercel.json`, itu
+      yang mencegah request ke `api/*` ikut dialihkan ke `index.html`.
+- [x] OG image (`og:image`/`twitter:image`) dibuatkan (30 Sep 2026) —
+      sebelumnya meta tag-nya sudah benar di `index.html` tapi file
+      gambarnya tidak pernah ada (`public/images/twitter_meta/` kosong),
+      makanya preview link tidak muncul di WhatsApp/dsb.
 - [ ] Environment variables di Vercel (anon key public, service role +
       BuatQris secret hanya di server functions)
 - [ ] Smoke test end-to-end di production: register → tambah produk →
