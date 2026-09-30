@@ -514,26 +514,6 @@ export function StoreHome({ slug }: { slug: string }) {
               Pesanan sebelum 15.00 dikirim hari ini juga.
             </span>
           </div>
-
-          {/* bio links */}
-          <div className="mt-4 flex flex-wrap gap-2 border-t border-linesoft pt-4">
-            {[
-              ["wa", "Reseller & agen"],
-              ["ig", "Instagram"],
-              ["link", "Katalog PDF"],
-              ["doc", "Resep"],
-            ].map(([i, label]) => (
-              <button
-                key={label}
-                onClick={() => toast(`Membuka tautan ${label}`, "info")}
-                className="group inline-flex items-center gap-2 rounded-md border border-line bg-canvas px-3 py-2 text-[13px] font-semibold text-muted transition-colors duration-150 hover:border-brand-300 hover:bg-brand-50 hover:text-brand-700"
-              >
-                <Icon name={i === "doc" ? "receipt" : i} size={15} className="text-brand-500" />
-                {label}
-                <Icon name="right" size={13} className="text-faint transition-transform group-hover:translate-x-0.5" />
-              </button>
-            ))}
-          </div>
         </div>
 
           {/* catalog */}
