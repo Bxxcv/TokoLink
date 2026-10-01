@@ -227,10 +227,17 @@ diperlukan di titik ini atau nanti).
       dan opsi ongkir di `Checkout` — masih angka tetap (hardcode), belum
       jelas apakah ini aturan platform yang memang tetap, atau harusnya
       bisa diatur per-seller. **Tanya user dulu** sebelum diubah.
-- [ ] **Folder structure — user melaporkan file keluar dari `.opencode`**
-      (pesan 30 Sep 2026). Berdasarkan riwayat, `database/schema.sql`
-      dan `docs/` memang SENGAJA di luar `.opencode` sejak awal (lihat
-      `docs/ARCHITECTURE.md` §4) — belum jelas bagian mana yang dianggap
-      "keluar". **Tanya user contoh spesifiknya** sebelum memindah file
-      apapun, supaya tidak salah pindah dan merusak path yang direferensi
-      di banyak tempat (`AGENTS.md`, `TASKS.md`, `opencode.json`).
+- [ ] **Order detail (`DashboardA.tsx` `OrderDetail`) dilaporkan tidak
+      responsif di HP** (1 Okt 2026) — sudah ditinjau strukturnya, pola
+      grid/stacking konsisten dengan halaman lain yang sudah lolos cek
+      responsif, belum ketemu elemen spesifik yang patah. **Butuh
+      screenshot dari user** untuk pinpoint sebelum diperbaiki.
+- [ ] **Brief desain Tema & Katalog untuk Lovable** — lihat
+      `docs/LOVABLE_BRIEF_THEME.md` (dibuat 1 Okt 2026). Lovable
+      mengerjakan VISUAL saja; Muse Spark/OpenCode yang menyambungkan ke
+      data asli sesudahnya — JANGAN biarkan hasil Lovable dipakai
+      langsung dengan data contoh di dalamnya (lihat aturan #9).
+- [x] **Folder structure** — SELESAI, dikonfirmasi user 1 Okt 2026:
+      `database/schema.sql` di `database/`, `AGENTS.md`/`TASKS.md` di
+      `.opencode/` sudah sesuai yang diinginkan. Tidak ada yang perlu
+      dipindah.

@@ -816,6 +816,23 @@ export function Theme() {
   const { user, profile, refresh } = useAuth();
   const storeName = profile?.store_name || "";
   const [uploading, setUploading] = useState<"cover" | "logo" | null>(null);
+  const [previewProducts, setPreviewProducts] = useState<{ name: string; price: number; image_url: string | null }[]>([]);
+  const [previewCats, setPreviewCats] = useState<string[]>([]);
+  useEffect(() => {
+    if (!user) return;
+    (async () => {
+      const { data } = await supabase
+        .from("products")
+        .select("name,price,image_url,category")
+        .eq("seller_id", user.id)
+        .eq("status", "aktif")
+        .order("created_at", { ascending: false })
+        .limit(2);
+      const rows = data ?? [];
+      setPreviewProducts(rows.map((r) => ({ name: r.name, price: r.price, image_url: r.image_url })));
+      setPreviewCats(Array.from(new Set(rows.map((r) => r.category).filter(Boolean))) as string[]);
+    })();
+  }, [user]);
 
   const uploadMedia = async (file: File | undefined, kind: "cover" | "logo") => {
     if (!file || !user) return;
@@ -1083,7 +1100,7 @@ export function Theme() {
                   </span>
                 </div>
                 <div className="mt-2 flex gap-1.5">
-                  {["Semua", "Kue", "Sambal"].map((c, i) => (
+                  {(previewCats.length > 0 ? ["Semua", ...previewCats.slice(0, 2)] : ["Semua"]).map((c, i) => (
                     <span
                       key={c}
                       className="rounded-sm px-2 py-1 text-[11px] font-semibold"
@@ -1096,19 +1113,33 @@ export function Theme() {
                     </span>
                   ))}
                 </div>
-                <div className={cx("mt-2.5 grid gap-2", layout === "Daftar" ? "grid-cols-1" : "grid-cols-2")}>
-                  {["images/p-lapis.jpg", "images/p-sambal.jpg"].map((src) => (
-                    <div key={src} className={cx("overflow-hidden rounded-md border border-line", layout === "Daftar" && "flex")}>
-                      <img src={src} alt="" className={cx("object-cover", layout === "Daftar" ? "h-12 w-12" : "aspect-[4/3] w-full")} />
-                      <div className="p-2">
-                        <div className="h-1.5 w-3/4 rounded-full bg-linesoft" />
-                        <div className="tnum mt-1.5 text-[11px] font-bold" style={{ color: accents[accent] }}>
-                          Rp85.000
+                {previewProducts.length > 0 ? (
+                  <div className={cx("mt-2.5 grid gap-2", layout === "Daftar" ? "grid-cols-1" : "grid-cols-2")}>
+                    {previewProducts.map((p) => (
+                      <div key={p.name} className={cx("overflow-hidden rounded-md border border-line", layout === "Daftar" && "flex")}>
+                        {p.image_url ? (
+                          <img
+                            src={p.image_url}
+                            alt=""
+                            className={cx("object-cover", layout === "Daftar" ? "h-12 w-12" : "aspect-[4/3] w-full")}
+                          />
+                        ) : (
+                          <div className={cx("bg-canvas", layout === "Daftar" ? "h-12 w-12" : "aspect-[4/3] w-full")} />
+                        )}
+                        <div className="p-2">
+                          <div className="truncate text-[11px] font-semibold text-ink">{p.name}</div>
+                          <div className="tnum mt-1 text-[11px] font-bold" style={{ color: accents[accent] }}>
+                            {rupiah(p.price)}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="mt-2.5 rounded-md bg-canvas px-2.5 py-3 text-center text-[11.5px] text-faint">
+                    Produk aktif Anda akan tampil di sini
+                  </p>
+                )}
                 {sections.qr && (
                   <div className="mt-2.5 flex items-center justify-center gap-2 rounded-md bg-canvas py-2">
                     <QRMark size={34} />

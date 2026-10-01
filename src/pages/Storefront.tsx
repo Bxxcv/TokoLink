@@ -730,9 +730,12 @@ export function StoreHome({ slug }: { slug: string }) {
         </div>
 
         {theme.cart && count > 0 && (
-          <div className="sticky bottom-20 z-30 mt-6 lg:hidden">
-            <ButtonLink to="/cart" className="w-full shadow-lift" size="lg">
-              <Icon name="box" size={17} /> Lihat keranjang ({count})
+          <div
+            className="fixed inset-x-0 z-30 px-4 lg:hidden"
+            style={{ bottom: "calc(5rem + env(safe-area-inset-bottom, 0px))" }}
+          >
+            <ButtonLink to="/cart" className="mx-auto w-full max-w-[420px] shadow-lift" size="lg">
+              <Icon name="cart" size={17} /> Lihat keranjang ({count})
             </ButtonLink>
           </div>
         )}

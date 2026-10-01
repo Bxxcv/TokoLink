@@ -9,5 +9,12 @@ export async function uploadImage(userId: string, file: File, name: string): Pro
   const path = `${userId}/${name}.${ext}`;
   const { error } = await supabase.storage.from("tokolink").upload(path, file, { upsert: true });
   if (error) throw error;
-  return supabase.storage.from("tokolink").getPublicUrl(path).data.publicUrl;
+  const { publicUrl } = supabase.storage.from("tokolink").getPublicUrl(path).data;
+  // upsert menimpa file di path yang SAMA, jadi URL publiknya selalu identik
+  // antar upload. Tanpa query param pembeda, browser (dan cache Supabase
+  // Storage) tetap menampilkan gambar lama walau file di server sudah
+  // berganti -- inilah sebab "sampul tidak bisa diganti lagi" setelah
+  // upload pertama. Ditambahkan query ?v=timestamp supaya URL-nya selalu
+  // baru dan gambar baru pasti dimuat ulang. Jangan dihapus.
+  return `${publicUrl}?v=${Date.now()}`;
 }
