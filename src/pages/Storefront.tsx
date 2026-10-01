@@ -106,8 +106,12 @@ function StoreHeader({ crumb, store }: { crumb?: string; store?: StoreProfile | 
       <PageShell>
         <div className="flex h-16 items-center gap-3">
           <Link to={slug ? `/s/${slug}` : "/"} className="flex min-w-0 items-center gap-2.5">
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-navy-800">
-              <LogoMark size={24} />
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-md bg-navy-800">
+              {store?.avatar_url ? (
+                <img src={store.avatar_url} alt="" className="h-full w-full object-cover" />
+              ) : (
+                <LogoMark size={24} />
+              )}
             </span>
             <span className="min-w-0 leading-tight">
               <span className="block truncate text-[15px] font-extrabold text-ink">{name}</span>
@@ -117,18 +121,11 @@ function StoreHeader({ crumb, store }: { crumb?: string; store?: StoreProfile | 
 
           <div className="ml-auto flex items-center gap-2">
             <Link
-              to={slug ? `/s/${slug}` : "/"}
-              aria-label="Cari produk"
-              className="rounded-md border border-line p-2 text-muted transition-colors hover:bg-canvas hover:text-brand-700"
-            >
-              <Icon name="search" size={17} />
-            </Link>
-            <Link
               to="/cart"
               aria-label="Keranjang"
               className="relative rounded-md border border-line p-2 text-muted transition-colors hover:bg-canvas hover:text-brand-700"
             >
-              <Icon name="box" size={17} />
+              <Icon name="cart" size={17} />
               {count > 0 && (
                 <span className="tnum absolute -right-1.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-brand-600 px-1 text-[10px] font-bold text-white">
                   {count}
@@ -162,8 +159,17 @@ function StoreFooter({ store }: { store?: StoreProfile | null }) {
             <Link to="/" className="font-semibold text-brand-700 hover:underline">
               Dibuat dengan TokoLink
             </Link>
-            <button className="hover:text-ink">Laporkan toko</button>
-            <button className="hover:text-ink">Syarat & privasi</button>
+            <a
+              href={`mailto:support@tokolink.id?subject=${encodeURIComponent(
+                `Laporan toko: ${name}${store?.store_slug ? ` (tokolink.id/${store.store_slug})` : ""}`,
+              )}`}
+              className="hover:text-ink"
+            >
+              Laporkan toko
+            </a>
+            <Link to="/legal/privacy" className="hover:text-ink">
+              Syarat &amp; privasi
+            </Link>
           </div>
         </div>
       </PageShell>
@@ -271,6 +277,50 @@ function ProductCard({ p, slug, accent, hideAdd, className = "", onAdd }: { p: P
 }
 
 /* ------------------------------- store home ------------------------------- */
+export function LegalPrivacy() {
+  return (
+    <div className="min-h-screen bg-canvas pb-24">
+      <StoreHeader crumb="Syarat & Privasi" />
+      <PageShell className="py-10">
+        <div className="mx-auto max-w-[640px] rounded-lg border border-line bg-white p-6 sm:p-8">
+          <h1 className="text-[22px] font-extrabold text-ink">Syarat &amp; Kebijakan Privasi</h1>
+          <p className="mt-1 text-[13px] text-faint">
+            Draf awal — belum ditinjau tim hukum. Tolong perbarui sebelum dipakai sebagai
+            dokumen resmi ke pengguna.
+          </p>
+          <div className="mt-6 space-y-5 text-[14px] leading-relaxed text-muted">
+            <section>
+              <h2 className="text-[15px] font-bold text-ink">Data yang dikumpulkan</h2>
+              <p className="mt-1">
+                Nama, nomor WhatsApp, dan alamat yang kamu isi saat checkout dipakai seller
+                untuk memproses pesananmu. Data pembayaran diproses oleh penyedia QRIS
+                (BuatQris), TokoLink tidak menyimpan detail kartu/rekening kamu.
+              </p>
+            </section>
+            <section>
+              <h2 className="text-[15px] font-bold text-ink">Penggunaan data</h2>
+              <p className="mt-1">
+                Data pesanan hanya dibagikan ke seller terkait untuk keperluan pengiriman
+                dan layanan pelanggan — tidak dijual ke pihak ketiga.
+              </p>
+            </section>
+            <section>
+              <h2 className="text-[15px] font-bold text-ink">Kontak</h2>
+              <p className="mt-1">
+                Pertanyaan soal privasi atau data kamu, hubungi tim TokoLink lewat halaman
+                bantuan.
+              </p>
+            </section>
+          </div>
+        </div>
+      </PageShell>
+      <div className="mt-10">
+        <StoreFooter />
+      </div>
+    </div>
+  );
+}
+
 export function StoreHome({ slug }: { slug: string }) {
   const { add, toast, count } = useApp();
   const { store, items, loading, notFound } = usePublicStore(slug);
@@ -436,20 +486,14 @@ export function StoreHome({ slug }: { slug: string }) {
         <div className="absolute inset-0 bg-gradient-to-t from-navy-900/90 via-navy-900/35 to-navy-900/20" />
         <div className="blueprint absolute inset-0 opacity-40" />
         <PageShell className="absolute inset-x-0 top-4">
-          <div className="flex items-center justify-between gap-3">
-            <Link
-              to="/"
-              className="inline-flex items-center gap-2 rounded-md border border-white/25 bg-navy-900/55 px-3 py-1.5 text-[13px] font-semibold text-white backdrop-blur-sm transition-colors hover:bg-white/15"
-            >
-              <Icon name="left" size={15} /> TokoLink
-            </Link>
-              <button
+          <div className="flex items-center justify-end gap-3">
+            <button
                 onClick={() => {
                   setShared(true);
                   toast(`Tautan toko disalin: tokolink.id/${slug}`, "info");
                   setTimeout(() => setShared(false), 1600);
                 }}
-              className="inline-flex items-center gap-2 rounded-md border border-white/25 px-3 py-1.5 text-[13px] font-semibold text-white backdrop-blur-sm transition-colors hover:bg-white/15"
+              className="inline-flex items-center gap-2 rounded-md border border-white/25 bg-navy-900/55 px-3 py-1.5 text-[13px] font-semibold text-white backdrop-blur-sm transition-colors hover:bg-white/15"
             >
               <Icon name={shared ? "check" : "external"} size={15} /> {shared ? "Tersalin" : "Bagikan"}
             </button>
@@ -885,9 +929,10 @@ export function ProductDetail({ id, slug }: { id: string; slug: string }) {
             </h1>
 
             <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-[13.5px] text-muted">
-              <span className="flex items-center gap-1.5">
-                <Icon name="star" size={15} className="text-warn" /> 4,9 (86 ulasan)
-              </span>
+              {/* Rating asli menyusul bareng fitur Ulasan Pembeli (lihat backlog
+                  TASKS.md) -- sebelumnya di sini ada angka "4,9 (86 ulasan)"
+                  yang di-hardcode, bukan data asli. Jangan dikembalikan sebelum
+                  fitur ulasannya benar ada. */}
               <span className="flex items-center gap-1.5">
                 <Icon name="box" size={15} className="text-faint" />{" "}
                 <span className="tnum">{p.sold}</span> terjual

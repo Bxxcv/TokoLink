@@ -6,7 +6,7 @@ import { ToastHost, ButtonLink } from "./components/ui";
 import Landing from "./pages/Landing";
 import { Login, Register, Forgot } from "./pages/Auth";
 import { SystemPage } from "./pages/System";
-import { StoreHome, ProductDetail, Cart, Checkout, Qris, PaymentStatus, OrderSuccess, OrderTracking } from "./pages/Storefront";
+import { StoreHome, ProductDetail, Cart, Checkout, Qris, PaymentStatus, OrderSuccess, OrderTracking, LegalPrivacy } from "./pages/Storefront";
 import {
   DashboardHome,
   Analytics,
@@ -94,6 +94,7 @@ function RouteView({ path }: { path: string }) {
   if (path === "/register") return <Register />;
   if (path === "/forgot") return <Forgot />;
   if (path === "/system") return <SystemPage />;
+  if (path === "/legal/privacy") return <LegalPrivacy />;
 
   /* ---- phase 2: storefront ---- */
   if (seg[0] === "s" && seg[1]) {

@@ -199,3 +199,38 @@ diperlukan di titik ini atau nanti).
       tombol) — keputusan desain besar, bahas dulu bentuknya seperti apa
       sebelum ngoding (lihat catatan di `docs/PRD.md` kalau sudah
       diperbarui).
+- [ ] **Fitur Ulasan Pembeli (rating + komentar), data REAL** —
+      disetujui user 30 Sep 2026, dengan syarat keras: harus aman dari
+      injection. Checklist wajib sebelum dianggap selesai:
+      - Hanya buyer dengan `access_token` order yang valid DAN status
+        order `selesai` yang boleh kirim ulasan (cegah ulasan palsu
+        tanpa transaksi nyata)
+      - Komentar disimpan sebagai teks biasa, di-escape saat render
+        (jangan pernah `dangerouslySetInnerHTML`/innerHTML mentah)
+      - Rate limit submit ulasan per order (1 ulasan per order, tidak
+        bisa spam)
+      - RLS: insert hanya lewat RPC security definer yang validasi
+        kepemilikan order, bukan insert langsung ke tabel dari client
+      - Rating di `ProductDetail` (sebelumnya hardcode "4,9 (86 ulasan)",
+        SUDAH DIHAPUS 30 Sep 2026) baru boleh muncul lagi setelah fitur
+        ini beneran jalan dengan data asli
+- [ ] **Twitter Card / OG per-toko untuk seller Premium** — saat ini OG
+      meta di `index.html` statis (satu untuk semua halaman). Supaya
+      link toko seller premium menampilkan nama+deskripsi toko sendiri
+      saat di-share, butuh salah satu: (a) Vercel Edge Middleware yang
+      deteksi user-agent crawler (facebookexternalhit, WhatsApp,
+      Twitterbot, dll) dan suntik meta tag dinamis dari data toko, atau
+      (b) endpoint prerender khusus bot. Ini kerja arsitektur baru,
+      bukan task kecil — diskusikan dulu sebelum mulai.
+- [ ] **Konten statis yang perlu diverifikasi**: blok "Pengiriman
+      GoSend/JNE", "Estimasi tiba", "Garansi toko" di `ProductDetail`,
+      dan opsi ongkir di `Checkout` — masih angka tetap (hardcode), belum
+      jelas apakah ini aturan platform yang memang tetap, atau harusnya
+      bisa diatur per-seller. **Tanya user dulu** sebelum diubah.
+- [ ] **Folder structure — user melaporkan file keluar dari `.opencode`**
+      (pesan 30 Sep 2026). Berdasarkan riwayat, `database/schema.sql`
+      dan `docs/` memang SENGAJA di luar `.opencode` sejak awal (lihat
+      `docs/ARCHITECTURE.md` §4) — belum jelas bagian mana yang dianggap
+      "keluar". **Tanya user contoh spesifiknya** sebelum memindah file
+      apapun, supaya tidak salah pindah dan merusak path yang direferensi
+      di banyak tempat (`AGENTS.md`, `TASKS.md`, `opencode.json`).

@@ -31,6 +31,13 @@ const PATHS: Record<string, ReactNode> = {
       <path d="M3.5 7.8 12 12l8.5-4.2M12 12v8.5" />
     </>
   ),
+  cart: (
+    <>
+      <path d="M3 4h2l.4 2M5.4 6h15l-1.6 8H7.6L5.4 6Z" />
+      <circle cx="9" cy="20" r="1.4" />
+      <circle cx="17" cy="20" r="1.4" />
+    </>
+  ),
   receipt: (
     <>
       <path d="M6 3.5h12v17l-2.5-1.6L13 20.5l-2.5-1.6L8 20.5 6 19z" />
