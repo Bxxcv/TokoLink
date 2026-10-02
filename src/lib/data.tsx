@@ -214,8 +214,8 @@ export const BALANCE_HISTORY = [
 export const BIO_LINKS = [
   { id: "b1", label: "WhatsApp — tanya stok & pre-order", url: "wa.me/6281234567890", icon: "wa", clicks: 1284, on: true },
   { id: "b2", label: "Instagram @dapoer.buani", url: "instagram.com/dapoer.buani", icon: "ig", clicks: 942, on: true },
-  { id: "b3", label: "Katalog lengkap (halaman ini)", url: "tokolink.id/dapoer-bu-ani", icon: "link", clicks: 613, on: true },
-  { id: "b4", label: "Resep & tips masak", url: "tokolink.id/dapoer-bu-ani/resep", icon: "doc", clicks: 218, on: false },
+  { id: "b3", label: "Katalog lengkap (halaman ini)", url: "tokolink.store/s/dapoer-bu-ani", icon: "link", clicks: 613, on: true },
+  { id: "b4", label: "Resep & tips masak", url: "tokolink.store/s/dapoer-bu-ani/resep", icon: "doc", clicks: 218, on: false },
   { id: "b5", label: "Gabung grup reseller", url: "chat.whatsapp.com/…", icon: "wa", clicks: 87, on: true },
 ];
 
@@ -272,7 +272,7 @@ export const PAYMENTS = [
 export const ADMIN_USERS = [
   { id: "USR-30142", name: "Ani Rahayu", email: "ani@dapoerbuani.id", role: "Penjual", last: "12 Feb 2025, 09:44", status: "aktif" },
   { id: "USR-30138", name: "Melati Kusuma", email: "melati@kriyanusa.com", role: "Penjual", last: "12 Feb 2025, 08:02", status: "aktif" },
-  { id: "USR-30120", name: "Dwi Handoko", email: "dwi@tokolink.id", role: "Admin", last: "12 Feb 2025, 07:10", status: "aktif" },
+  { id: "USR-30120", name: "Dwi Handoko", email: "dwi@tokolink.store", role: "Admin", last: "12 Feb 2025, 07:10", status: "aktif" },
   { id: "USR-30098", name: "Fajar Nugroho", email: "fajar@snackbox.id", role: "Penjual", last: "8 Feb 2025, 16:20", status: "ditangguhkan" },
   { id: "USR-30077", name: "Siti Aminah", email: "siti@anyamanlombok.id", role: "Penjual", last: "11 Feb 2025, 19:55", status: "aktif" },
 ];

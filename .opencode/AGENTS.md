@@ -101,8 +101,10 @@ UI = perubahan keputusan produk, bukan keputusan teknis biasa.
 - Backend: **Supabase** (Postgres + Auth + Storage + Realtime), RLS wajib
   di semua tabel.
 - Payment: **BuatQris** (QRIS), lihat `.opencode/skill/buatqris-webhook/SKILL.md`.
-- Deploy: **Vercel**. Sudah live di `tokolink-kappa.vercel.app`, domain
-  custom `.store` menyusul.
+- Deploy: **Vercel**. Domain resmi: **tokolink.store** (dibeli lewat
+  Vercel, 1 Okt 2026). URL Vercel lama (`tokolink-kappa.vercel.app`)
+  tetap jalan sebagai alias, tapi semua link/QR/canonical/OG di kode
+  WAJIB pakai `tokolink.store`, bukan URL Vercel itu.
 - Tracking order buyer non-login: **Opsi A — kolom `orders.access_token`**
   (uuid acak), sudah diimplementasi di `database/migrate_fase3.sql`.
   Jangan bikin mekanisme lain.

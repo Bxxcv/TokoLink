@@ -151,8 +151,15 @@ diperlukan di titik ini atau nanti).
 - [ ] `AdminSystem`: **tanya user dulu** isinya apa sebelum implementasi.
 
 ## Fase 7 — Deploy
-- [x] Setup/verifikasi project Vercel + repo GitHub tersambung (live di
-      tokolink-kappa.vercel.app)
+- [x] Setup/verifikasi project Vercel + repo GitHub tersambung
+- [x] Domain custom **tokolink.store** dibeli & disambungkan lewat
+      Vercel (1 Okt 2026). Semua link/QR/canonical/OG di kode sudah
+      diupdate ke domain ini — sebelumnya banyak yang pakai placeholder
+      `tokolink.id` yang TIDAK PERNAH dimiliki, dan sekaligus ketemu bug:
+      placeholder itu juga tidak pernah pakai prefix `/s/` (format rute
+      asli adalah `/s/:slug`), jadi semua QR code & tautan "disalin"
+      sebelumnya akan 404 kalau benar-benar dibuka. Sudah dibetulkan
+      sekalian jadi `tokolink.store/s/{slug}`.
 - [x] `vercel.json` rewrite ditambahkan (30 Sep 2026) — sebelumnya
       refresh di halaman selain `/` (mis. `/login`, `/app/...`) 404
       karena belum ada SPA fallback rule. Kalau menambah endpoint baru

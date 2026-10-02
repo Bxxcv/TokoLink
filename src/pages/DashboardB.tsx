@@ -617,7 +617,7 @@ export function BioLinks() {
       .insert({
         seller_id: user.id,
         label: "Tautan baru",
-        url: `tokolink.id/${storeSlug}/baru`,
+        url: `tokolink.store/s/${storeSlug}/baru`,
         icon: "link",
         sort_order: maxOrder + 1,
       })
@@ -654,7 +654,7 @@ export function BioLinks() {
         desc="Satu halaman berisi semua tautan penting. Taruh alamatnya di bio Instagram, WhatsApp, dan TikTok."
         actions={
           <>
-            <Button variant="secondary" onClick={() => toast(`Tautan disalin: tokolink.id/${storeSlug}`)}>
+            <Button variant="secondary" onClick={() => toast(`Tautan disalin: tokolink.store/s/${storeSlug}`)}>
               <Icon name="copy" size={16} /> Salin tautan
             </Button>
             <Button
@@ -1676,7 +1676,7 @@ export function StoreQR() {
   useEffect(() => {
     let alive = true;
     setQrData("");
-    QRCode.toDataURL(`https://tokolink.id/${storeSlug}`, { width: 456, margin: 2 })
+    QRCode.toDataURL(`https://tokolink.store/s/${storeSlug}`, { width: 456, margin: 2 })
       .then((url) => {
         if (alive) setQrData(url);
       })
@@ -1707,7 +1707,7 @@ export function StoreQR() {
         actions={
           <>
             <Button variant="secondary" onClick={() => {
-              const url = `https://tokolink.id/${storeSlug}`;
+              const url = `https://tokolink.store/s/${storeSlug}`;
               if (navigator.clipboard) navigator.clipboard.writeText(url).catch(() => {});
               toast("Tautan QR disalin.");
             }}>
@@ -1769,7 +1769,7 @@ export function StoreQR() {
               <dl className="mt-5 space-y-3 border-t border-linesoft pt-4 text-[13.5px]">
                 <div className="flex justify-between">
                   <dt className="text-muted">Alamat</dt>
-                  <dd className="tnum font-semibold text-ink">tokolink.id/{storeSlug}</dd>
+                  <dd className="tnum font-semibold text-ink">tokolink.store/s/{storeSlug}</dd>
                 </div>
                 <div className="flex justify-between">
                   <dt className="text-muted">Ukuran cetak</dt>
@@ -1786,7 +1786,7 @@ export function StoreQR() {
                   <Icon name="image" size={16} /> Cetak stiker
                 </Button>
               <Button variant="secondary" onClick={() => {
-                const url = `https://tokolink.id/${storeSlug}`;
+                const url = `https://tokolink.store/s/${storeSlug}`;
                 const text = `Kunjungi toko ${storeName}: ${url}`;
                 if (navigator.share) {
                   navigator.share({ title: storeName, text, url }).catch(() => {});
@@ -1944,7 +1944,7 @@ export function StoreSettings() {
                 <Field label="Alamat tautan" hint="Ubah dengan hati-hati, tautan lama bisa mati.">
                   <div className="flex items-stretch">
                     <span className="flex items-center rounded-l-md border border-r-0 border-line bg-canvas px-3 text-[13.5px] text-faint">
-                      tokolink.id/
+                      tokolink.store/s/
                     </span>
                     <Input value={f.slug} onChange={(e) => setF({ ...f, slug: e.target.value })} className="rounded-l-none" />
                   </div>

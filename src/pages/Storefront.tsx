@@ -160,8 +160,8 @@ function StoreFooter({ store }: { store?: StoreProfile | null }) {
               Dibuat dengan TokoLink
             </Link>
             <a
-              href={`mailto:support@tokolink.id?subject=${encodeURIComponent(
-                `Laporan toko: ${name}${store?.store_slug ? ` (tokolink.id/${store.store_slug})` : ""}`,
+              href={`mailto:support@tokolink.store?subject=${encodeURIComponent(
+                `Laporan toko: ${name}${store?.store_slug ? ` (tokolink.store/s/${store.store_slug})` : ""}`,
               )}`}
               className="hover:text-ink"
             >
@@ -332,7 +332,7 @@ export function StoreHome({ slug }: { slug: string }) {
 
   useEffect(() => {
     setQrData("");
-    QRCode.toDataURL(`https://tokolink.id/${slug}`, { width: 352, margin: 2 })
+    QRCode.toDataURL(`https://tokolink.store/s/${slug}`, { width: 352, margin: 2 })
       .then(setQrData)
       .catch(() => {});
   }, [slug]);
@@ -460,7 +460,7 @@ export function StoreHome({ slug }: { slug: string }) {
           <EmptyState
             icon="store"
             title="Toko tidak ditemukan"
-            desc={`Alamat “tokolink.id/${slug}” tidak terdaftar. Cek lagi ejaannya.`}
+            desc={`Alamat “tokolink.store/s/${slug}” tidak terdaftar. Cek lagi ejaannya.`}
             action={<ButtonLink to="/">Kembali ke beranda</ButtonLink>}
           />
         </PageShell>
@@ -490,7 +490,7 @@ export function StoreHome({ slug }: { slug: string }) {
             <button
                 onClick={() => {
                   setShared(true);
-                  toast(`Tautan toko disalin: tokolink.id/${slug}`, "info");
+                  toast(`Tautan toko disalin: tokolink.store/s/${slug}`, "info");
                   setTimeout(() => setShared(false), 1600);
                 }}
               className="inline-flex items-center gap-2 rounded-md border border-white/25 bg-navy-900/55 px-3 py-1.5 text-[13px] font-semibold text-white backdrop-blur-sm transition-colors hover:bg-white/15"
@@ -758,7 +758,7 @@ export function StoreHome({ slug }: { slug: string }) {
             </span>
           </div>
           <div>
-            <div className="tnum text-[15px] font-bold text-ink">tokolink.id/{slug}</div>
+            <div className="tnum text-[15px] font-bold text-ink">tokolink.store/s/{slug}</div>
             <p className="mt-1 text-[13px] text-muted">
               Pindai untuk membuka toko. Aman dicetak hitam putih.
             </p>
@@ -781,7 +781,7 @@ export function StoreHome({ slug }: { slug: string }) {
             <Button
               className="flex-1"
               onClick={() => {
-                const url = `https://tokolink.id/${slug}`;
+                const url = `https://tokolink.store/s/${slug}`;
                 if (navigator.clipboard) navigator.clipboard.writeText(url).catch(() => {});
                 toast("Tautan QR disalin.");
               }}

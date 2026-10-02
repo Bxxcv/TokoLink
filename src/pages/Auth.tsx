@@ -370,7 +370,7 @@ export function Register() {
           label="Nama toko"
           error={err.store}
           required
-          hint={`Alamat toko Anda: tokolink.id/${slug}`}
+          hint={`Alamat toko Anda: tokolink.store/s/${slug}`}
         >
           <Input
             value={store}
@@ -385,7 +385,7 @@ export function Register() {
 
         <div className="notch-sm flex items-center justify-between gap-3 bg-brand-50 px-3.5 py-2.5">
           <span className="micro text-brand-700">Alamat tautan</span>
-          <span className="tnum truncate text-[13px] font-semibold text-navy-800">tokolink.id/{slug}</span>
+          <span className="tnum truncate text-[13px] font-semibold text-navy-800">tokolink.store/s/{slug}</span>
         </div>
 
         <Field label="Email atau nomor WhatsApp" error={err.contact} required>
@@ -494,7 +494,7 @@ export function Forgot() {
           </div>
           <p className="mt-5 text-[15px] leading-relaxed text-ink">
             Cek kotak masuk <span className="font-bold">{email}</span> dan folder spam. Tautan reset ada di
-            email dari <span className="font-bold">halo@tokolink.id</span>.
+            email dari <span className="font-bold">halo@tokolink.store</span>.
           </p>
           <div className="mt-6 space-y-2.5">
             <Button variant="secondary" className="w-full" onClick={() => setSent(false)}>
