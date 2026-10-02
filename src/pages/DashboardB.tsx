@@ -4,6 +4,7 @@ import { navigate } from "../lib/router";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
 import { digitsOnly, formatRibuan, isValidWA, normalizeWA } from "../lib/format";
+import { detectLinkIcon, iconForLink } from "../lib/links";
 import { uploadImage } from "../lib/storage";
 import {
   rupiah,
@@ -39,6 +40,7 @@ import {
   cx,
 } from "../components/ui";
 import { BarRows, ChartFrame, LineChart } from "../components/charts";
+import { THEMES, isEngineTheme, themeName } from "../storefront/registry";
 import { StatCard } from "./DashboardA";
 import { QRMark } from "./Landing";
 
@@ -525,15 +527,7 @@ export function Withdraw() {
 
 /* ================================= BIO LINKS =============================== */
 /* ================================ BIO LINKS ================================ */
-function detectLinkIcon(url: string): string {
-  const u = url.toLowerCase();
-  if (u.includes("wa.me") || u.includes("whatsapp.com")) return "wa";
-  if (u.includes("instagram.com")) return "ig";
-  if (u.includes("facebook.com") || u.includes("fb.com")) return "fb";
-  if (u.includes("tiktok.com")) return "tt";
-  if (u.endsWith(".pdf")) return "doc";
-  return "link";
-}
+/* detectLinkIcon() sentral di src/lib/links.ts — dipakai juga oleh semua tema. */
 
 export function BioLinks() {
   const { toast } = useApp();
@@ -710,7 +704,7 @@ export function BioLinks() {
                   </button>
                 </span>
                 <span className={cx("grid h-9 w-9 shrink-0 place-items-center rounded-md", l.is_active ? "bg-brand-50 text-brand-600" : "bg-white text-faint")}>
-                  <Icon name={(l.icon ?? "link") === "link" ? "link" : l.icon === "doc" ? "receipt" : (l.icon ?? "link")} size={17} />
+                  <Icon name={iconForLink(l.icon)} size={17} />
                 </span>
               </div>
                 <div className="min-w-0 flex-1">
@@ -811,6 +805,48 @@ export function BioLinks() {
 }
 
 /* ================================== THEME ================================== */
+/* Pratinjau mini generik untuk tema engine selain 01–02: nama toko +
+   2 produk ASLI dengan kertas & aksen tema itu. Bukan data contoh. */
+const MINI_SWATCH: Record<string, { paper: string; ink: string; soft: string; accent: string; font: string }> = {
+  "lugas-jasa": { paper: "#EDF1F4", ink: "#121A21", soft: "#5D6874", accent: "#1B5E8C", font: "'IBM Plex Sans', system-ui, sans-serif" },
+  atelier: { paper: "#F3EEE8", ink: "#171310", soft: "#7C7168", accent: "#7B2E2E", font: "'Instrument Serif', Georgia, serif" },
+  "dapur-hari-ini": { paper: "#FFF8EC", ink: "#1E1A12", soft: "#6E6455", accent: "#D2452C", font: "'Bricolage Grotesque', system-ui, sans-serif" },
+  "kriya-nusantara": { paper: "#F0E9DE", ink: "#2A211A", soft: "#7A6C5D", accent: "#9C4B1E", font: "Fraunces, Georgia, serif" },
+  "pixel-goods": { paper: "#0B0E11", ink: "#E7EBEF", soft: "#8A94A0", accent: "#E8A33D", font: "'Space Grotesk', system-ui, sans-serif" },
+  "studio-tenang": { paper: "#F6F5F1", ink: "#1B1C18", soft: "#6F7269", accent: "#3F5D4E", font: "Newsreader, Georgia, serif" },
+};
+
+function GenericThemeMini({ themeId, storeName, products }: {
+  themeId: string;
+  storeName: string;
+  products: { name: string; price: number; image_url: string | null }[];
+}) {
+  const s = MINI_SWATCH[themeId] ?? MINI_SWATCH["studio-tenang"];
+  const rows = products.length > 0 ? products : [{ name: "Produk aktif Anda akan tampil di sini", price: 0, image_url: null }];
+  return (
+    <div className="overflow-hidden rounded-lg" style={{ background: s.paper }}>
+      <div className="px-3.5 pb-2.5 pt-3.5" style={{ borderBottom: `2px solid ${s.accent}` }}>
+        <div className="truncate" style={{ fontFamily: s.font, fontWeight: 600, fontSize: 18, color: s.ink, lineHeight: 1.15 }}>
+          {storeName || "Nama toko"}
+        </div>
+        <div className="tnum truncate" style={{ fontSize: 10, color: s.soft, marginTop: 3 }}>
+          {themeName(themeId)} · {rows.length} produk
+        </div>
+      </div>
+      <div className="px-3.5 py-1.5">
+        {rows.slice(0, 2).map((pr, i) => (
+          <div key={pr.name + i} className="flex items-baseline justify-between gap-2" style={{ padding: "10px 0", borderBottom: i === 0 && rows.length > 1 ? `1px solid ${s.accent}33` : "none" }}>
+            <span className="min-w-0 truncate" style={{ fontSize: 13, fontWeight: 600, color: s.ink }}>{pr.name}</span>
+            {pr.price > 0 && (
+              <span className="tnum shrink-0" style={{ fontSize: 12, fontWeight: 700, color: s.accent }}>{rupiah(pr.price)}</span>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function Theme() {
   const { toast } = useApp();
   const { user, profile, refresh } = useAuth();
@@ -857,10 +893,11 @@ export function Theme() {
   };
   const [accent, setAccent] = useState("Biru");
   const [layout, setLayout] = useState("Kisi");
+  const [themeId, setThemeId] = useState("klasik");
   const [sections, setSections] = useState({ hours: true, qr: true, reviews: false, cart: true });
   const [saved, setSaved] = useState(true);
   const [saving, setSaving] = useState(false);
-  const snapshot = useRef({ accent: "Biru", layout: "Kisi", sections: { hours: true, qr: true, reviews: false, cart: true } });
+  const snapshot = useRef({ accent: "Biru", layout: "Kisi", themeId: "klasik", sections: { hours: true, qr: true, reviews: false, cart: true } });
 
   useEffect(() => {
     if (!user) return;
@@ -868,15 +905,19 @@ export function Theme() {
       const { data } = await supabase.from("store_theme").select("*").eq("seller_id", user.id).maybeSingle();
       const t = data as {
         accent: string; layout: string; show_hours: boolean; show_qr: boolean; show_reviews: boolean; show_cart: boolean;
+        theme_id?: string;
       } | null;
       if (!t) return;
       const next = {
         accent: t.accent,
         layout: t.layout,
+        // Kolom theme_id belum ada sebelum migrasi dijalankan → fallback klasik.
+        themeId: isEngineTheme(t.theme_id) ? (t.theme_id as string) : "klasik",
         sections: { hours: t.show_hours, qr: t.show_qr, reviews: t.show_reviews, cart: t.show_cart },
       };
       setAccent(next.accent);
       setLayout(next.layout);
+      setThemeId(next.themeId);
       setSections(next.sections);
       snapshot.current = next;
     })();
@@ -891,6 +932,7 @@ export function Theme() {
           seller_id: user.id,
           accent,
           layout,
+          theme_id: themeId,
           show_hours: sections.hours,
           show_qr: sections.qr,
           show_reviews: sections.reviews,
@@ -900,10 +942,16 @@ export function Theme() {
         { onConflict: "seller_id" },
       );
       if (error) {
-        toast("Gagal menyimpan tampilan.", "bad");
+        // Kolom theme_id belum ada = migrasi database/migrate_fase5_theme_id.sql
+        // belum dijalankan di Supabase. Beritahu jelas, jangan gagal diam-diam.
+        if (/theme_id/i.test(error.message)) {
+          toast("Kolom tema belum ada di database. Jalankan dulu file database/migrate_fase5_theme_id.sql di Supabase SQL Editor, lalu simpan lagi.", "bad");
+        } else {
+          toast("Gagal menyimpan tampilan.", "bad");
+        }
         return;
       }
-      snapshot.current = { accent, layout, sections: { ...sections } };
+      snapshot.current = { accent, layout, themeId, sections: { ...sections } };
       setSaved(true);
       toast("Tampilan toko berhasil disimpan.");
     } finally {
@@ -915,6 +963,7 @@ export function Theme() {
     const s = snapshot.current;
     setAccent(s.accent);
     setLayout(s.layout);
+    setThemeId(s.themeId);
     setSections({ ...s.sections });
     setSaved(true);
   };
@@ -952,6 +1001,52 @@ export function Theme() {
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
         <div className="space-y-4">
+          <Card>
+            <CardHead title="Tema toko" sub="Pilih wajah halaman toko — data & pesanan tidak berubah" icon="layers" />
+            <div className="grid gap-2.5 sm:grid-cols-2">
+              {THEMES.map((t) => {
+                const active = themeId === t.id;
+                const disabled = !t.available;
+                return (
+                  <button
+                    key={t.id}
+                    disabled={disabled}
+                    onClick={() => {
+                      setThemeId(t.id);
+                      setSaved(false);
+                    }}
+                    className={cx(
+                      "rounded-lg border p-3.5 text-left transition-colors duration-150",
+                      active
+                        ? "border-brand-500 bg-brand-50"
+                        : disabled
+                          ? "cursor-not-allowed border-linesoft bg-canvas/50 opacity-70"
+                          : "border-line hover:border-brand-200",
+                    )}
+                  >
+                    <span className="flex items-center justify-between gap-2">
+                      <span className="tnum micro text-faint">{t.no}</span>
+                      {active ? (
+                        <span className="micro rounded-sm bg-brand-600 px-1.5 py-0.5 font-bold text-white">Dipakai</span>
+                      ) : disabled ? (
+                        <span className="micro rounded-sm bg-canvas px-1.5 py-0.5 font-bold text-faint">Segera hadir</span>
+                      ) : null}
+                    </span>
+                    <span className="mt-1.5 block text-[15px] font-extrabold text-ink">{t.name}</span>
+                    <span className="micro mt-0.5 block text-faint">{t.sub}</span>
+                    <span className="mt-1.5 block text-[12.5px] leading-snug text-muted">{t.desc}</span>
+                  </button>
+                );
+              })}
+            </div>
+            {themeId !== "klasik" && (
+              <p className="mt-3 rounded-md bg-warnsoft px-3 py-2.5 text-[12.5px] leading-relaxed text-warn">
+                Tema {themeName(themeId)} punya warna & huruf sendiri — pilihan warna aksen di
+                bawah tidak berlaku untuk tema ini, tapi tetap tersimpan untuk tampilan Klasik.
+              </p>
+            )}
+          </Card>
+
           <Card>
             <CardHead title="Warna aksen" sub="Dipakai untuk tombol, harga, dan tautan" icon="tag" />
             <div className="flex flex-wrap gap-2.5">
@@ -1078,8 +1173,96 @@ export function Theme() {
           <div className="rounded-xl border border-line bg-navy-900 p-4">
             <div className="micro mb-3 flex items-center justify-between text-brand-300">
               <span>Pratinjau langsung</span>
-              <span>{layout}</span>
+              <span>{themeId === "klasik" ? layout : themeName(themeId)}</span>
             </div>
+            {themeId === "ruang-seduh" ? (
+              <div className="overflow-hidden rounded-lg" style={{ background: "#FBF6EE" }}>
+                <div className="px-3.5 pb-3 pt-4" style={{ borderBottom: "1px solid #E2D6C4" }}>
+                  <div className="flex items-center gap-2.5">
+                    <span className="grid h-9 w-9 shrink-0 place-items-center overflow-hidden" style={{ background: "#B4552E", color: "#FFF7EE", fontFamily: "Fraunces, Georgia, serif", fontWeight: 600, fontSize: 15, borderRadius: 2 }}>
+                      {profile?.avatar_url ? (
+                        <img src={profile.avatar_url} alt="" className="h-full w-full object-cover" />
+                      ) : (
+                        (storeName || "T").slice(0, 1).toUpperCase()
+                      )}
+                    </span>
+                    <div className="min-w-0">
+                      <div className="truncate" style={{ fontFamily: "Fraunces, Georgia, serif", fontWeight: 600, fontSize: 17, color: "#2A1D14", lineHeight: 1.1 }}>
+                        {storeName || "Nama toko"}
+                      </div>
+                      <div className="tnum truncate" style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 9.5, color: "#7A6A5B", marginTop: 3 }}>
+                        tokolink.store/s/…
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div className="px-3.5">
+                  {(previewProducts.length > 0
+                    ? previewProducts
+                    : [{ name: "Produk aktif Anda akan tampil di sini", price: 0, image_url: null }]
+                  ).map((p, i) => (
+                    <div key={p.name + i} className="grid items-baseline gap-2.5" style={{ gridTemplateColumns: "24px minmax(0,1fr) auto", padding: "12px 2px", borderTop: "1px solid #E2D6C4" }}>
+                      <span className="tnum" style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 10, color: "#B4552E" }}>
+                        {String(i + 1).padStart(2, "0")}
+                      </span>
+                      <span className="min-w-0">
+                        <span className="block truncate" style={{ fontFamily: "Fraunces, Georgia, serif", fontSize: 15, color: "#2A1D14" }}>
+                          {p.name}
+                        </span>
+                      </span>
+                      {p.price > 0 && (
+                        <span className="tnum" style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, color: "#2A1D14" }}>
+                          {rupiah(p.price)}
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : themeId === "pasar-rapi" ? (
+              <div className="overflow-hidden rounded-lg" style={{ background: "#F5F9F8" }}>
+                <div className="px-3.5 pb-2.5 pt-3.5" style={{ background: "#FFFFFF", borderBottom: "1px solid #D9E6E3" }}>
+                  <div className="flex items-center gap-2.5">
+                    <span className="grid h-8 w-8 shrink-0 place-items-center overflow-hidden" style={{ background: "#0E7C6E", color: "#fff", fontFamily: "Archivo, system-ui, sans-serif", fontWeight: 800, fontSize: 14, borderRadius: 6 }}>
+                      {profile?.avatar_url ? (
+                        <img src={profile.avatar_url} alt="" className="h-full w-full object-cover" />
+                      ) : (
+                        (storeName || "T").slice(0, 1).toUpperCase()
+                      )}
+                    </span>
+                    <div className="min-w-0">
+                      <div className="truncate" style={{ fontFamily: "Archivo, system-ui, sans-serif", fontWeight: 800, fontSize: 16, color: "#0F1F1D", letterSpacing: "-0.02em" }}>
+                        {storeName || "Nama toko"}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-2 px-3.5 py-3">
+                  {(previewProducts.length > 0
+                    ? previewProducts
+                    : [{ name: "Produk Anda", price: 0, image_url: null }]
+                  ).map((p, i) => (
+                    <div key={p.name + i} style={{ background: "#fff", border: "1px solid #D9E6E3", borderRadius: 6, overflow: "hidden" }}>
+                      {p.image_url ? (
+                        <img src={p.image_url} alt="" className="aspect-square w-full object-cover" />
+                      ) : (
+                        <div className="aspect-square w-full" style={{ background: "#F5F9F8" }} />
+                      )}
+                      <div style={{ padding: 8 }}>
+                        <div className="truncate" style={{ fontSize: 11, fontWeight: 600, color: "#0F1F1D" }}>{p.name}</div>
+                        {p.price > 0 && (
+                          <div className="tnum" style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 13, fontWeight: 600, color: "#0E7C6E", marginTop: 3 }}>
+                            {rupiah(p.price)}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : isEngineTheme(themeId) ? (
+              <GenericThemeMini themeId={themeId} storeName={storeName} products={previewProducts} />
+            ) : (
             <div className="overflow-hidden rounded-lg bg-white">
               <div className="relative h-24">
                 <img src={profile?.cover_url || "images/store-cover.jpg"} alt="" className="h-full w-full object-cover" />
@@ -1148,6 +1331,7 @@ export function Theme() {
                 )}
               </div>
             </div>
+            )}
             <p className="mt-3 text-[12px] leading-relaxed text-white/55">
               Pratinjau memakai data toko asli Anda. Warna aksen berlaku untuk seluruh halaman.
             </p>

@@ -5,6 +5,7 @@ import { rupiah, useApp, type Product } from "../lib/data";
 import { supabase } from "../lib/supabase";
 import { mapProduct, type DbProduct } from "../lib/products";
 import { normalizeWA } from "../lib/format";
+import { iconForLink } from "../lib/links";
 import { searchCities } from "../lib/cities";
 import { Logo, LogoMark } from "../components/Logo";
 import {
@@ -24,6 +25,8 @@ import {
   cx,
 } from "../components/ui";
 import { QRMark } from "./Landing";
+import { isEngineTheme } from "../storefront/registry";
+import { ENGINE_COMPONENTS } from "../storefront/themes";
 
 const SHIP = 10000;
 
@@ -352,6 +355,11 @@ export function StoreHome({ slug }: { slug: string }) {
   const closed = store?.is_closed ?? false;
   // Tema toko (warna, susunan, bagian tampil) — default bila seller belum atur.
   const [theme, setTheme] = useState({ accent: "#0A69C4", layout: "Kisi", hours: true, qr: true, cart: true });
+  // ID tema presentasi dari Theme Engine ("klasik" = tampilan bawaan).
+  // Query TERPISAH supaya aman: kalau kolom theme_id belum ada di database
+  // (migrasi belum dijalankan), query ini gagal diam-diam dan tampilan
+  // bawaan tetap jalan — tidak merusak query tema lama di bawah.
+  const [themeId, setThemeId] = useState("klasik");
 
   useEffect(() => {
     if (!store) return;
@@ -373,6 +381,23 @@ export function StoreHome({ slug }: { slug: string }) {
         qr: t.show_qr,
         cart: t.show_cart,
       });
+    })();
+  }, [store]);
+  useEffect(() => {
+    if (!store) return;
+    (async () => {
+      try {
+        const { data, error } = await supabase
+          .from("store_theme")
+          .select("theme_id")
+          .eq("seller_id", store.id)
+          .maybeSingle();
+        if (error || !data) return;
+        const id = (data as { theme_id?: string }).theme_id;
+        if (isEngineTheme(id)) setThemeId(id as string);
+      } catch {
+        /* kolom belum ada / RLS — tetap tampilkan klasik */
+      }
     })();
   }, [store]);
   // Badge buka/tutup dari store_hours (zona WIB). Tanpa data jam → anggap buka.
@@ -476,6 +501,106 @@ export function StoreHome({ slug }: { slug: string }) {
     toast(`${p.name} masuk keranjang.`);
   };
 
+  // Theme Engine: tema presentasi dirender komponen sendiri dengan data
+  // yang SAMA (store, items, bioLinks, jam, QR, keranjang).
+  // Alur lain (checkout, payment, dsb) tidak tersentuh.
+  if (isEngineTheme(themeId)) {
+    const EngineTheme = ENGINE_COMPONENTS[themeId];
+    if (!EngineTheme) return null;
+    return (
+      <div className="min-h-screen">
+        <EngineTheme
+          slug={slug}
+          storeName={name}
+          city={city}
+          bio={store?.bio ?? null}
+          waNumber={wa}
+          avatarUrl={store?.avatar_url ?? null}
+          coverUrl={store?.cover_url ?? null}
+          closed={closed}
+          items={list}
+          allItems={items}
+          cats={cats}
+          cat={cat}
+          onCat={setCat}
+          q={q}
+          onQ={setQ}
+          onResetFilter={() => {
+            setQ("");
+            setCat("Semua");
+          }}
+          loading={loading}
+          bioLinks={bioLinks}
+          onOpenBioLink={openBioLink}
+          openNow={openNow}
+          todayHours={todayHours}
+          hourRows={hourRows}
+          accent={theme.accent}
+          showHours={theme.hours}
+          showQR={theme.qr}
+          showCart={theme.cart}
+          cartCount={count}
+          onAdd={onAdd}
+          onChatWA={() => toast(wa ? "Membuka chat WhatsApp " + wa : "Nomor WhatsApp toko belum diatur.", "info")}
+          qrData={qrData}
+          onOpenQR={() => setQrOpen(true)}
+          onShare={() => {
+            setShared(true);
+            toast(`Tautan toko disalin: tokolink.store/s/${slug}`, "info");
+            setTimeout(() => setShared(false), 1600);
+          }}
+          shared={shared}
+        />
+        <Modal open={qrOpen} onClose={() => setQrOpen(false)} title="QR TokoLink" eyebrow={name} width="max-w-sm">
+          <div className="flex flex-col items-center gap-4 text-center">
+            <div className="relative rounded-lg border border-line bg-white p-4">
+              {qrData ? (
+                <img src={qrData} alt={`QR ${name}`} width={176} height={176} className="h-[176px] w-[176px]" />
+              ) : (
+                <QRMark size={176} />
+              )}
+              <span className="absolute left-1/2 top-1/2 flex h-11 w-11 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-md bg-white">
+                <LogoMark size={34} />
+              </span>
+            </div>
+            <div>
+              <div className="tnum text-[15px] font-bold text-ink">tokolink.store/s/{slug}</div>
+              <p className="mt-1 text-[13px] text-muted">
+                Pindai untuk membuka toko. Aman dicetak hitam putih.
+              </p>
+            </div>
+            <div className="flex w-full gap-2">
+              <Button
+                variant="secondary"
+                className="flex-1"
+                onClick={() => {
+                  if (!qrData) return;
+                  const a = document.createElement("a");
+                  a.href = qrData;
+                  a.download = `qr-${slug}.png`;
+                  a.click();
+                  toast("QR diunduh ke perangkat.");
+                }}
+              >
+                <Icon name="download" size={16} /> Unduh
+              </Button>
+              <Button
+                className="flex-1"
+                onClick={() => {
+                  const url = `https://tokolink.store/s/${slug}`;
+                  if (navigator.clipboard) navigator.clipboard.writeText(url).catch(() => {});
+                  toast("Tautan QR disalin.");
+                }}
+              >
+                <Icon name="copy" size={16} /> Salin tautan
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-canvas pb-24">
       <StoreHeader store={store} />
@@ -572,7 +697,7 @@ export function StoreHome({ slug }: { slug: string }) {
                   onClick={() => openBioLink(l)}
                   className="group inline-flex items-center gap-2 rounded-md border border-line bg-canvas px-3 py-2 text-[13px] font-semibold text-muted transition-colors duration-150 hover:border-brand-300 hover:bg-brand-50 hover:text-brand-700"
                 >
-                  <Icon name={l.icon || "link"} size={15} className="text-brand-500" />
+                  <Icon name={iconForLink(l.icon)} size={15} className="text-brand-500" />
                   {l.label}
                   <Icon name="right" size={13} className="text-faint transition-transform group-hover:translate-x-0.5" />
                 </button>

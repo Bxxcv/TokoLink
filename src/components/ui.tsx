@@ -204,6 +204,24 @@ const PATHS: Record<string, ReactNode> = {
       <circle cx="16.8" cy="7.2" r="1" fill="currentColor" stroke="none" />
     </>
   ),
+  yt: (
+    <>
+      <rect x="3.5" y="6" width="17" height="12" rx="3.5" />
+      <path d="m10.5 9.8 4.5 2.2-4.5 2.2z" fill="currentColor" stroke="none" />
+    </>
+  ),
+  tg: (
+    <>
+      <circle cx="12" cy="12" r="8.5" />
+      <path d="M8 12.3 16 8.5l-2.4 7.4-2.6-2.9-3 1.2.7-2.4 4.3-3.1-5 2.6Z" />
+    </>
+  ),
+  shop: (
+    <>
+      <path d="M4.5 9.5h15l-1 10h-13z" />
+      <path d="M8.5 9.5V7.8a3.5 3.5 0 0 1 7 0v1.7" />
+    </>
+  ),
   menu: <path d="M4 7h16M4 12h16M4 17h16" />,
   logout: <path d="M14 7.5V5.5h-9v13h9v-2M10.5 12h9M16.5 8.5 20 12l-3.5 3.5" />,
   tag: (

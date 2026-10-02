@@ -5,6 +5,9 @@
 # Folder screenshot laporan bug (lokal saja, jangan push)
 Problem_screenshot/
 
+# Sumber desain 8 tema (showcase lokal saja, tidak dipakai production)
+desain_toko_seller/
+
 # Dependencies & build output
 node_modules/
 dist/
