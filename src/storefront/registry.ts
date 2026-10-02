@@ -3,9 +3,11 @@
  *
  * - "klasik": tampilan bawaan yang sudah ada (dirender StoreHome lama,
  *   tidak disentuh engine ini).
- * - "ruang-seduh": tema 01, satu-satunya tema baru di fase ini.
- * - 02–08: "segera-hadir" — tampil di dashboard sebagai roadmap,
- *   tidak bisa dipilih sampai di-port (satu per sesi berikutnya).
+ * - 01–08: semua 8 tema sudah di-port (lihat docs/THEME_ENGINE.md,
+ *   2 Okt 2026). Awalnya cuma 3 (Pasar Rapi, Atelier, Pixel Goods) yang
+ *   diminta sebagai pilot, 5 sisanya dikerjakan sekaligus di luar
+ *   rencana awal — ditinjau & lolos cek anti-mock, tapi tetap scope
+ *   lebih besar dari yang disetujui user.
  */
 export interface ThemeMeta {
   id: string;

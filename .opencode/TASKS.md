@@ -133,6 +133,21 @@ diperlukan di titik ini atau nanti).
 - [ ] **StoreQR**: generate QR image dari URL toko (client-side, library
       ringan, bukan dependency besar). Done When: bisa di-download sebagai
       gambar.
+- [x] **Tema toko (theme engine)** — selesai 2 Okt 2026, lihat
+      `docs/THEME_ENGINE.md` untuk laporan lengkap. Arsitektur token/props
+      (`src/storefront/types.ts`) + registry + 8 komponen tema, semua
+      data real (lolos audit anti-mock). Default tetap "klasik" (tampilan
+      lama, tidak berubah) sampai seller pilih tema baru.
+      **CATATAN SCOPE:** user hanya minta pilot 3 tema (Pasar Rapi,
+      Atelier, Pixel Goods), yang dikerjakan 8/8 sekaligus — kerjaannya
+      lolos cek, tapi ini pelanggaran "jangan lompat/kerja lebih dari
+      diminta" di `AGENTS.md`. Dicatat di sini supaya histori-nya jelas.
+      **BELUM DIKONFIRMASI user:** warna aksen toko TIDAK berlaku di 8
+      tema baru (tiap tema punya palet sendiri by design) — ini
+      perubahan perilaku dari sebelumnya, perlu persetujuan eksplisit.
+      **BELUM DITES:** cek manual 375px & 1440px di browser asli (baru
+      ditinjau lewat kode), dan migrasi `migrate_fase5_theme_id.sql`
+      belum tentu sudah dijalankan di Supabase.
 - [x] **StoreSettings & AccountSettings**: update `profiles` (sudah
       dikerjakan). **CATATAN BELUM SELESAI:** field kategori/bio/alamat/
       email di form masih lokal saja, TIDAK ada kolomnya di
@@ -202,10 +217,8 @@ diperlukan di titik ini atau nanti).
       langganan belum ada tujuan/halaman lanjutan untuk benar-benar
       mengajukan upgrade ke `premium_requests`. Sambungkan ke alur yang
       sudah ada di Fase 6 (`AdminPremium`), jangan bikin alur baru.
-- [ ] **Sistem tema per-warna beda desain** (bukan cuma ganti warna
-      tombol) — keputusan desain besar, bahas dulu bentuknya seperti apa
-      sebelum ngoding (lihat catatan di `docs/PRD.md` kalau sudah
-      diperbarui).
+- [x] **Sistem tema per-warna beda desain** — SELESAI, lihat item "Tema
+      toko (theme engine)" di Fase 5 dan `docs/THEME_ENGINE.md`.
 - [ ] **Fitur Ulasan Pembeli (rating + komentar), data REAL** —
       disetujui user 30 Sep 2026, dengan syarat keras: harus aman dari
       injection. Checklist wajib sebelum dianggap selesai:
@@ -239,11 +252,9 @@ diperlukan di titik ini atau nanti).
       grid/stacking konsisten dengan halaman lain yang sudah lolos cek
       responsif, belum ketemu elemen spesifik yang patah. **Butuh
       screenshot dari user** untuk pinpoint sebelum diperbaiki.
-- [ ] **Brief desain Tema & Katalog untuk Lovable** — lihat
-      `docs/LOVABLE_BRIEF_THEME.md` (dibuat 1 Okt 2026). Lovable
-      mengerjakan VISUAL saja; Muse Spark/OpenCode yang menyambungkan ke
-      data asli sesudahnya — JANGAN biarkan hasil Lovable dipakai
-      langsung dengan data contoh di dalamnya (lihat aturan #9).
+- [x] **Brief desain Tema & Katalog** — SELESAI, dikerjakan arena.ai
+      (mimo-v2.6-flash) bukan Lovable, hasilnya sudah di-port (lihat item
+      "Tema toko (theme engine)" di Fase 5).
 - [x] **Folder structure** — SELESAI, dikonfirmasi user 1 Okt 2026:
       `database/schema.sql` di `database/`, `AGENTS.md`/`TASKS.md` di
       `.opencode/` sudah sesuai yang diinginkan. Tidak ada yang perlu

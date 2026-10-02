@@ -2,8 +2,9 @@
 -- TokoLink — Migrasi pilihan tema toko (dijalankan di Supabase SQL Editor)
 --
 -- Menambah 1 kolom di store_theme: theme_id (teks).
--- Nilai: 'klasik' (tampilan bawaan yang sudah ada) atau
--- 'ruang-seduh' (tema 01). Tema 02–08 menyusul ("segera hadir").
+-- Nilai: 'klasik' (tampilan bawaan) atau salah satu dari 8 tema
+-- engine (01 ruang-seduh s/d 08 studio-tenang) — lihat
+-- src/storefront/registry.ts & docs/THEME_ENGINE.md.
 --
 -- AMAN dijalankan kapan saja: kolom baru punya default, baris lama
 -- otomatis dianggap 'klasik' (tampilan tidak berubah).
