@@ -176,31 +176,71 @@ tanya user dulu):
 ## 4. Struktur Folder
 
 ```
-TokoLink-main/
+TokoLink/
+├── README.md                    # profil repo (publik)
+├── LICENSE                      # proprietary — Muhammad Farid
 ├── docs/
-│   ├── PRD.md                 # APA yang dibangun & kenapa
-│   └── ARCHITECTURE.md        # file ini — BAGAIMANA sistem terhubung
+│   ├── PRD.md                     # APA yang dibangun & kenapa
+│   ├── ARCHITECTURE.md            # file ini — BAGAIMANA sistem terhubung
+│   ├── THEME_ENGINE.md            # laporan implementasi 8 tema
+│   └── LOVABLE_BRIEF_THEME.md     # brief desain tema (arsip)
 ├── .opencode/
-│   ├── AGENTS.md                # aturan kerja agent (WAJIB dibaca duluan)
-│   ├── TASKS.md                 # backlog kerja, urutan wajib
-│   ├── opencode.json            # config model & permission
-│   └── skill/                   # panduan teknis spesifik per topik
+│   ├── AGENTS.md                  # aturan kerja agent (WAJIB dibaca duluan)
+│   ├── TASKS.md                   # backlog kerja, urutan wajib
+│   ├── opencode.json              # config model & permission
+│   └── skill/                     # panduan teknis spesifik per topik
 │       ├── supabase-rls-patterns/
 │       ├── buatqris-webhook/
 │       └── ui-interaction-patterns/
 ├── database/
-│   ├── schema.sql                # skema utama (SUMBER KEBENARAN kolom)
-│   └── migrate_faseX*.sql        # migrasi bertahap, bernomor per fase
-├── api/                        # Vercel serverless functions (server-only)
-│   ├── _lib.ts                   # helper bersama (lihat catatan di AGENTS.md)
+│   ├── schema.sql                 # skema utama (SUMBER KEBENARAN kolom)
+│   └── migrate_*.sql              # migrasi bertahap (fase3, fase5_theme,
+│                                  # fase5_theme_id, storage, traffic, …)
+├── api/                         # Vercel serverless functions (server-only)
+│   ├── _lib.ts                    # helper bersama
 │   ├── create-order.ts
-│   └── buatqris-webhook.ts
+│   ├── buatqris-webhook.ts
+│   ├── admin-users.ts
+│   └── delete-account.ts
 ├── src/
-│   ├── components/               # UI reusable — JANGAN diubah strukturnya
+│   ├── components/                # UI reusable — JANGAN diubah strukturnya
 │   ├── lib/
-│   │   ├── router.tsx              # custom router, tetap dipakai
-│   │   ├── supabase.ts             # client Supabase (anon key, aman di browser)
-│   │   └── data.tsx                # DATA CONTOH lama — lihat AGENTS.md #9
-│   └── pages/                    # satu file per grup halaman (lihat PRD.md §4)
-└── public/                     # aset statis (gambar demo, logo)
+│   │   ├── router.tsx               # custom router, tetap dipakai
+│   │   ├── supabase.ts              # client Supabase (anon key, aman di browser)
+│   │   ├── auth.tsx                 # session + profil
+│   │   ├── links.ts                 # detectLinkIcon() sentral (semua tema pakai ini)
+│   │   ├── format.ts products.ts storage.ts cities.ts
+│   │   └── data.tsx                 # DATA CONTOH lama — lihat AGENTS.md #9
+│   ├── storefront/                # THEME ENGINE (hanya presentasi, tanpa query)
+│   │   ├── types.ts                 # kontrak data tema ← halaman toko
+│   │   ├── registry.ts              # daftar 8 tema + status tersedia
+│   │   └── themes/                  # 1 file per tema + index.ts (peta ID→komponen)
+│   └── pages/                     # satu file per grup halaman (lihat PRD.md §4)
+└── public/                      # aset statis (logo, gambar, OG image)
 ```
+
+---
+
+## 5. Theme Engine (8 tema, satu data)
+
+```mermaid
+graph TD
+  SH[StoreHome - ambil SEMUA data\nprofil, produk, bio, jam, tema, QR] --> P{Punya theme_id\nengine?}
+  P -->|tidak / klasik| Legacy[JSX bawaan lama]
+  P -->|ya| Engine[ENGINE_COMPONENTS map]
+  Engine --> T1[01 Ruang Seduh]
+  Engine --> T2[02 Pasar Rapi]
+  Engine --> T3[03 Lugas Jasa]
+  Engine --> T4[04 Atelier]
+  Engine --> T5[05 Dapur Hari Ini]
+  Engine --> T6[06 Kriya Nusantara]
+  Engine --> T7[07 Pixel Goods]
+  Engine --> T8[08 Studio Tenang]
+  T1 & T2 & T3 & T4 & T5 & T6 & T7 & T8 --> Cart[onAdd → /cart → checkout → QRIS\nsama untuk semua tema]
+```
+
+**Aturan yang WAJIB dipegang** (detail: `docs/THEME_ENGINE.md`):
+1. Tema hanya menerima props (`src/storefront/types.ts`) — dilarang query Supabase/auth/cart langsung.
+2. Tidak ada teks/harga/stok contoh di file tema; yang tidak ada datanya dibuang, bukan dikarang.
+3. Bilah/CTA tema selalu mengarah ke `/cart` — tidak pernah mengalihkan order ke WhatsApp.
+4. Pilihan seller tersimpan di `store_theme.theme_id` (`klasik` = bawaan); tambah tema baru = tambah file + 1 baris di peta, tanpa ubah alur beli.
