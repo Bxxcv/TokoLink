@@ -38,6 +38,7 @@ import {
   AdminUsers,
   AdminSystem,
 } from "./pages/Admin";
+import { AdminUIDashboard, AdminUIOrders } from "./pages/adminui";
 
 function NotFound({ path }: { path: string }) {
   return (
@@ -95,6 +96,10 @@ function RouteView({ path }: { path: string }) {
   if (path === "/forgot") return <Forgot />;
   if (path === "/system") return <SystemPage />;
   if (path === "/legal/privacy") return <LegalPrivacy />;
+
+  /* ---- admin panel UI (visual reference recreation, dummy data) ---- */
+  if (path === "/admin-ui") return <AdminUIDashboard />;
+  if (path === "/admin-ui/orders") return <AdminUIOrders />;
 
   /* ---- phase 2: storefront ---- */
   if (seg[0] === "s" && seg[1]) {
