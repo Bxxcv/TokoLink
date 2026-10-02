@@ -1,0 +1,163 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Manrope", ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+    sans-serif;
+  --font-display: "Space Grotesk", "Manrope", ui-sans-serif, system-ui,
+    sans-serif;
+
+  --color-canvas: #f4f4f8;
+  --color-ink: #1b1a23;
+  --color-mute: #6f6e7c;
+  --color-line: #e7e6ef;
+  --color-card: #ffffff;
+
+  --color-brand-50: #f2f1fe;
+  --color-brand-100: #e6e4fd;
+  --color-brand-200: #d0cdfb;
+  --color-brand-300: #a9a2f7;
+  --color-brand-400: #8579f2;
+  --color-brand-500: #5b4cf5;
+  --color-brand-600: #4a3be4;
+  --color-brand-700: #3b2dc2;
+  --color-brand-800: #2f269a;
+
+  --color-ok-50: #e5f7ee;
+  --color-ok-100: #c8eed9;
+  --color-ok-500: #149a5b;
+  --color-ok-600: #0f854d;
+  --color-ok-700: #0b6b3e;
+
+  --color-warn-50: #fdf4e3;
+  --color-warn-100: #fae5bf;
+  --color-warn-500: #c8821a;
+  --color-warn-600: #a86a12;
+  --color-warn-700: #8a5510;
+
+  --color-bad-50: #fdeeec;
+  --color-bad-100: #fad5d1;
+  --color-bad-500: #d94f43;
+  --color-bad-600: #c03d32;
+  --color-bad-700: #9e3129;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--color-canvas);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background: #d0cdfb;
+  color: #1b1a23;
+}
+
+.tnum {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Motion ─────────────────────────────────────────────────────────────── */
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes pop {
+  from {
+    opacity: 0;
+    transform: scale(0.97) translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes bar-grow {
+  from {
+    transform: scaleY(0);
+  }
+  to {
+    transform: scaleY(1);
+  }
+}
+@keyframes ring-ping {
+  0% {
+    transform: scale(1);
+    opacity: 0.5;
+  }
+  80%,
+  100% {
+    transform: scale(2.4);
+    opacity: 0;
+  }
+}
+
+.anim-rise {
+  animation: rise 0.45s cubic-bezier(0.22, 0.9, 0.3, 1) both;
+}
+.anim-pop {
+  animation: pop 0.22s ease-out both;
+}
+.anim-toast {
+  animation: toast-in 0.25s cubic-bezier(0.22, 0.9, 0.3, 1) both;
+}
+.bar-grow {
+  transform-origin: bottom;
+  animation: bar-grow 0.6s cubic-bezier(0.22, 0.9, 0.3, 1) both;
+}
+.ring-ping {
+  animation: ring-ping 1.8s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+.stagger > * {
+  animation: rise 0.45s cubic-bezier(0.22, 0.9, 0.3, 1) both;
+}
+.stagger > *:nth-child(1) { animation-delay: 0.02s; }
+.stagger > *:nth-child(2) { animation-delay: 0.06s; }
+.stagger > *:nth-child(3) { animation-delay: 0.1s; }
+.stagger > *:nth-child(4) { animation-delay: 0.14s; }
+.stagger > *:nth-child(5) { animation-delay: 0.18s; }
+.stagger > *:nth-child(6) { animation-delay: 0.22s; }
+.stagger > *:nth-child(7) { animation-delay: 0.26s; }
+.stagger > *:nth-child(8) { animation-delay: 0.3s; }
+
+/* ── Scrollbar ──────────────────────────────────────────────────────────── */
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+*::-webkit-scrollbar-thumb {
+  background: #d6d5e1;
+  border-radius: 8px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: #c3c2d2;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
