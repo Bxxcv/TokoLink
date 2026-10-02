@@ -178,7 +178,7 @@ export function KriyaNusantara(p: ThemeStorefrontProps) {
               </div>
             )}
             <div className={bio ? "sm:col-span-5" : "sm:col-span-12"} style={{ border: `1px solid ${LINE}`, padding: "24px 26px" }}>
-              <span style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.18em", color: INK_SOFT }}>Info toko</span>
+              <span style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.18em", color: INK_SOFT }}>Pengiriman & info</span>
               <p className="tnum" style={{ fontFamily: MONO, fontSize: 12, lineHeight: 1.8, color: INK_SOFT, marginTop: 10 }}>
                 {city && <>{city}<br /></>}
                 Bayar via QRIS<br />

@@ -704,7 +704,7 @@ export function Products() {
         .map((c) => ({
           seller_id: user.id,
           name: c[0].slice(0, 80),
-          category: c[3] || "Lainnya",
+          category: c[3] || "Kue & Snack",
           price: Math.max(0, Number(c[1])),
           stock: Math.max(0, Number(c[2] || 0)),
           status: "nonaktif",
@@ -1030,10 +1030,11 @@ export function ProductForm({ id }: { id?: string }) {
   const [loading, setLoading] = useState(editing);
   const [f, setF] = useState({
     name: "",
-    cat: "",
+    cat: "Kue & Snack",
     price: "",
     stock: "",
     sku: "",
+    weight: "500",
     desc: "",
     img: "",
     active: true,
@@ -1089,6 +1090,7 @@ export function ProductForm({ id }: { id?: string }) {
         price: String(mapped.price),
         stock: String(mapped.stock),
         sku: mapped.sku,
+        weight: String(mapped.weight),
         desc: mapped.desc,
         img: mapped.img.startsWith("images/") ? "" : mapped.img,
         active: mapped.status !== "nonaktif",
@@ -1102,7 +1104,6 @@ export function ProductForm({ id }: { id?: string }) {
     if (f.name.trim().length < 4) e.name = "Nama produk minimal 4 karakter.";
     if (!f.price || Number(f.price) <= 0) e.price = "Masukkan harga jual.";
     if (f.stock === "") e.stock = "Isi stok, boleh 0.";
-    if (f.cat.trim().length === 0) e.cat = "Isi kategori, mis. Minuman.";
     setErr(e);
     if (Object.keys(e).length) {
       toast("Lengkapi isian yang ditandai merah.", "bad");
@@ -1117,10 +1118,11 @@ export function ProductForm({ id }: { id?: string }) {
       const payload = {
         seller_id: user.id,
         name: f.name.trim(),
-        category: f.cat.trim(),
+        category: f.cat,
         price: Number(f.price),
         stock: Number(f.stock),
         sku: f.sku.trim() || null,
+        weight_gram: f.weight === "" ? null : Number(f.weight),
         description: f.desc.trim() || null,
         image_url: f.img || null,
         status: asDraft ? "nonaktif" : f.active ? "aktif" : "nonaktif",
@@ -1195,12 +1197,11 @@ export function ProductForm({ id }: { id?: string }) {
                 />
               </Field>
               <FieldRow cols={2}>
-                <Field label="Kategori" required error={err.cat} hint="Bebas isi sendiri, atau pilih saran.">
+                <Field label="Kategori" required hint="Bebas isi sendiri, atau pilih saran.">
                   <Input
                     value={f.cat}
-                    invalid={!!err.cat}
                     onChange={(e) => set("cat", e.target.value)}
-                    placeholder="Mis. Minuman"
+                    placeholder="Kue & Snack"
                     list="cat-list"
                   />
                   <datalist id="cat-list">
@@ -1277,6 +1278,14 @@ export function ProductForm({ id }: { id?: string }) {
                   inputMode="numeric"
                   onChange={(e) => set("stock", e.target.value.replace(/\D/g, ""))}
                   placeholder="12"
+                  className="tnum"
+                />
+              </Field>
+              <Field label="Berat kirim (gram)" hint="Untuk hitung ongkir">
+                <Input
+                  value={f.weight}
+                  inputMode="numeric"
+                  onChange={(e) => set("weight", e.target.value.replace(/\D/g, ""))}
                   className="tnum"
                 />
               </Field>
@@ -1900,15 +1909,19 @@ export function OrderDetail({ id }: { id: string }) {
               </dl>
             </Card>
             <Card>
-              <CardHead title="Penyerahan" icon="box" />
+              <CardHead title="Pengiriman" icon="truck" />
               <dl className="space-y-2.5 text-[13.5px]">
                 <div>
                   <dt className="micro text-faint">Status</dt>
                   <dd className="text-ink">{STATUS_LABEL[o.status]}</dd>
                 </div>
+                <div>
+                  <dt className="micro text-faint">Nomor resi</dt>
+                  <dd className="tnum text-ink">Belum diisi</dd>
+                </div>
               </dl>
               <p className="mt-3 text-[12.5px] leading-relaxed text-faint">
-                Serah-terima diatur langsung dengan pembeli via WhatsApp.
+                Input resi menyusul setelah alur pesanan backend selesai.
               </p>
             </Card>
           </div>
@@ -1964,7 +1977,7 @@ export function OrderDetail({ id }: { id: string }) {
                   toast("Label pengiriman diunduh.");
                 }}
               >
-                <Icon name="download" size={16} /> Unduh label pesanan
+                <Icon name="download" size={16} /> Unduh label kirim
               </Button>
               <Button
                 variant="ghost"
@@ -1986,9 +1999,9 @@ export function OrderDetail({ id }: { id: string }) {
         body={
           o.status === "dikirim"
             ? "Pesanan selesai dan arsip tersimpan."
-            : "Status pesanan berubah jadi dikirim. Hubungi pembeli via WhatsApp bila perlu."
+            : "Pembeli akan menerima notifikasi beserta nomor resi. Pastikan paket sudah diserahkan ke kurir."
         }
-        confirmLabel={o.status === "dikirim" ? "Ya, selesaikan" : "Ya, tandai dikirim"}
+        confirmLabel={o.status === "dikirim" ? "Ya, selesaikan" : "Ya, kirim notifikasi"}
         tone="primary"
         onConfirm={() =>
           setStatus(
@@ -2001,9 +2014,9 @@ export function OrderDetail({ id }: { id: string }) {
         open={cancel}
         onClose={() => setCancel(false)}
         title={`Batalkan pesanan ${o.id}?`}
-        body="Status pesanan jadi batal. Kembalikan dana pembeli secara manual bila sudah dibayar."
+        body="Pembeli akan diberi tahu dan dana dikembalikan penuh. Riwayat pembatalan tetap tersimpan untuk laporan Anda."
         confirmLabel="Batalkan pesanan"
-        onConfirm={() => setStatus("batal", "Pesanan dibatalkan.")}
+        onConfirm={() => setStatus("batal", "Pesanan dibatalkan dan dana dikembalikan.")}
       />
     </AppShell>
   );

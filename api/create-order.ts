@@ -69,19 +69,12 @@ export default async function handler(req: any, res: any) {
     ((products ?? []) as Record<string, unknown>[]).map((p) => [(p as { id: string }).id, p]),
   );
   let subtotal = 0;
-  const lines: { product_id: string; name: string; qty: number; price: number; stock: number; sold: number }[] = [];
+  const lines: { product_id: string; name: string; qty: number; price: number }[] = [];
   for (const line of body.cart) {
-    const p = byId.get(line.product_id) as
-      | { name: string; price: number | string; stock: number | string; sold: number | string }
-      | undefined;
+    const p = byId.get(line.product_id) as { name: string; price: number | string } | undefined;
     if (!p || line.qty <= 0) continue;
-    const stock = Number(p.stock ?? 0);
-    // Stok dicek di server: tolak kalau pesanan melebihi sisa (cegah oversell).
-    if (stock < line.qty) {
-      return json(res, { error: `Stok "${p.name}" tersisa ${stock}. Kurangi jumlahnya.` }, 400);
-    }
     subtotal += Number(p.price) * line.qty;
-    lines.push({ product_id: line.product_id, name: p.name, qty: line.qty, price: Number(p.price), stock, sold: Number(p.sold ?? 0) });
+    lines.push({ product_id: line.product_id, name: p.name, qty: line.qty, price: Number(p.price) });
   }
   if (lines.length === 0) return json(res, { error: "Produk tidak tersedia." }, 400);
 
@@ -172,17 +165,6 @@ export default async function handler(req: any, res: any) {
   if (promoId) {
     await db.from("discount_codes").update({ used_count: promoUsed + 1 }).eq("id", promoId);
   }
-
-  // 3b) Kurangi stok + tambah hitungan terjual per produk (reservasi saat
-  // order dibuat — klaim "stok berkurang otomatis" di halaman depan).
-  await Promise.all(
-    lines.map((l) =>
-      db
-        .from("products")
-        .update({ stock: Math.max(0, l.stock - l.qty), sold: l.sold + l.qty })
-        .eq("id", l.product_id),
-    ),
-  );
 
   // 4) BuatQris generate QRIS.
   const base = { order_id: oid, access_token: otoken };
