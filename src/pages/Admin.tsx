@@ -1071,12 +1071,17 @@ export function AdminAnalytics() {
 export function AdminPayments() {
   const { toast } = useApp();
   const [tab, setTab] = useState("semua");
+  const [q, setQ] = useState("");
+  const [method, setMethod] = useState("semua");
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 10;
   type PayRow = {
     id: string; order_id: string; channel: string; amount: number | string;
     fee: number | string; external_ref: string | null; status: string; created_at: string;
     seller_id: string; profiles: { store_name: string | null } | { store_name: string | null }[] | null;
   };
   const [rows, setRows] = useState<PayRow[]>([]);
+  const [itemsByOrder, setItemsByOrder] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -1087,16 +1092,80 @@ export function AdminPayments() {
         .select("id,order_id,channel,amount,fee,external_ref,status,created_at,seller_id,profiles(store_name)")
         .order("created_at", { ascending: false })
         .limit(200);
-      setRows((data ?? []) as PayRow[]);
+      const list = (data ?? []) as PayRow[];
+      setRows(list);
+      // Nama item per order (snapshot asli, bukan data contoh).
+      const oids = [...new Set(list.map((r) => r.order_id))];
+      if (oids.length > 0) {
+        const { data: oi } = await supabase
+          .from("order_items")
+          .select("order_id,product_name_snapshot,qty")
+          .in("order_id", oids);
+        const m: Record<string, string> = {};
+        for (const r of (oi ?? []) as { order_id: string; product_name_snapshot: string; qty: number }[]) {
+          m[r.order_id] = m[r.order_id] ? `${m[r.order_id]}, ${r.qty}× ${r.product_name_snapshot}` : `${r.qty}× ${r.product_name_snapshot}`;
+        }
+        setItemsByOrder(m);
+      }
       setLoading(false);
     })();
   }, []);
 
   const storeOf = (p: PayRow) =>
     Array.isArray(p.profiles) ? (p.profiles[0]?.store_name ?? "Toko") : (p.profiles?.store_name ?? "Toko");
-  const filtered = rows.filter((p) =>
-    tab === "semua" ? true : tab === "gagal" ? p.status === "gagal" || p.status === "perlu_cek" : p.status === "berhasil",
-  );
+  // berhasil/cocok = lunas · menunggu/perlu_cek = pending · gagal = gagal.
+  const bucket = (s: string) =>
+    s === "berhasil" || s === "cocok" ? "lunas" : s === "gagal" ? "gagal" : "pending";
+  const counts = {
+    semua: rows.length,
+    lunas: rows.filter((p) => bucket(p.status) === "lunas").length,
+    pending: rows.filter((p) => bucket(p.status) === "pending").length,
+    gagal: rows.filter((p) => bucket(p.status) === "gagal").length,
+  };
+  const monthAgo = Date.now() - 30 * 86400000;
+  const gmv30 = rows
+    .filter((p) => bucket(p.status) === "lunas" && new Date(p.created_at).getTime() >= monthAgo)
+    .reduce((s, p) => s + Number(p.amount), 0);
+  const pendingAmount = rows
+    .filter((p) => bucket(p.status) === "pending")
+    .reduce((s, p) => s + Number(p.amount), 0);
+  const methods = ["semua", ...Array.from(new Set(rows.map((r) => r.channel)))];
+
+  const filtered = rows.filter((p) => {
+    const s = q.trim().toLowerCase();
+    return (
+      (tab === "semua" || bucket(p.status) === tab) &&
+      (method === "semua" || p.channel === method) &&
+      (s === "" || `${p.order_id} ${storeOf(p)} ${(itemsByOrder[p.order_id] ?? "").toLowerCase()}`.includes(s))
+    );
+  });
+  const pages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const safePage = Math.min(page, pages);
+  const pageRows = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+
+  const exportCsv = () => {
+    const head = ["Order", "Toko", "Item", "Kanal", "Status", "Total", "Fee", "Bersih", "Waktu"];
+    const lines = filtered.map((p) =>
+      [
+        p.order_id,
+        `"${storeOf(p)}"`,
+        `"${itemsByOrder[p.order_id] ?? ""}"`,
+        p.channel,
+        p.status,
+        p.amount,
+        p.fee,
+        Number(p.amount) - Number(p.fee),
+        p.created_at,
+      ].join(","),
+    );
+    const blob = new Blob(["\uFEFF" + [head.join(","), ...lines].join("\n")], { type: "text/csv" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `transaksi-tokolink-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+    toast(`CSV diunduh (${filtered.length} baris).`);
+  };
 
   return (
     <AppShell group="admin">
@@ -1105,21 +1174,67 @@ export function AdminPayments() {
         kicker="Operasi"
         title="Pemantauan pembayaran"
         desc="Semua transaksi masuk. Transaksi gagal perlu dicek paling lambat H+1."
-        actions={<Button variant="secondary" onClick={() => toast("Rekonsiliasi dijalankan. Hasil dikirim via email.", "info")}>
-          <Icon name="refresh" size={16} /> Jalankan rekonsiliasi
+        actions={<Button variant="secondary" onClick={exportCsv}>
+          <Icon name="download" size={16} /> Ekspor CSV
         </Button>}
       />
 
-      <Tabs
-        className="mb-4"
-        active={tab}
-        onChange={setTab}
-        items={[
-          { id: "semua", label: "Semua", count: rows.length },
-          { id: "berhasil", label: "Berhasil", count: rows.filter((p) => p.status === "berhasil").length },
-          { id: "masalah", label: "Gagal / perlu cek", count: rows.filter((p) => p.status === "gagal" || p.status === "perlu_cek").length },
-        ]}
-      />
+      <div className="mb-4 grid grid-cols-2 gap-3 xl:grid-cols-4">
+        {[
+          ["Omzet lunas · 30 hari", rupiah(gmv30), "Biaya kanal BuatQris ikut tercatat", "text-ink"],
+          ["Transaksi lunas", String(counts.lunas), counts.lunas > 0 ? `rata-rata ${rupiah(Math.round(gmv30 / Math.max(counts.lunas, 1)))}` : "—", "text-ok"],
+          ["Pending", String(counts.pending), `${rupiah(pendingAmount)} belum dikonfirmasi`, "text-warn"],
+          ["Gagal", String(counts.gagal), "periksa webhook BuatQris bila naik", "text-bad"],
+        ].map(([l, v, d, c]) => (
+          <Card key={l}>
+            <div className="micro text-faint">{l}</div>
+            <div className={cx("tnum mt-1.5 text-[22px] font-bold", c)}>{v}</div>
+            <div className="tnum mt-1 text-[11.5px] text-faint">{d}</div>
+          </Card>
+        ))}
+      </div>
+
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <Tabs
+          active={tab}
+          onChange={(v) => {
+            setTab(v);
+            setPage(1);
+          }}
+          items={[
+            { id: "semua", label: "Semua", count: counts.semua },
+            { id: "lunas", label: "Lunas", count: counts.lunas },
+            { id: "pending", label: "Pending", count: counts.pending },
+            { id: "gagal", label: "Gagal", count: counts.gagal },
+          ]}
+        />
+        <div className="relative ml-auto w-full sm:w-52">
+          <Icon name="search" size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-faint" />
+          <Input
+            value={q}
+            onChange={(e) => {
+              setQ(e.target.value);
+              setPage(1);
+            }}
+            placeholder="Order / toko / item…"
+            className="h-10 pl-9"
+            aria-label="Cari transaksi"
+          />
+        </div>
+        <Select
+          value={method}
+          onChange={(e) => {
+            setMethod(e.target.value);
+            setPage(1);
+          }}
+          className="h-10"
+          aria-label="Filter kanal"
+        >
+          {methods.map((m) => (
+            <option key={m} value={m}>{m === "semua" ? "Semua kanal" : m}</option>
+          ))}
+        </Select>
+      </div>
 
       <Card pad={false}>
         {loading ? (
@@ -1127,55 +1242,47 @@ export function AdminPayments() {
             <Skeleton className="h-12 w-full" />
             <Skeleton className="h-12 w-full" />
           </div>
-        ) : filtered.length === 0 ? (
+        ) : pageRows.length === 0 ? (
           <div className="p-4 sm:p-5">
-            <EmptyState icon="checkCircle" title="Tidak ada masalah pembayaran" desc="Semua transaksi pada periode ini cocok dengan mutasi bank." />
+            <EmptyState icon="receipt" title="Tidak ada transaksi" desc="Ubah filter atau kata kunci pencarian." />
           </div>
         ) : (
           <TableWrap>
             <thead>
               <tr>
-                <Th>ID transaksi</Th>
+                <Th>Order</Th>
                 <Th>Toko</Th>
+                <Th>Item</Th>
                 <Th>Kanal</Th>
+                <Th className="hidden text-right md:table-cell">Total</Th>
+                <Th className="hidden text-right md:table-cell">Fee</Th>
+                <Th className="text-right">Bersih</Th>
                 <Th className="hidden md:table-cell">Waktu</Th>
-                <Th className="text-right">Nilai</Th>
-                <Th className="text-right">Biaya</Th>
                 <Th>Status</Th>
-                <Th className="text-right">Aksi</Th>
               </tr>
             </thead>
             <tbody>
-              {filtered.map((p) => (
+              {pageRows.map((p) => (
                 <tr key={p.id} className="transition-colors hover:bg-canvas/70">
                   <Td>
-                    <div className="tnum text-[13px] font-semibold">{p.external_ref ?? p.id.slice(0, 8).toUpperCase()}</div>
-                    <div className="tnum text-[12px] text-faint">{p.order_id}</div>
+                    <div className="tnum text-[13px] font-semibold">{p.order_id}</div>
+                    <div className="tnum text-[12px] text-faint">{(p.external_ref ?? p.id).slice(0, 18)}</div>
                   </Td>
                   <Td className="text-[13.5px]">{storeOf(p)}</Td>
+                  <Td className="max-w-52 truncate text-[12.5px] text-muted">{itemsByOrder[p.order_id] ?? "—"}</Td>
                   <Td>
                     <Badge tone={p.channel === "QRIS" ? "blue" : "gray"}>{p.channel}</Badge>
                   </Td>
+                  <Td className="tnum hidden text-right font-bold md:table-cell">{rupiah(Number(p.amount))}</Td>
+                  <Td className="tnum hidden text-right text-muted md:table-cell">{rupiah(Number(p.fee))}</Td>
+                  <Td className="tnum text-right font-bold text-ok">{rupiah(Number(p.amount) - Number(p.fee))}</Td>
                   <Td className="hidden text-[13px] text-muted md:table-cell">
                     {new Date(p.created_at).toLocaleString("id-ID", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
                   </Td>
-                  <Td className="tnum text-right font-bold">{rupiah(Number(p.amount))}</Td>
-                  <Td className="tnum text-right text-muted">{rupiah(Number(p.fee))}</Td>
                   <Td>
                     <Badge tone={statusTone(p.status)} dot>
                       {label(p.status)}
                     </Badge>
-                  </Td>
-                  <Td>
-                    <div className="flex justify-end">
-                      <Button
-                        size="sm"
-                        variant={p.status === "gagal" || p.status === "perlu_cek" ? "secondary" : "ghost"}
-                        onClick={() => navigate(`/admin/withdrawals`)}
-                      >
-                        Periksa
-                      </Button>
-                    </div>
                   </Td>
                 </tr>
               ))}
@@ -1183,10 +1290,15 @@ export function AdminPayments() {
           </TableWrap>
         )}
         <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3.5 text-[13px] text-muted sm:px-5">
-          <span>Total nilai pada tab ini</span>
-          <span className="tnum font-bold text-ink">
-            {rupiah(filtered.reduce((s, r) => s + Number(r.amount), 0))}
-          </span>
+          <span className="tnum">{filtered.length} transaksi · halaman {safePage}/{pages} · total {rupiah(filtered.reduce((s, r) => s + Number(r.amount), 0))}</span>
+          <div className="flex gap-1.5">
+            <Button size="sm" variant="secondary" disabled={safePage <= 1} onClick={() => setPage((x) => Math.max(1, x - 1))} aria-label="Sebelumnya">
+              <Icon name="left" size={14} />
+            </Button>
+            <Button size="sm" variant="secondary" disabled={safePage >= pages} onClick={() => setPage((x) => Math.min(pages, x + 1))} aria-label="Berikutnya">
+              <Icon name="right" size={14} />
+            </Button>
+          </div>
         </div>
       </Card>
     </AppShell>
@@ -1197,13 +1309,17 @@ export function AdminPayments() {
 export function AdminUsers() {
   const { toast } = useApp();
   const [q, setQ] = useState("");
+  const [role, setRole] = useState("semua");
   type URow = {
     id: string; email: string; last_sign_in: string | null; role: string;
     store_name: string; owner_name: string; city: string; plan: string; status: string;
+    phone: string; created_at: string | null;
   };
   const [rows, setRows] = useState<URow[]>([]);
   const [loading, setLoading] = useState(true);
   const [suspend, setSuspend] = useState<URow | null>(null);
+  const [resetLink, setResetLink] = useState<{ email: string; link: string } | null>(null);
+  const [resetting, setResetting] = useState<string | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -1233,9 +1349,19 @@ export function AdminUsers() {
     load();
   }, []);
 
-  const filtered = rows.filter(
-    (u) => u.owner_name.toLowerCase().includes(q.toLowerCase()) || u.email.toLowerCase().includes(q.toLowerCase()),
-  );
+  const filtered = rows.filter((u) => {
+    const s = q.trim().toLowerCase();
+    return (
+      (role === "semua" || u.role === role) &&
+      (s === "" ||
+        `${u.owner_name} ${u.email} ${u.phone} ${u.store_name}`.toLowerCase().includes(s))
+    );
+  });
+  const counts = {
+    semua: rows.length,
+    seller: rows.filter((u) => u.role === "seller").length,
+    admin: rows.filter((u) => u.role === "admin").length,
+  };
 
   const setStatus = async (row: URow, next: string) => {
     const prev = row.status;
@@ -1250,34 +1376,71 @@ export function AdminUsers() {
     toast("Status akun diperbarui.", next === "ditangguhkan" ? "warn" : "ok");
   };
 
+  const makeResetLink = async (row: URow) => {
+    setResetting(row.id);
+    try {
+      const { data: sess } = await supabase.auth.getSession();
+      const token = sess.session?.access_token;
+      if (!token) {
+        toast("Sesi berakhir. Masuk lagi.", "bad");
+        return;
+      }
+      const res = await fetch("/api/admin-users", {
+        method: "POST",
+        headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+        body: JSON.stringify({ user_id: row.id }),
+      });
+      const out = (await res.json()) as { reset_link?: string; error?: string };
+      if (!res.ok || !out.reset_link) {
+        toast(out.error ?? "Gagal membuat link reset.", "bad");
+        return;
+      }
+      setResetLink({ email: row.email, link: out.reset_link });
+    } catch {
+      toast("Tidak bisa menghubungi server.", "bad");
+    } finally {
+      setResetting(null);
+    }
+  };
+
+  const initials = (name: string) =>
+    name.split(" ").filter(Boolean).slice(0, 2).map((w) => w[0]).join("").toUpperCase() || "?";
+
   return (
     <AppShell group="admin">
       <PageHeader
         index="A07"
         kicker="Sistem"
         title="Pengguna & akun"
-        desc="Akun penjual, staf, dan admin. Peran menentukan halaman mana yang bisa dibuka."
-        actions={<Button onClick={() => toast("Formulir undangan staf dibuka.", "info")}>
-          <Icon name="plus" size={16} /> Undang pengguna
-        </Button>}
+        desc="Akun penjual dan admin platform. Pembeli tidak punya akun."
       />
 
-      <Card pad={false}>
-        <div className="border-b border-line p-4 sm:px-5">
-          <div className="relative">
-            <Icon name="search" size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-faint" />
-            <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cari nama atau email…" className="h-10 pl-9" />
-          </div>
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <Tabs
+          active={role}
+          onChange={setRole}
+          items={[
+            { id: "semua", label: "Semua", count: counts.semua },
+            { id: "seller", label: "Penjual", count: counts.seller },
+            { id: "admin", label: "Admin", count: counts.admin },
+          ]}
+        />
+        <div className="relative ml-auto w-full sm:w-64">
+          <Icon name="search" size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-faint" />
+          <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cari nama / email / toko…" className="h-10 pl-9" aria-label="Cari pengguna" />
         </div>
+      </div>
+
+      <Card pad={false}>
         <TableWrap>
           <thead>
             <tr>
-              <Th>ID</Th>
-              <Th>Nama</Th>
-              <Th>Email</Th>
+              <Th>Pengguna</Th>
+              <Th>Kontak</Th>
               <Th>Peran</Th>
-              <Th className="hidden md:table-cell">Terakhir aktif</Th>
               <Th>Status</Th>
+              <Th className="hidden md:table-cell">Login terakhir</Th>
+              <Th className="hidden md:table-cell">Bergabung</Th>
               <Th className="text-right">Aksi</Th>
             </tr>
           </thead>
@@ -1295,42 +1458,64 @@ export function AdminUsers() {
               <tr>
                 <td colSpan={7}>
                   <div className="p-4 sm:p-5">
-                    <EmptyState icon="users" title="Tidak ada pengguna" desc="Coba kata kunci lain." />
+                    <EmptyState icon="users" title="Tidak ada pengguna" desc="Coba kata kunci atau filter peran lain." />
                   </div>
                 </td>
               </tr>
             ) : (
               filtered.map((u) => (
               <tr key={u.id} className="transition-colors hover:bg-canvas/70">
-                <Td className="tnum text-[13px] text-muted">{u.id.slice(0, 8).toUpperCase()}</Td>
                 <Td>
-                  <div className="text-[13.5px] font-semibold">{u.owner_name}</div>
-                  <div className="text-[12px] text-faint">{u.store_name}</div>
+                  <div className="flex items-center gap-3">
+                    <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-navy-800 text-[11.5px] font-extrabold text-white">
+                      {initials(u.owner_name === "—" ? u.email : u.owner_name)}
+                    </span>
+                    <div className="min-w-0">
+                      <div className="truncate text-[13.5px] font-semibold">{u.owner_name}</div>
+                      <div className="truncate text-[12px] text-faint">{u.store_name}</div>
+                    </div>
+                  </div>
                 </Td>
-                <Td className="text-[13.5px] text-muted">{u.email}</Td>
+                <Td>
+                  <div className="truncate text-[13px] text-muted">{u.email}</div>
+                  <div className="tnum text-[12px] text-faint">{u.phone}</div>
+                </Td>
                 <Td>
                   <Badge tone={u.role === "admin" ? "navy" : "blue"}>{u.role === "admin" ? "Admin" : "Penjual"}</Badge>
-                </Td>
-                <Td className="hidden text-[13px] text-muted md:table-cell">
-                  {u.last_sign_in
-                    ? new Date(u.last_sign_in).toLocaleString("id-ID", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })
-                    : "Belum pernah"}
                 </Td>
                 <Td>
                   <Badge tone={statusTone(u.status)} dot>
                     {label(u.status)}
                   </Badge>
                 </Td>
+                <Td className="hidden text-[13px] text-muted md:table-cell">
+                  {u.last_sign_in
+                    ? new Date(u.last_sign_in).toLocaleString("id-ID", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })
+                    : "Belum pernah"}
+                </Td>
+                <Td className="hidden text-[13px] text-muted md:table-cell">
+                  {u.created_at
+                    ? new Date(u.created_at).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" })
+                    : "—"}
+                </Td>
                 <Td>
-                  <div className="flex justify-end gap-2">
+                  <div className="flex justify-end gap-1.5">
+                    {u.role !== "admin" && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setSuspend(u)}
+                      >
+                        {u.status === "ditangguhkan" ? "Aktifkan" : "Tangguhkan"}
+                      </Button>
+                    )}
                     <Button
                       size="sm"
-                      variant="ghost"
-                      onClick={() =>
-                        setStatus(u, u.status === "ditangguhkan" ? "aktif" : "ditangguhkan")
-                      }
+                      variant="secondary"
+                      loading={resetting === u.id}
+                      onClick={() => makeResetLink(u)}
                     >
-                      {u.status === "ditangguhkan" ? "Aktifkan" : "Tangguhkan"}
+                      <Icon name="lock" size={14} /> Reset kata sandi
                     </Button>
                   </div>
                 </Td>
@@ -1340,7 +1525,7 @@ export function AdminUsers() {
           </tbody>
         </TableWrap>
         <div className="px-4 py-3.5 text-[13px] text-muted sm:px-5">
-          {filtered.length} pengguna ditampilkan
+          {filtered.length} pengguna ditampilkan — akun dibuat saat seller mendaftar toko.
         </div>
       </Card>
 
@@ -1360,6 +1545,31 @@ export function AdminUsers() {
           setStatus(suspend, suspend.status === "ditangguhkan" ? "aktif" : "ditangguhkan");
         }}
       />
+
+      <Modal
+        open={!!resetLink}
+        onClose={() => setResetLink(null)}
+        title="Link reset kata sandi"
+        eyebrow={resetLink?.email ?? ""}
+        width="max-w-md"
+      >
+        <p className="text-[13.5px] leading-relaxed text-muted">
+          Kirim link sekali-pakai ini ke pengguna via WhatsApp/email. Berlaku terbatas — buat baru
+          bila kedaluwarsa.
+        </p>
+        <div className="tnum mt-3 break-all rounded-md border border-line bg-canvas p-3 text-[12px] text-ink">
+          {resetLink?.link}
+        </div>
+        <Button
+          className="mt-4 w-full"
+          onClick={() => {
+            if (resetLink && navigator.clipboard) navigator.clipboard.writeText(resetLink.link).catch(() => {});
+            toast("Link disalin.");
+          }}
+        >
+          <Icon name="copy" size={16} /> Salin link
+        </Button>
+      </Modal>
     </AppShell>
   );
 }

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, navigate } from "../lib/router";
+import { supabase } from "../lib/supabase";
 import { FAQ, SALES_30, DAY_LABELS } from "../lib/data";
 import { Logo, LogoMark, TagGlyph } from "../components/Logo";
 import { Badge, ButtonLink, Icon, PageShell, TagChip, cx } from "../components/ui";
@@ -211,6 +212,18 @@ function Header() {
 
 function Hero() {
   const [videoOk, setVideoOk] = useState(true);
+  // Jumlah toko asli (profiles boleh dibaca publik). Gagal → tampil "…".
+  const [storeCount, setStoreCount] = useState<number | null>(null);
+  useEffect(() => {
+    (async () => {
+      try {
+        const { count } = await supabase.from("profiles").select("id", { count: "exact", head: true });
+        if (typeof count === "number") setStoreCount(count);
+      } catch {
+        /* gagal → tetap "…" */
+      }
+    })();
+  }, []);
   return (
     <section className="relative isolate min-h-[640px] overflow-hidden bg-navy-900 lg:min-h-[760px]">
       {/* ---- video area (final file goes here) ---- */}
@@ -284,9 +297,9 @@ function Hero() {
 
             <dl className="mt-10 flex flex-wrap gap-x-8 gap-y-4 border-t border-white/15 pt-6">
               {[
-                ["4.820", "toko aktif"],
-                ["Rp12,8 M", "diproses tahun ini"],
-                ["10 menit", "rata-rata siap jualan"],
+                [storeCount != null ? storeCount.toLocaleString("id-ID") : "…", "toko aktif"],
+                ["8", "tema toko siap pakai"],
+                ["QRIS", "pembayaran otomatis"],
               ].map(([v, l]) => (
                 <div key={l}>
                   <dt className="tnum text-[22px] font-bold leading-none text-white">{v}</dt>
@@ -296,11 +309,11 @@ function Hero() {
             </dl>
           </div>
 
-          {/* floating live-order strip */}
+          {/* floating live-order strip — ilustrasi fitur notifikasi (bukan data sungguhan) */}
           <div className="hidden lg:col-span-5 lg:block">
             <div className="notch ml-auto max-w-[330px] border border-white/15 bg-white/10 p-5 backdrop-blur-md">
               <div className="micro flex items-center justify-between text-brand-300">
-                <span>Pesanan masuk</span>
+                <span>Contoh tampilan</span>
                 <span className="flex items-center gap-1.5">
                   <span className="pulse-dot relative h-1.5 w-1.5 rounded-full bg-brand-400 text-brand-400" />
                   langsung
@@ -309,20 +322,20 @@ function Hero() {
               <div className="mt-3 rounded-md bg-white p-3.5">
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <div className="tnum text-[13px] font-bold text-navy-800">TL-2502-0192</div>
-                    <div className="mt-0.5 text-[13px] text-muted">Rizky Maulana · Bandung</div>
+                    <div className="tnum text-[13px] font-bold text-navy-800">Pesanan baru masuk</div>
+                    <div className="mt-0.5 text-[13px] text-muted">Nama pembeli · kota</div>
                   </div>
                   <Badge tone="blue" dot>
                     Menunggu bayar
                   </Badge>
                 </div>
                 <div className="mt-3 flex items-center justify-between border-t border-linesoft pt-3">
-                  <span className="text-[12.5px] text-faint">2 × Kue Lapis Legit</span>
-                  <span className="tnum text-[15px] font-bold text-ink">Rp170.000</span>
+                  <span className="text-[12.5px] text-faint">2 × nama produk</span>
+                  <span className="text-[12.5px] font-semibold text-faint">total otomatis</span>
                 </div>
               </div>
               <ul className="mt-3 space-y-2 text-[13px] text-white/80">
-                {["Pembayaran QRIS diterima otomatis", "Nota dikirim ke WhatsApp pembeli"].map((t) => (
+                {["Notifikasi pesanan baru otomatis", "Status dibayar → dikemas → dikirim"].map((t) => (
                   <li key={t} className="flex items-start gap-2">
                     <Icon name="check" size={15} className="mt-0.5 shrink-0 text-brand-400" strokeWidth={2.4} />
                     {t}
@@ -401,7 +414,7 @@ function Produk() {
     {
       n: "03",
       icon: "qr",
-      t: "Bayar lewat QRIS atau transfer",
+      t: "Bayar lewat QRIS",
       d: "QR bisa dipindai dari layar HP atau dicetak untuk ditaruh di meja kasir.",
     },
     {
@@ -536,7 +549,7 @@ function Fitur() {
             lead="Bukan daftar panjang fitur yang jarang dibuka. Ini yang dipakai penjual setiap pagi."
           />
           <ButtonLink to="/register" variant="secondary" className="hidden sm:inline-flex">
-            Lihat semua fitur <Icon name="arrowRight" size={16} />
+            Coba gratis <Icon name="arrowRight" size={16} />
           </ButtonLink>
         </div>
 
@@ -626,18 +639,12 @@ export function QRMark({ size = 120, fg = "#061B45", bg = "transparent" }: { siz
 
 /* ---------------------------- 05 seller benefits -------------------------- */
 function Manfaat() {
-  const stats = [
-    ["62%", "pembeli datang dari tautan bio"],
-    ["3,8%", "rata-rata pengunjung jadi pesanan"],
-    ["2 hari", "rata-rata dana bisa ditarik"],
-    ["0,7%", "biaya QRIS paket gratis"],
-  ];
   return (
     <section id="manfaat" className="relative overflow-hidden bg-navy-900 py-20 lg:py-28">
       <div className="blueprint absolute inset-0 opacity-60" />
       <PageShell className="relative">
         <div className="grid gap-10 lg:grid-cols-12 lg:gap-14">
-          <div className="lg:col-span-5">
+          <div className="lg:col-span-7">
             <SectionHead
               dark
               index="05"
@@ -645,11 +652,11 @@ function Manfaat() {
               title="Yang paling terasa setelah pindah ke TokoLink."
               lead="Bukan sekadar tampil rapi. Pesanan jadi tertata, uang jadi terlacak, dan Anda berhenti menyalin-catat manual."
             />
-            <ul className="mt-7 space-y-3.5">
+            <ul className="mt-7 grid gap-x-8 gap-y-3.5 sm:grid-cols-2">
               {[
                 "Pembeli tidak perlu tanya harga satu-satu, semua sudah tertera.",
-                "Stok berkurang sendiri, jadi tidak ada pesanan dobel.",
-                "Rekap harian bisa dikirim ke WhatsApp Anda tiap malam.",
+                "Stok berkurang sendiri setiap ada pesanan.",
+                "Notifikasi pesanan baru langsung masuk.",
                 "Saldo bisa ditarik kapan saja, minimal Rp50.000.",
               ].map((t) => (
                 <li key={t} className="flex items-start gap-3 text-[14.5px] leading-relaxed text-white/78">
@@ -662,19 +669,17 @@ function Manfaat() {
             </ul>
           </div>
 
-          <div className="lg:col-span-7">
-            <div className="grid grid-cols-1 gap-px overflow-hidden rounded-xl border border-white/12 bg-white/12 sm:grid-cols-2">
-              {stats.map(([v, l], i) => (
-                <div key={l} className="bg-navy-900 p-6 lg:p-7">
-                  <div className="micro mb-3 text-brand-400">{String(i + 1).padStart(2, "0")}</div>
-                  <div className="tnum text-[36px] font-bold leading-none text-white lg:text-[42px]">{v}</div>
-                  <div className="mt-3 text-[14px] leading-snug text-white/65">{l}</div>
-                </div>
-              ))}
+          <div className="lg:col-span-5">
+            <div className="rounded-xl border border-white/12 bg-white/5 p-6 lg:p-7">
+              <div className="micro mb-3 text-brand-400">Cara bayar pembeli</div>
+              <div className="tnum text-[30px] font-bold leading-none text-white lg:text-[36px]">QRIS</div>
+              <div className="mt-3 text-[14px] leading-snug text-white/65">
+                Satu kode untuk semua e-wallet & m-banking. Status lunas tercatat otomatis, tanpa
+                cek mutasi manual.
+              </div>
             </div>
             <p className="mt-4 text-[12.5px] leading-relaxed text-white/60">
-              Angka diambil dari rata-rata toko aktif TokoLink, 90 hari terakhir. Hasil tiap toko bisa
-              berbeda.
+              Biaya kanal QRIS 0,7% berlaku di paket Gratis.
             </p>
           </div>
         </div>
@@ -769,7 +774,7 @@ function Analitik() {
               </div>
 
               <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line bg-canvas px-5 py-3">
-                <span className="text-[12.5px] text-muted">Diperbarui 12 Feb 2025, 09:44</span>
+                <span className="text-[12.5px] text-muted">Contoh tampilan — angka ilustrasi</span>
                 <span className="micro text-faint">Sumber: TokoLink Analytics</span>
               </div>
             </div>
@@ -824,7 +829,7 @@ function StorePreview() {
             </div>
           </div>
 
-          <div className="order-1 flex justify-center lg:order-2 lg:col-span-6">
+          <div className="order-1 flex flex-col items-center justify-center lg:order-2 lg:col-span-6">
             <div className="relative w-full max-w-[330px]">
               <div className="absolute -inset-4 -z-10 rounded-[42px] border border-line" />
               <div className="overflow-hidden rounded-[34px] border-[7px] border-navy-900 bg-white shadow-lift">
@@ -883,6 +888,7 @@ function StorePreview() {
                 </div>
               </div>
             </div>
+            <span className="micro mt-3 text-faint">Ilustrasi — bukan toko sungguhan</span>
           </div>
         </div>
       </PageShell>
@@ -893,6 +899,8 @@ function StorePreview() {
 /* -------------------------------- 08 pricing ------------------------------ */
 function Pricing() {
   const [yearly, setYearly] = useState(false);
+  // Hanya 2 paket yang alurnya benar-benar jalan: Gratis (langsung pakai)
+  // dan Premium (diajukan dari Pengaturan toko, diverifikasi admin).
   const plans = [
     {
       name: "Gratis",
@@ -900,7 +908,7 @@ function Pricing() {
       m: 0,
       y: 0,
       desc: "Untuk mulai jualan hari ini.",
-      feats: ["1 halaman toko", "Sampai 10 produk", "Biaya QRIS 0,7%", "Catatan pesanan & nota", "Bantuan lewat WhatsApp"],
+      feats: ["1 halaman toko", "Katalog produk", "Checkout QRIS (biaya 0,7%)", "8 tema toko", "Tautan bio & QR toko", "Catatan pesanan"],
       cta: "Buka toko gratis",
     },
     {
@@ -910,23 +918,12 @@ function Pricing() {
       y: 588000,
       desc: "Untuk toko yang sudah ramai.",
       feats: [
-        "Produk tanpa batas",
-        "Biaya QRIS 0,5%",
-        "Kode promo & diskon",
-        "Ganti tema & warna toko",
-        "Laporan bisa diunduh (Excel)",
-        "Bantuan prioritas",
+        "Semua fitur Gratis",
+        "Bantuan prioritas (WhatsApp & email)",
+        "Fitur baru lebih dulu",
+        "Diajukan dari Pengaturan toko",
       ],
       cta: "Pilih Premium",
-    },
-    {
-      name: "Bisnis",
-      pop: false,
-      m: 199000,
-      y: 1990000,
-      desc: "Untuk beberapa toko & tim.",
-      feats: ["Sampai 5 halaman toko", "5 akun karyawan", "Biaya QRIS 0,45%", "Rekap siap laporan pajak", "Kirim otomatis ke kurir"],
-      cta: "Hubungi kami",
     },
   ];
 
@@ -950,7 +947,7 @@ function Pricing() {
           </div>
         </div>
 
-        <div className="mt-10 grid gap-4 lg:grid-cols-3">
+        <div className="mt-10 grid gap-4 lg:grid-cols-2">
           {plans.map((p) => (
             <div
               key={p.name}
@@ -1013,9 +1010,9 @@ function Pricing() {
         </div>
 
         <p className="mt-6 text-center text-[13.5px] text-muted">
-          Sudah punya langganan? Semua paket bisa di-upgrade atau diturunkan kapan saja dari{" "}
+          Premium diajukan dari halaman Pengaturan toko setelah daftar — tim kami verifikasi manual.{" "}
           <button onClick={() => navigate("/login")} className="font-semibold text-brand-700 underline underline-offset-4">
-            halaman pengaturan
+            Masuk untuk mengajukan
           </button>
           .
         </p>
@@ -1065,11 +1062,25 @@ function Faq() {
                 </span>
                 <div>
                   <p className="text-[14px] leading-relaxed text-muted">
-                    Masih bingung? Tim kami balas di WhatsApp pada jam kerja, 08.00–20.00 WIB.
+                    Masih bingung? Chat WhatsApp (0851-9124-5042) atau email demotokolink@gmail.com —
+                    dibalas jam kerja, 08.00–20.00 WIB.
                   </p>
-                  <button className="mt-2 text-[13.5px] font-bold text-brand-700 underline underline-offset-4">
-                    Chat tim TokoLink
-                  </button>
+                  <div className="mt-2 flex flex-wrap gap-3">
+                    <a
+                      href="https://wa.me/6285191245042?text=Halo%20TokoLink%2C%20saya%20butuh%20bantuan."
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-[13.5px] font-bold text-brand-700 underline underline-offset-4"
+                    >
+                      Chat WhatsApp
+                    </a>
+                    <a
+                      href="mailto:demotokolink@gmail.com?subject=Bantuan%20TokoLink"
+                      className="text-[13.5px] font-bold text-brand-700 underline underline-offset-4"
+                    >
+                      Kirim email
+                    </a>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1171,47 +1182,55 @@ function CtaBand() {
 
 /* --------------------------------- footer --------------------------------- */
 function Footer() {
-  const cols = [
-    { t: "Produk", l: ["Halaman toko", "Keranjang & checkout", "QRIS", "Laporan jualan", "Kode promo"] },
-    { t: "Penjual", l: ["Buka toko gratis", "Panduan UMKM", "Contoh toko", "Biaya & penarikan", "Status layanan"] },
-    { t: "Bantuan", l: ["Pusat bantuan", "Panduan QRIS", "Hubungi WhatsApp", "Syarat layanan", "Kebijakan privasi"] },
-    { t: "Perusahaan", l: ["Tentang TokoLink", "Karier", "Blog", "Mitra agen", "Kontak"] },
-  ];
   return (
     <footer className="bg-navy-900 pt-12">
       <PageShell>
         <div className="grid gap-8 pb-10 lg:grid-cols-12">
-          <div className="lg:col-span-4">
+          <div className="lg:col-span-6">
             <Logo size={32} tone="dark" wordClass="text-brand-500" />
             <p className="mt-4 max-w-xs text-[14px] leading-relaxed text-white/60">
               Satu tautan untuk semua jualanmu. Dibuat untuk penjual kecil di Indonesia yang ingin
               terlihat rapi tanpa repot.
             </p>
-            <div className="mt-5 flex gap-2">
-              {["wa", "ig", "send"].map((i) => (
-                <span
-                  key={i}
-                  className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-md border border-white/15 text-white/70 transition-colors duration-150 hover:border-brand-400 hover:text-brand-400"
-                >
-                  <Icon name={i} size={17} />
-                </span>
-              ))}
-            </div>
           </div>
-          {cols.map((c) => (
-            <div key={c.t} className="lg:col-span-2">
-              <div className="micro mb-4 text-brand-400">{c.t}</div>
-              <ul className="space-y-2.5">
-                {c.l.map((l) => (
-                  <li key={l}>
-                    <button className="text-left text-[14px] text-white/65 transition-colors duration-150 hover:text-white">
-                      {l}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
+          <div className="lg:col-span-3">
+            <div className="micro mb-4 text-brand-400">Mulai</div>
+            <ul className="space-y-2.5">
+              <li>
+                <Link to="/register" className="text-left text-[14px] text-white/65 transition-colors duration-150 hover:text-white">
+                  Buka toko gratis
+                </Link>
+              </li>
+              <li>
+                <Link to="/login" className="text-left text-[14px] text-white/65 transition-colors duration-150 hover:text-white">
+                  Masuk
+                </Link>
+              </li>
+              <li>
+                <Link to="/legal/privacy" className="text-left text-[14px] text-white/65 transition-colors duration-150 hover:text-white">
+                  Kebijakan privasi
+                </Link>
+              </li>
+            </ul>
+          </div>
+          <div className="lg:col-span-3">
+            <div className="micro mb-4 text-brand-400">Bantuan</div>
+            <ul className="space-y-2.5">
+              <li>
+                <a
+                  href="mailto:demotokolink@gmail.com?subject=Bantuan%20TokoLink"
+                  className="text-left text-[14px] text-white/65 transition-colors duration-150 hover:text-white"
+                >
+                  Hubungi via email
+                </a>
+              </li>
+              <li>
+                <Link to="/s/demo-account" className="text-left text-[14px] text-white/65 transition-colors duration-150 hover:text-white">
+                  Contoh toko
+                </Link>
+              </li>
+            </ul>
+          </div>
         </div>
         <div className="border-t border-white/12 py-5">
           <span className="micro text-white/60">© 2026 TokoLink · All rights reserved</span>

@@ -28,6 +28,8 @@ Dia **paham konsep produk & bisnis dengan baik**, tapi **awam di detail
 implementasi teknis** (istilah database, network, dsb).
 
 Aturan komunikasi wajib (ini sering dilanggar sebelumnya — jangan diulang):
+0. **Jawaban harus TO THE POINT, SINGKAT, JELAS, MUDAH DIPAHAMI.** Kalau tidak
+   paham / ragu, WAJIB tanya dulu — jangan menebak lalu jalan terus.
 1. **Jawaban ke user harus singkat, padat, jelas.** Bahasa Indonesia
    sederhana, bukan jargon. Kalau harus pakai istilah teknis, kasih
    penjelasan 1 kalimat pendek, jangan ceramah panjang.

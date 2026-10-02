@@ -156,22 +156,31 @@ export async function signOut() {
 
 /** Bungkus halaman `/app/*`: belum login → redirect `/login`. */
 export function RequireAuth({ children }: { children: ReactNode }) {
-  const { session, loading } = useAuth();
+  const { session, loading, profile } = useAuth();
+  const suspended = !!profile && profile.status === "ditangguhkan";
   useEffect(() => {
-    if (!loading && !session) navigate("/login");
-  }, [loading, session]);
-  if (loading || !session) return null;
+    if (loading) return;
+    if (!session) navigate("/login");
+    else if (suspended) {
+      // Akun ditangguhkan admin → paksa keluar agar tidak bisa masuk lagi.
+      supabase.auth.signOut().then(() => navigate("/login"));
+    }
+  }, [loading, session, suspended]);
+  if (loading || !session || suspended) return null;
   return <>{children}</>;
 }
 
 /** Bungkus halaman `/admin/*`: belum login → `/login`, bukan admin → `/app`. */
 export function RequireAdmin({ children }: { children: ReactNode }) {
-  const { session, loading, role } = useAuth();
+  const { session, loading, role, profile } = useAuth();
+  const suspended = !!profile && profile.status === "ditangguhkan";
   useEffect(() => {
     if (loading) return;
     if (!session) navigate("/login");
-    else if (role !== "admin") navigate("/app");
-  }, [loading, session, role]);
-  if (loading || !session || role !== "admin") return null;
+    else if (suspended) {
+      supabase.auth.signOut().then(() => navigate("/login"));
+    } else if (role !== "admin") navigate("/app");
+  }, [loading, session, role, suspended]);
+  if (loading || !session || role !== "admin" || suspended) return null;
   return <>{children}</>;
 }

@@ -28,7 +28,6 @@ import { QRMark } from "./Landing";
 import { isEngineTheme } from "../storefront/registry";
 import { ENGINE_COMPONENTS } from "../storefront/themes";
 
-const SHIP = 10000;
 
 /* ------------------------------ shared chrome ----------------------------- */
 export type StoreProfile = {
@@ -683,9 +682,6 @@ export function StoreHome({ slug }: { slug: string }) {
               </span>
               {openNow === false ? "Tutup" : `Buka${todayHours ? ` · ${todayHours}` : ""}`}
             </span>
-            <span className="text-[13px] text-muted">
-              Pesanan sebelum 15.00 dikirim hari ini juga.
-            </span>
           </div>
 
           {/* bio links */}
@@ -825,7 +821,7 @@ export function StoreHome({ slug }: { slug: string }) {
                 </span>
               )}
               <span className="flex items-center gap-2">
-                <Icon name="truck" size={15} className="text-brand-500" /> GoSend · JNE · kirim sendiri
+                <Icon name="qr" size={15} className="text-brand-500" /> Bayar via QRIS
               </span>
             </div>
           </div>
@@ -1093,20 +1089,9 @@ export function ProductDetail({ id, slug }: { id: string; slug: string }) {
               </div>
             </div>
 
-            <div className="mt-4 space-y-2.5 rounded-lg border border-line bg-white p-4 text-[13.5px]">
-              {[
-                ["truck", "Pengiriman", "GoSend instan Rp18.000 · JNE reguler Rp10.000"],
-                ["clock", "Estimasi tiba", "Bandung hari ini · luar kota 2–3 hari"],
-                ["shield", "Garansi toko", "Barang rusak atau salah kirim diganti penuh"],
-              ].map(([i, t, d]) => (
-                <div key={t} className="flex gap-3">
-                  <Icon name={i} size={17} className="mt-0.5 shrink-0 text-brand-500" />
-                  <div>
-                    <span className="font-bold text-ink">{t}</span>
-                    <span className="text-muted"> — {d}</span>
-                  </div>
-                </div>
-              ))}
+            <div className="mt-4 flex items-center gap-2 rounded-lg border border-line bg-white px-4 py-3 text-[13px] text-muted">
+              <Icon name="qr" size={16} className="shrink-0 text-brand-500" />
+              Bayar via QRIS — status lunas tercatat otomatis.
             </div>
 
             <div className="mt-5">
@@ -1130,7 +1115,15 @@ export function ProductDetail({ id, slug }: { id: string; slug: string }) {
                 size="lg"
                 variant="secondary"
                 disabled={out}
-                onClick={() => toast("Membuka chat WhatsApp dengan detail pesanan…", "info")}
+                onClick={() => {
+                  const wa = normalizeWA(store?.wa_number ?? "");
+                  if (!wa) {
+                    toast("Nomor WhatsApp toko belum diatur.", "info");
+                    return;
+                  }
+                  const text = encodeURIComponent(`Halo ${store?.store_name ?? "toko"}, saya mau tanya: ${p?.name ?? ""} (${rupiah(p?.price ?? 0)}) — apakah ready?`);
+                  window.open(`https://wa.me/${wa}?text=${text}`, "_blank", "noopener,noreferrer");
+                }}
               >
                 <Icon name="wa" size={17} className="text-[#0a7a56]" /> Pesan via WhatsApp
               </Button>
@@ -1188,7 +1181,6 @@ function useTotals(promo: string | null) {
   const { cart } = useApp();
   const [items, setItems] = useState<{ p: Product; qty: number; sellerId: string }[]>([]);
   const [discount, setDiscount] = useState(0);
-  const [shipDisc, setShipDisc] = useState(0);
   const [promoNote, setPromoNote] = useState("");
   const [loading, setLoading] = useState(true);
 
@@ -1197,7 +1189,6 @@ function useTotals(promo: string | null) {
       if (cart.length === 0) {
         setItems([]);
         setDiscount(0);
-        setShipDisc(0);
         setPromoNote("");
         setLoading(false);
         return;
@@ -1219,7 +1210,6 @@ function useTotals(promo: string | null) {
       // kuota masih ada, subtotal seller tsb cukup (server cek ulang saat
       // create-order; di sini hanya untuk tampilan total).
       let disc = 0;
-      let sd = 0;
       let note = "";
       const code = (promo ?? "").trim();
       if (code && resolved.length > 0) {
@@ -1248,24 +1238,21 @@ function useTotals(promo: string | null) {
             disc = Math.min(Math.round(Number(match.value)), sellerSubtotal);
             note = `Potongan ${rupiah(Number(match.value))}.`;
           } else {
-            sd = Math.round(Number(match.value));
-            note = "Potongan ongkir dipakai.";
+            note = "Jenis kode ini sudah tidak dipakai.";
           }
         }
       }
       setDiscount(disc);
-      setShipDisc(sd);
       setPromoNote(note);
       setLoading(false);
     })();
   }, [cart, promo]);
 
   const subtotal = items.reduce((s, i) => s + i.p.price * i.qty, 0);
-  const baseShipping = subtotal === 0 ? 0 : subtotal >= 200000 ? 0 : SHIP;
-  const shipping = Math.max(0, baseShipping - shipDisc);
-  const total = subtotal - discount + shipping;
-  const promoValid = discount > 0 || shipDisc > 0;
-  return { items, subtotal, discount, shipping, total, promoNote, promoValid, loading };
+  // Tanpa ongkir: total = subtotal − diskon. Serah-terima diatur penjual & pembeli.
+  const total = subtotal - discount;
+  const promoValid = discount > 0;
+  return { items, subtotal, discount, total, promoNote, promoValid, loading };
 }
 
 /** Polling status order via RPC aman (id + token). Dipakai halaman
@@ -1365,7 +1352,7 @@ function useCartStore(items: { sellerId: string }[]) {
 
 export function Cart() {
   const { setQty, promo, setPromo, toast } = useApp();
-  const { items, subtotal, discount, shipping, total, promoNote, promoValid, loading } = useTotals(promo);
+  const { items, subtotal, discount, total, promoNote, promoValid, loading } = useTotals(promo);
   const store = useCartStore(items);
   const storeSlug = store?.store_slug || "";
   const [code, setCode] = useState("");
@@ -1513,12 +1500,6 @@ export function Cart() {
                       <dd className="tnum font-semibold text-ok">−{rupiah(discount)}</dd>
                     </div>
                   )}
-                  <div className="flex justify-between">
-                    <dt className="text-muted">Ongkos kirim</dt>
-                    <dd className="tnum font-semibold text-ink">
-                      {shipping === 0 ? <span className="text-ok">Gratis</span> : rupiah(shipping)}
-                    </dd>
-                  </div>
                 </dl>
                 <div className="mt-4 flex items-end justify-between border-t border-linesoft pt-4">
                   <span className="text-[14px] font-bold text-ink">Total bayar</span>
@@ -1528,7 +1509,7 @@ export function Cart() {
                   Lanjut ke pembayaran <Icon name="arrowRight" size={17} />
                 </ButtonLink>
                 <p className="mt-3 text-center text-[12.5px] leading-snug text-faint">
-                  Pembayaran diproses lewat QRIS. Barang dikirim setelah pembayaran terkonfirmasi.
+                  Pembayaran diproses lewat QRIS.
                 </p>
               </div>
             </aside>
@@ -1616,15 +1597,14 @@ function CityCombobox({ value, onChange }: { value: string; onChange: (v: string
 
 export function Checkout() {
   const { cart, toast, promo, clear } = useApp();
-  const { items, subtotal, discount, shipping, total } = useTotals(promo);
+  const { items, subtotal, discount, total } = useTotals(promo);
   const store = useCartStore(items);
   const [form, setForm] = useState({
     name: "",
     phone: "",
     addr: "",
-    city: "Bandung",
+    city: "",
     note: "",
-    ship: "Reguler (2–3 hari)",
     pay: "QRIS",
   });
   const [err, setErr] = useState<Record<string, string>>({});
@@ -1782,43 +1762,10 @@ export function Checkout() {
             </section>
 
             <section className="rounded-xl border border-line bg-white p-5">
-              <div className="micro mb-4 text-brand-600">02 / Pengiriman</div>
-              <div className="space-y-2.5">
-                {[
-                  ["Reguler (2–3 hari)", "JNE / J&T", shipping === 0 ? "Gratis" : rupiah(SHIP)],
-                  ["GoSend instan (hari ini)", "Kurir dalam kota", rupiah(18000)],
-                  ["Ambil sendiri di toko", "Jl. Cihampelas No. 28", "Gratis"],
-                ].map(([name, note, price]) => (
-                  <label
-                    key={name}
-                    className={cx(
-                      "flex cursor-pointer items-center gap-3 rounded-lg border p-3.5 transition-colors duration-150",
-                      form.ship === name ? "border-brand-500 bg-brand-50" : "border-line hover:border-brand-200",
-                    )}
-                  >
-                    <input
-                      type="radio"
-                      name="ship"
-                      checked={form.ship === name}
-                      onChange={() => set("ship", name)}
-                      className="h-4 w-4 accent-[#0A69C4]"
-                    />
-                    <span className="flex-1">
-                      <span className="block text-[14px] font-bold text-ink">{name}</span>
-                      <span className="block text-[12.5px] text-faint">{note}</span>
-                    </span>
-                    <span className="tnum text-[14px] font-semibold text-ink">{price}</span>
-                  </label>
-                ))}
-              </div>
-            </section>
-
-            <section className="rounded-xl border border-line bg-white p-5">
-              <div className="micro mb-4 text-brand-600">03 / Pembayaran</div>
+              <div className="micro mb-4 text-brand-600">02 / Pembayaran</div>
               <div className="grid gap-2.5 sm:grid-cols-2">
                 {[
                   ["QRIS", "qr", "Semua e-wallet & m-banking", "Biaya 0,7%"],
-                  ["Transfer bank", "wallet", "BCA / Mandiri / BRI", "Verifikasi manual"],
                 ].map(([name, icon, note, fee]) => (
                   <label
                     key={name}
@@ -1887,19 +1834,13 @@ export function Checkout() {
                     <dd className="tnum font-semibold text-ok">−{rupiah(discount)}</dd>
                   </div>
                 )}
-                <div className="flex justify-between">
-                  <dt className="text-muted">Ongkos kirim</dt>
-                  <dd className="tnum font-semibold text-ink">
-                    {shipping === 0 ? <span className="text-ok">Gratis</span> : rupiah(shipping)}
-                  </dd>
-                </div>
               </dl>
               <div className="mt-4 flex items-end justify-between border-t border-linesoft pt-4">
                 <span className="text-[14px] font-bold text-ink">Total bayar</span>
                 <span className="tnum text-[24px] font-bold leading-none text-brand-700">{rupiah(total)}</span>
               </div>
               <Button type="submit" size="lg" loading={loading} className="mt-5 w-full">
-                {loading ? "Menyiapkan…" : form.pay === "QRIS" ? "Bayar dengan QRIS" : "Buat pesanan"}
+                {loading ? "Menyiapkan…" : "Bayar dengan QRIS"}
               </Button>
               <p className="mt-3 text-center text-[12.5px] leading-snug text-faint">
                 Dengan melanjutkan Anda menyetujui aturan pembelian toko ini.
@@ -2119,7 +2060,7 @@ export function PaymentStatus({ orderId, token }: { orderId: string; token: stri
     { t: "Menunggu pembayaran", d: "QRIS dipindai, transaksi dibuat." },
     { t: "Pembayaran diterima", d: "Dana masuk ke saldo penjual." },
     { t: "Pesanan dikemas", d: `${order?.store ?? "Toko"} menyiapkan barang.` },
-    { t: "Siap dikirim", d: "Menunggu kurir menjemput paket." },
+    { t: "Siap dikirim", d: "Menunggu diserahkan ke pembeli." },
   ];
 
   if (loading) {
@@ -2314,7 +2255,7 @@ export function OrderSuccess({ orderId, token }: { orderId: string; token: strin
             </h1>
             <p className="mx-auto mt-2 max-w-md text-[14.5px] leading-relaxed text-muted">
               Pesanan <span className="tnum font-bold text-ink">{order.id}</span> sudah diteruskan ke
-              {order.store ?? "toko"}. Nota dikirim ke WhatsApp Anda.
+              {order.store ?? "toko"}. Simpan nomor pesanan untuk lacak status.
             </p>
 
             <div className="mt-6 rounded-lg border border-line bg-canvas p-4 text-left">
@@ -2450,7 +2391,7 @@ export function OrderTracking({ id }: { id: string }) {
     { t: "Pesanan dibuat", d: made, note: `Oleh ${order.buyer}${order.city ? `, ${order.city}` : ""}.` },
     { t: "Pembayaran diterima", d: done[1] ? made : "—", note: done[1] ? `Rp${Number(order.total).toLocaleString("id-ID")} lewat ${order.channel ?? "QRIS"}.` : "Menunggu pembayaran." },
     { t: "Dikemas penjual", d: done[2] ? made : "—", note: done[2] ? `Dikemas di ${order.store ?? "toko"}.` : "Menunggu pengemasan." },
-    { t: "Sedang dikirim", d: done[3] ? made : "—", note: done[3] ? "Paket menuju alamat penerima." : "Belum dikirim." },
+    { t: "Sedang dikirim", d: done[3] ? made : "—", note: done[3] ? "Pesanan dalam perjalanan ke penerima." : "Belum dikirim." },
     { t: "Selesai", d: done[4] ? made : "—", note: done[4] ? "Barang sudah diterima." : "Konfirmasi setelah barang diterima." },
   ];
   const badgeTone = order.status === "selesai" ? "green" : order.status === "batal" ? "red" : order.status === "menunggu" ? "amber" : "blue";

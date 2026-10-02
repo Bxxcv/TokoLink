@@ -1578,7 +1578,7 @@ export function Discount() {
           <FieldRow cols={2}>
             <Field label="Jenis potongan" required>
               <Select value={form.type} onChange={(e) => setForm((f) => ({ ...f, type: e.target.value }))}>
-                {["Persen", "Nominal", "Potongan ongkir"].map((t) => (
+                {["Persen", "Nominal"].map((t) => (
                   <option key={t}>{t}</option>
                 ))}
               </Select>
@@ -2033,11 +2033,11 @@ export function StoreSettings() {
   const [f, setF] = useState({
     name: "",
     slug: "",
-    cat: "Kue & Snack",
+    cat: "",
     city: "",
     phone: "",
-    bio: "Masakan rumahan dan bumbu jadi, dimasak pagi hari dikirim siang.",
-    address: "Jl. Cihampelas No. 28, Bandung 40131",
+    bio: "",
+    address: "",
   });
 
   // Muat sekali dari profiles.
@@ -2048,11 +2048,11 @@ export function StoreSettings() {
       ...x,
       name: profile?.store_name ?? "",
       slug: profile?.store_slug ?? "",
-      cat: profile?.category ?? x.cat,
+      cat: profile?.category ?? "",
       city: profile?.city ?? "",
       phone: profile?.wa_number ?? "",
-      bio: profile?.bio ?? x.bio,
-      address: profile?.address ?? x.address,
+      bio: profile?.bio ?? "",
+      address: profile?.address ?? "",
     }));
   }, [authLoading, profile]);
 
@@ -2099,12 +2099,6 @@ export function StoreSettings() {
       setSaving(false);
     }
   };
-  const [notifs, setNotifs] = useState([
-    { t: "Pesanan baru", d: "WhatsApp + notifikasi aplikasi", on: true },
-    { t: "Pembayaran diterima", d: "Notifikasi aplikasi", on: true },
-    { t: "Stok hampir habis", d: "WhatsApp", on: true },
-    { t: "Ringkasan jualan mingguan", d: "Email setiap Senin", on: false },
-  ]);
 
   return (
     <AppShell>
@@ -2112,7 +2106,7 @@ export function StoreSettings() {
         index="08"
         kicker="Pengaturan"
         title="Pengaturan toko"
-        desc="Informasi yang tampil di halaman publik dan dipakai untuk keperluan pengiriman."
+        desc="Informasi yang tampil di halaman publik toko Anda."
         actions={<Button onClick={save} loading={saving}>Simpan perubahan</Button>}
       />
 
@@ -2171,25 +2165,14 @@ export function StoreSettings() {
           </Card>
 
           <Card>
-            <CardHead title="Notifikasi" sub="Kapan TokoLink menghubungi Anda" icon="bell" />
-            <ul className="divide-y divide-linesoft">
-              {notifs.map((n) => (
-                <li key={n.t} className="flex items-center justify-between gap-4 py-3.5">
-                  <div>
-                    <div className="text-[14.5px] font-bold text-ink">{n.t}</div>
-                    <div className="text-[13px] text-muted">{n.d}</div>
-                  </div>
-                  <Toggle
-                    checked={n.on}
-                    onChange={(v) => {
-                      setNotifs((xs) => xs.map((x) => (x.t === n.t ? { ...x, on: v } : x)));
-                      toast("Preferensi notifikasi diperbarui.", "info");
-                    }}
-                    label={n.t}
-                  />
-                </li>
-              ))}
-            </ul>
+            <CardHead title="Notifikasi" sub="Semua kabar pesanan masuk ke halaman Notifikasi" icon="bell" />
+            <p className="text-[13.5px] leading-relaxed text-muted">
+              Pesanan baru, pembayaran lunas, dan stok menipis tercatat otomatis dan bisa dibaca
+              kapan saja — tanpa perlu mengaktifkan apa pun.
+            </p>
+            <ButtonLink to="/app/notifications" variant="secondary" className="mt-3">
+              Buka Notifikasi
+            </ButtonLink>
           </Card>
 
           <Card className="border-[#F6CFCF]">
@@ -2214,21 +2197,37 @@ export function StoreSettings() {
         <aside className="space-y-4 lg:sticky lg:top-24 lg:self-start">
           <div className="notch rounded-xl border border-line bg-navy-900 p-5 text-white">
             <div className="micro text-brand-300">Paket saat ini</div>
-            <div className="mt-2 flex items-baseline gap-2">
-              <span className="text-[24px] font-extrabold">Premium</span>
-              <span className="tnum text-[15px] text-white/60">Rp59.000/bln</span>
-            </div>
-            <p className="mt-2 text-[13px] leading-relaxed text-white/65">
-              Perpanjang otomatis 12 Mar 2025. Biaya QRIS 0,5% dan laporan bisa diunduh.
-            </p>
+            {(profile?.plan ?? "gratis") === "premium" ? (
+              <>
+                <div className="mt-2 flex items-baseline gap-2">
+                  <span className="text-[24px] font-extrabold">Premium</span>
+                  <span className="tnum text-[15px] text-white/60">Rp59.000/bln</span>
+                </div>
+                <p className="mt-2 text-[13px] leading-relaxed text-white/65">
+                  Bantuan prioritas via WhatsApp & email, plus akses fitur baru lebih dulu.
+                </p>
+              </>
+            ) : (
+              <>
+                <div className="mt-2 flex items-baseline gap-2">
+                  <span className="text-[24px] font-extrabold">Gratis</span>
+                  <span className="tnum text-[15px] text-white/60">Rp0</span>
+                </div>
+                <p className="mt-2 text-[13px] leading-relaxed text-white/65">
+                  Naik ke Premium untuk bantuan prioritas & akses fitur baru lebih dulu.
+                </p>
+              </>
+            )}
             <Segmented
               items={["Bulanan", "Tahunan"]}
               active={plan}
               onChange={(v) => {
                 setPlan(v);
-                toast(`Paket diubah ke ${v}. Selisih tagihan dihitung otomatis.`, "info");
               }}
             />
+            <div className="tnum mt-2 text-[13px] text-white/60">
+              {plan === "Tahunan" ? "Rp588.000/tahun" : "Rp59.000/bulan"}
+            </div>
             <Button
               className="mt-3 w-full bg-brand-500! text-navy-900! hover:bg-brand-400!"
               onClick={async () => {
@@ -2241,7 +2240,7 @@ export function StoreSettings() {
                 const { error } = await supabase.from("premium_requests").insert({
                   seller_id: user.id,
                   plan: isYearly ? "Premium Tahunan" : "Premium Bulanan",
-                  amount: isYearly ? 590000 : 59000,
+                  amount: isYearly ? 588000 : 59000,
                   proof_channel: "Menunggu bukti",
                   status: "menunggu",
                 });
@@ -2507,10 +2506,9 @@ export function AccountSettings() {
             <CardHead title="Keamanan akun" icon="shield" />
             <div className="flex items-center justify-between gap-4">
               <div>
-                <div className="text-[14.5px] font-bold text-ink">Verifikasi lewat WhatsApp</div>
-                <p className="text-[13px] text-muted">Diminta saat login dari perangkat baru.</p>
+                <div className="text-[14.5px] font-bold text-ink">Kata sandi</div>
+                <p className="text-[13px] text-muted">Ganti berkala dari bagian profil di atas.</p>
               </div>
-              <Badge tone="gray">Segera hadir</Badge>
             </div>
           </Card>
 

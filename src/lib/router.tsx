@@ -2,8 +2,12 @@ import { useCallback, useEffect, useState, type ReactNode } from "react";
 
 export function currentPath(): string {
   const raw = window.location.hash.replace(/^#/, "");
-  if (!raw) return "/";
-  return raw.startsWith("/") ? raw : "/" + raw;
+  if (raw) return raw.startsWith("/") ? raw : "/" + raw;
+  // QR/link toko memakai path (/s/slug) tanpa hash — kalau hash kosong,
+  // baca pathname supaya hasil scan langsung membuka tokonya (bukan beranda).
+  // (Request /api/* tidak pernah sampai ke SPA — ditangani serverless.)
+  const p = window.location.pathname;
+  return p && p !== "/" ? p : "/";
 }
 
 export function navigate(to: string) {

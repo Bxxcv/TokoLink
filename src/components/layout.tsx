@@ -1,8 +1,9 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import clsx from "clsx";
 import { Link, navigate, useRoute } from "../lib/router";
 import { signOut, useAuth } from "../lib/auth";
 import { useApp } from "../lib/data";
+import { supabase } from "../lib/supabase";
 import { Logo, LogoMark } from "./Logo";
 import { Avatar, Badge, ButtonLink, Dropdown, Icon, cx } from "./ui";
 
@@ -23,7 +24,7 @@ export const SELLER_NAV: NavGroup[] = [
   {
     title: "Jualan",
     items: [
-      { label: "Pesanan", to: "/app/orders", icon: "receipt", badge: 3 },
+      { label: "Pesanan", to: "/app/orders", icon: "receipt" },
       { label: "Produk", to: "/app/products", icon: "box" },
       { label: "Kode promo", to: "/app/discount", icon: "tag" },
     ],
@@ -65,8 +66,8 @@ export const ADMIN_NAV: NavGroup[] = [
     title: "Operasi",
     items: [
       { label: "Kelola penjual", to: "/admin/sellers", icon: "store" },
-      { label: "Permintaan Premium", to: "/admin/premium", icon: "star", badge: 2 },
-      { label: "Penarikan dana", to: "/admin/withdrawals", icon: "wallet", badge: 1 },
+      { label: "Permintaan Premium", to: "/admin/premium", icon: "star" },
+      { label: "Penarikan dana", to: "/admin/withdrawals", icon: "wallet" },
       { label: "Pemantauan bayar", to: "/admin/payments", icon: "receipt" },
     ],
   },
@@ -82,6 +83,45 @@ export const ADMIN_NAV: NavGroup[] = [
 function navActive(path: string, to: string) {
   if (to === "/app" || to === "/admin") return path === to;
   return path === to || path.startsWith(to + "/");
+}
+
+/**
+ * Angka badge asli: pesanan aktif seller (belum selesai/batal) dan
+ * antrean admin (premium + penarikan menunggu). Gagal/0 → badge hilang.
+ */
+function useBadges(admin: boolean) {
+  const { user } = useAuth();
+  const [orders, setOrders] = useState(0);
+  const [urgent, setUrgent] = useState(0);
+  const [premium, setPremium] = useState(0);
+  const [withdraw, setWithdraw] = useState(0);
+
+  useEffect(() => {
+    if (!user) return;
+    (async () => {
+      try {
+        if (admin) {
+          const [pr, wd] = await Promise.all([
+            supabase.from("premium_requests").select("id", { count: "exact", head: true }).eq("status", "menunggu"),
+            supabase.from("withdrawals").select("id", { count: "exact", head: true }).in("status", ["menunggu", "diproses"]),
+          ]);
+          setPremium(pr.count ?? 0);
+          setWithdraw(wd.count ?? 0);
+        } else {
+          const [act, urg] = await Promise.all([
+            supabase.from("orders").select("id", { count: "exact", head: true }).eq("seller_id", user.id).in("status", ["menunggu", "dikemas", "dikirim"]),
+            supabase.from("orders").select("id", { count: "exact", head: true }).eq("seller_id", user.id).in("status", ["menunggu", "dikemas"]),
+          ]);
+          setOrders(act.count ?? 0);
+          setUrgent(urg.count ?? 0);
+        }
+      } catch {
+        /* gagal → badge disembunyikan */
+      }
+    })();
+  }, [user?.id, admin]);
+
+  return { orders, urgent, premium, withdraw };
 }
 
 function NavList({ groups, path, onNavigate }: { groups: NavGroup[]; path: string; onNavigate?: () => void }) {
@@ -159,7 +199,18 @@ export function AppShell({
 }) {
   const path = useRoute();
   const admin = group === "admin";
-  const groups = admin ? ADMIN_NAV : SELLER_NAV;
+  const { orders, urgent, premium, withdraw } = useBadges(admin);
+  // Tempelkan angka asli ke item nav (0 → badge hilang, bukan angka palsu).
+  const groups = (admin ? ADMIN_NAV : SELLER_NAV).map((g) => ({
+    ...g,
+    items: g.items.map((it) => {
+      if (!admin && it.to === "/app/orders") return orders > 0 ? { ...it, badge: orders } : it;
+      if (admin && it.to === "/admin/premium") return premium > 0 ? { ...it, badge: premium } : it;
+      if (admin && it.to === "/admin/withdrawals") return withdraw > 0 ? { ...it, badge: withdraw } : it;
+      return it;
+    }),
+  }));
+  const bellCount = admin ? premium + withdraw : urgent;
   const [sheet, setSheet] = useState(false);
   const { toast } = useApp();
   const { profile } = useAuth();
@@ -197,11 +248,11 @@ export function AppShell({
           <NavList groups={groups} path={path} />
         </div>
         <div className="border-t border-line p-3">
-          {!admin && (
+          {!admin && (profile?.plan ?? "gratis") !== "premium" && (
             <div className="notch mb-3 bg-navy-800 p-3.5">
               <div className="micro text-brand-300">Paket Premium</div>
               <p className="mt-1 text-[13px] font-semibold leading-snug text-white">
-                Biaya QRIS tinggal 0,5% dan laporan bisa diunduh.
+                Bantuan prioritas & akses fitur baru lebih dulu.
               </p>
               <button
                 onClick={() => {
@@ -290,13 +341,15 @@ export function AppShell({
 
             <Link
               to={admin ? "/admin/system" : "/app/notifications"}
-              aria-label="Notifikasi"
+              aria-label={bellCount > 0 ? `${bellCount} notifikasi` : "Notifikasi"}
               className="relative rounded-md border border-line p-2 text-muted transition-colors hover:bg-canvas hover:text-brand-700"
             >
               <Icon name="bell" size={18} />
-              <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-bad px-1 text-[10px] font-bold leading-none text-white">
-                3
-              </span>
+              {bellCount > 0 && (
+                <span className="tnum absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-bad px-1 text-[10px] font-bold leading-none text-white">
+                  {bellCount}
+                </span>
+              )}
             </Link>
 
             <span className="hidden sm:block">
@@ -400,7 +453,7 @@ export function AppShell({
                 <div className="truncate text-[12px] text-faint">{admin ? "Super admin" : "Pemilik toko"}</div>
               </div>
               <Badge tone="blue" dot>
-                {admin ? "Admin" : "Premium"}
+                {admin ? "Admin" : (profile?.plan ?? "gratis") === "premium" ? "Premium" : "Gratis"}
               </Badge>
             </div>
             <button
