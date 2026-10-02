@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useState, type React
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "./supabase";
 import { navigate } from "./router";
+import { isOwnerEmail } from "./admin";
 
 export type Role = "seller" | "admin";
 
@@ -35,6 +36,8 @@ type AuthState = {
   user: User | null;
   profile: Profile | null;
   role: Role | null;
+  /** true kalau email login ada di daftar `VITE_OWNER_EMAILS` (pemilik platform). */
+  isOwner: boolean;
   loading: boolean;
   /** Muat ulang row `profiles` (dipakai setelah simpan pengaturan). */
   refresh: () => Promise<void>;
@@ -45,6 +48,7 @@ const AuthCtx = createContext<AuthState>({
   user: null,
   profile: null,
   role: null,
+  isOwner: false,
   loading: true,
   refresh: async () => {},
 });
@@ -104,6 +108,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     user: null,
     profile: null,
     role: null,
+    isOwner: false,
     loading: true,
     refresh: async () => {},
   });
@@ -122,13 +127,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const applySession = async (session: Session | null) => {
       if (!alive) return;
       if (!session) {
-        setState((prev) => ({ session: null, user: null, profile: null, role: null, loading: false, refresh: prev.refresh }));
+        setState((prev) => ({ session: null, user: null, profile: null, role: null, isOwner: false, loading: false, refresh: prev.refresh }));
         return;
       }
       setState((prev) => ({ ...prev, session, user: session.user, loading: true }));
       const profile = await ensureProfile(session.user.id, draftFromUser(session.user));
       if (!alive) return;
-      setState((prev) => ({ session, user: session.user, profile, role: profile?.role ?? null, loading: false, refresh: prev.refresh }));
+      setState((prev) => ({
+        session,
+        user: session.user,
+        profile,
+        role: profile?.role ?? null,
+        isOwner: isOwnerEmail(session.user.email),
+        loading: false,
+        refresh: prev.refresh,
+      }));
     };
 
     supabase.auth.getSession().then(({ data }) => applySession(data.session));
@@ -164,14 +177,22 @@ export function RequireAuth({ children }: { children: ReactNode }) {
   return <>{children}</>;
 }
 
-/** Bungkus halaman `/admin/*`: belum login → `/login`, bukan admin → `/app`. */
+/**
+ * Bungkus halaman `/admin/*`. Syarat berturut-turut:
+ *   1. belum login                        → `/login`
+ *   2. bukan role admin                   → `/app`
+ *   3. email tidak ada di VITE_OWNER_EMAILS → `/app`  (panel khusus pemilik)
+ * Catatan: ini gerbang UI. Data tetap dijaga RLS + policy is_admin() di
+ * database, jadi admin lain tetap tidak bisa baca walau memaksa URL.
+ */
 export function RequireAdmin({ children }: { children: ReactNode }) {
-  const { session, loading, role } = useAuth();
+  const { session, loading, role, isOwner } = useAuth();
+  const allowed = !!session && role === "admin" && isOwner;
   useEffect(() => {
     if (loading) return;
     if (!session) navigate("/login");
-    else if (role !== "admin") navigate("/app");
-  }, [loading, session, role]);
-  if (loading || !session || role !== "admin") return null;
+    else if (role !== "admin" || !isOwner) navigate("/app");
+  }, [loading, session, role, isOwner]);
+  if (loading || !allowed) return null;
   return <>{children}</>;
 }

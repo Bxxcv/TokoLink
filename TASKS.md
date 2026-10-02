@@ -56,13 +56,20 @@ Lihat `schema.sql` untuk nama tabel/kolom yang benar dan `AGENTS.md` untuk atura
 - [ ] `StoreSettings` & `AccountSettings`: update `profiles`
 
 ## Fase 6 — Admin Master
-- [ ] `AdminHome`, `AdminSellers`, `AdminAnalytics`: query agregat dari `profiles`,
+- [x] `AdminHome`, `AdminSellers`, `AdminAnalytics`: query agregat dari `profiles`,
       `orders`, `payments` (hanya bisa diakses `role = 'admin'`)
-- [ ] `AdminPremium`: CRUD `premium_requests`, approve → update `profiles.plan`
-- [ ] `AdminPayments`: list `payments` semua seller
-- [ ] `AdminUsers`: list semua `profiles` (gabung dengan `auth.users` untuk email)
-- [ ] `AdminSystem`: **tanya user dulu** apa isinya sebelum implementasi (belum
-      jelas dari mock data)
+- [x] `AdminPremium`: CRUD `premium_requests`, approve → update `profiles.plan`
+- [x] `AdminPayments`: list `payments` semua seller
+- [x] `AdminUsers`: list semua `profiles` (gabung dengan `auth.users` untuk email)
+- [x] `AdminSystem`: tersimpan ke tabel `platform_settings` (fee, limit, kanal
+      bayar, mode pemeliharaan) + log audit aksi admin
+- [x] Gerbang pemilik: `/admin/*` hanya untuk email di `VITE_OWNER_EMAILS`
+      (server: `OWNER_EMAILS` pada `api/admin-users.ts`)
+
+> Panel admin bersifat **khusus pemilik**. Migrasi wajib sebelum dipakai:
+> `database/migrate_fase6_admin.sql` (tabel `platform_settings` +
+> `admin_audit_log`). Tanpa migrasi itu, bagian pengaturan sistem tetap tampil
+> dengan nilai bawaan dan tombol simpan akan menampilkan pesan gagal.
 
 ## Fase 7 — Deploy
 - [ ] Setup project Vercel, hubungkan repo GitHub

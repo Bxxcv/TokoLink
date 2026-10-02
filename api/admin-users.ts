@@ -26,6 +26,16 @@ export default async function handler(req: any, res: any) {
     return res.status(403).json({ error: "Khusus admin." });
   }
 
+  // Gerbang pemilik: kalau OWNER_EMAILS diset, hanya email itu yang boleh
+  // membaca daftar pengguna (panel admin khusus pemilik). Kosong = semua admin.
+  const owners = (process.env.OWNER_EMAILS ?? "")
+    .split(",")
+    .map((x) => x.trim().toLowerCase())
+    .filter(Boolean);
+  if (owners.length && !owners.includes((me.user.email ?? "").toLowerCase())) {
+    return res.status(403).json({ error: "Panel ini khusus pemilik platform." });
+  }
+
   const { data: usersData, error } = await db.auth.admin.listUsers();
   if (error) return res.status(500).json({ error: "Gagal memuat pengguna." });
   const { data: profiles } = await db.from("profiles").select("*").order("created_at", { ascending: false });

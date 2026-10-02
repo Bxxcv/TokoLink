@@ -2,6 +2,15 @@ import { useEffect, useState } from "react";
 import { navigate } from "../lib/router";
 import { supabase } from "../lib/supabase";
 import {
+  DEFAULT_SETTINGS,
+  loadAudit,
+  loadSettings,
+  logAudit,
+  saveSettings,
+  type AuditRow,
+  type Settings,
+} from "../lib/admin";
+import {
   rupiah,
   rupiahShort,
   useApp,
@@ -392,6 +401,10 @@ export function AdminSellers() {
       next === "ditangguhkan" ? `${row.store_name ?? "Toko"} ditangguhkan.` : `${row.store_name ?? "Toko"} diaktifkan kembali.`,
       next === "ditangguhkan" ? "warn" : "ok",
     );
+    void logAudit(
+      next === "ditangguhkan" ? `Menangguhkan toko ${row.store_name ?? "Tanpa nama"}` : `Mengaktifkan toko ${row.store_name ?? "Tanpa nama"}`,
+      row.id,
+    );
   };
 
   const rows = sellers.filter(
@@ -618,6 +631,7 @@ export function AdminPremium() {
       return;
     }
     toast("Permintaan Premium disetujui. Akses langsung aktif.");
+    void logAudit(`Menyetujui Premium ${storeOf(row)}`, row.id, row.plan);
   };
 
   const doReject = async () => {
@@ -635,6 +649,7 @@ export function AdminPremium() {
       return;
     }
     toast("Permintaan ditolak dan penjual diberi tahu.", "warn");
+    void logAudit(`Menolak Premium ${storeOf(reject)}`, reject.id, reject.plan);
   };
 
   const filtered = list.filter((l) => (filter === "Semua" ? true : l.status === "menunggu"));
@@ -942,6 +957,11 @@ export function AdminWithdrawals() {
             want === "diproses" ? "Penarikan masuk antrean transfer." : want === "selesai" ? "Penarikan selesai, saldo berkurang." : "Penarikan ditolak.",
             want === "ditolak" ? "warn" : "ok",
           );
+          void logAudit(
+            want === "diproses" ? "Memproses penarikan" : want === "selesai" ? "Menyelesaikan penarikan" : "Menolak penarikan",
+            target.id,
+            `${target.bank} · ${rupiah(Number(target.amount))}`,
+          );
         }}
       />
     </AppShell>
@@ -1248,6 +1268,7 @@ export function AdminUsers() {
       return;
     }
     toast("Status akun diperbarui.", next === "ditangguhkan" ? "warn" : "ok");
+    void logAudit(next === "ditangguhkan" ? `Menangguhkan akun ${row.email}` : `Mengaktifkan akun ${row.email}`, row.id);
   };
 
   return (
@@ -1365,18 +1386,114 @@ export function AdminUsers() {
 }
 
 /* ============================ SYSTEM SETTINGS ============================ */
+type Channel = { t: string; d: string; on: boolean };
+
+const parseChannels = (raw: string): Channel[] => {
+  try {
+    const v = JSON.parse(raw) as Channel[];
+    if (Array.isArray(v) && v.length) return v;
+  } catch {
+    /* nilai rusak → pakai default */
+  }
+  return JSON.parse(DEFAULT_SETTINGS.channels) as Channel[];
+};
+
 export function AdminSystem() {
   const { toast } = useApp();
-  const [maintenance, setMaintenance] = useState(false);
-  const [fee, setFee] = useState("0,7");
-  const [minWithdraw, setMinWithdraw] = useState("50000");
+  const [s, setS] = useState<Settings>(DEFAULT_SETTINGS);
+  const [channels, setChannels] = useState<Channel[]>(parseChannels(DEFAULT_SETTINGS.channels));
+  const [audit, setAudit] = useState<AuditRow[]>([]);
+  const [health, setHealth] = useState<{ label: string; pct: number }[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [close, setClose] = useState(false);
-  const [channels, setChannels] = useState([
-    { t: "QRIS", d: "Semua e-wallet dan m-banking", on: true },
-    { t: "Transfer bank manual", d: "Verifikasi otomatis via rekening bersama", on: true },
-    { t: "Dompet digital (GoPay, OVO, DANA)", d: "Sedang uji coba", on: false },
-    { t: "Bayar di tempat (COD)", d: "Baru untuk Jawa & Bali", on: false },
-  ]);
+
+  const maintenanceOn = !!s.maintenance_until && new Date(s.maintenance_until).getTime() > Date.now();
+
+  const load = async () => {
+    setLoading(true);
+    const [cfg, log, month] = await Promise.all([
+      loadSettings(),
+      loadAudit(6),
+      Promise.resolve(new Date(Date.now() - 30 * 86400000).toISOString()),
+    ]);
+    setS(cfg);
+    setChannels(parseChannels(cfg.channels));
+    setAudit(log);
+
+    const [{ data: pays }, { data: orders }, { data: wds }] = await Promise.all([
+      supabase.from("payments").select("status").gte("created_at", month),
+      supabase.from("orders").select("status").gte("created_at", month),
+      supabase.from("withdrawals").select("status"),
+    ]);
+    const pct = (ok: number, total: number) => (total > 0 ? Math.round((ok / total) * 1000) / 10 : 0);
+    const payRows = (pays ?? []) as { status: string }[];
+    const ordRows = (orders ?? []) as { status: string }[];
+    const wdRows = (wds ?? []) as { status: string }[];
+    setHealth([
+      { label: "Pembayaran berhasil", pct: pct(payRows.filter((p) => p.status === "berhasil").length, payRows.filter((p) => p.status !== "menunggu").length) },
+      { label: "Pesanan tuntas", pct: pct(ordRows.filter((o) => o.status === "selesai").length, ordRows.filter((o) => o.status !== "batal").length) },
+      { label: "Penarikan selesai", pct: pct(wdRows.filter((w) => w.status === "selesai").length, wdRows.length) },
+    ]);
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    load();
+  }, []);
+
+  const set = (k: keyof Settings, v: string) => setS((prev) => ({ ...prev, [k]: v }));
+
+  const simpan = async () => {
+    setSaving(true);
+    const ok = await saveSettings({
+      fee_qris_pct: s.fee_qris_pct,
+      min_withdraw: s.min_withdraw,
+      auto_withdraw_limit: s.auto_withdraw_limit,
+      bank_fee: s.bank_fee,
+      promo_max_days: s.promo_max_days,
+    });
+    await logAudit("Mengubah pengaturan sistem", "platform_settings", `Fee QRIS ${s.fee_qris_pct}% · min tarik Rp${s.min_withdraw}`);
+    setSaving(false);
+    if (!ok) {
+      toast("Gagal menyimpan. Cek apakah migrasi Fase 6 sudah dijalankan.", "bad");
+      return;
+    }
+    toast("Pengaturan sistem disimpan dan masuk log audit.");
+    setAudit(await loadAudit(6));
+  };
+
+  const toggleChannel = async (c: Channel, on: boolean) => {
+    const next = channels.map((x) => (x.t === c.t ? { ...x, on } : x));
+    setChannels(next);
+    const ok = await saveSettings({ channels: JSON.stringify(next) });
+    await logAudit(`${on ? "Mengaktifkan" : "Menonaktifkan"} kanal ${c.t}`, "platform_settings");
+    if (!ok) {
+      setChannels(channels);
+      toast("Gagal memperbarui kanal pembayaran.", "bad");
+      return;
+    }
+    toast("Kanal pembayaran diperbarui.", "info");
+    setAudit(await loadAudit(6));
+  };
+
+  const setMaintenance = async (on: boolean) => {
+    const value = on ? new Date(Date.now() + 10 * 60000).toISOString() : "";
+    const prev = s.maintenance_until;
+    setS((x) => ({ ...x, maintenance_until: value }));
+    const ok = await saveSettings({ maintenance_until: value });
+    await logAudit(on ? "Mengaktifkan mode pemeliharaan" : "Mengakhiri mode pemeliharaan", "platform_settings", on ? "10 menit" : undefined);
+    if (!ok) {
+      setS((x) => ({ ...x, maintenance_until: prev }));
+      toast("Gagal mengubah mode pemeliharaan.", "bad");
+      return;
+    }
+    toast(on ? "Mode pemeliharaan aktif selama 10 menit." : "Mode pemeliharaan diakhiri.", on ? "warn" : "ok");
+    setAudit(await loadAudit(6));
+  };
+
+  const when = (iso: string) =>
+    new Date(iso).toLocaleString("id-ID", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 
   return (
     <AppShell group="admin">
@@ -1385,40 +1502,54 @@ export function AdminSystem() {
         kicker="Sistem"
         title="Pengaturan sistem"
         desc="Parameter platform. Perubahan berlaku untuk transaksi baru setelah disimpan."
-        actions={<Button onClick={() => toast("Pengaturan sistem disimpan dan masuk log audit.")}>Simpan pengaturan</Button>}
+        actions={
+          <Button onClick={simpan} disabled={saving || loading}>
+            {saving ? "Menyimpan…" : "Simpan pengaturan"}
+          </Button>
+        }
       />
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
         <div className="space-y-4">
           <Card>
             <CardHead title="Biaya & limit" sub="Berlaku untuk seluruh penjual" icon="wallet" />
-            <FieldRow cols={3}>
-              <Field label="Biaya layanan QRIS (%)" hint="Saat ini 0,7%">
-                <Input value={fee} onChange={(e) => setFee(e.target.value)} className="tnum" />
-              </Field>
-              <Field label="Minimum penarikan (Rp)">
-                <Input value={minWithdraw} onChange={(e) => setMinWithdraw(e.target.value.replace(/\D/g, ""))} className="tnum" />
-              </Field>
-              <Field label="Batas penarikan otomatis (Rp)">
-                <Input defaultValue="5000000" className="tnum" />
-              </Field>
-            </FieldRow>
-            <div className="mt-4 grid gap-4 sm:grid-cols-2">
-              <Field label="Biaya transfer bank">
-                <Select defaultValue="Rp6.500">
-                  <option>Rp6.500</option>
-                  <option>Gratis</option>
-                  <option>Rp10.000</option>
-                </Select>
-              </Field>
-              <Field label="Masa berlaku kode promo maksimal">
-                <Select defaultValue="90 hari">
-                  <option>30 hari</option>
-                  <option>90 hari</option>
-                  <option>Tanpa batas</option>
-                </Select>
-              </Field>
-            </div>
+            {loading ? (
+              <div className="grid gap-4 sm:grid-cols-3">
+                <Skeleton className="h-11" />
+                <Skeleton className="h-11" />
+                <Skeleton className="h-11" />
+              </div>
+            ) : (
+              <>
+                <FieldRow cols={3}>
+                  <Field label="Biaya layanan QRIS (%)" hint="Saat ini 0,7%">
+                    <Input value={s.fee_qris_pct} onChange={(e) => set("fee_qris_pct", e.target.value)} className="tnum" />
+                  </Field>
+                  <Field label="Minimum penarikan (Rp)">
+                    <Input value={s.min_withdraw} onChange={(e) => set("min_withdraw", e.target.value.replace(/\D/g, ""))} className="tnum" />
+                  </Field>
+                  <Field label="Batas penarikan otomatis (Rp)">
+                    <Input value={s.auto_withdraw_limit} onChange={(e) => set("auto_withdraw_limit", e.target.value.replace(/\D/g, ""))} className="tnum" />
+                  </Field>
+                </FieldRow>
+                <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                  <Field label="Biaya transfer bank">
+                    <Select value={s.bank_fee} onChange={(e) => set("bank_fee", e.target.value)}>
+                      <option>Rp6.500</option>
+                      <option>Gratis</option>
+                      <option>Rp10.000</option>
+                    </Select>
+                  </Field>
+                  <Field label="Masa berlaku kode promo maksimal">
+                    <Select value={s.promo_max_days} onChange={(e) => set("promo_max_days", e.target.value)}>
+                      <option>30 hari</option>
+                      <option>90 hari</option>
+                      <option>Tanpa batas</option>
+                    </Select>
+                  </Field>
+                </div>
+              </>
+            )}
           </Card>
 
           <Card>
@@ -1432,10 +1563,7 @@ export function AdminSystem() {
                   </div>
                   <Toggle
                     checked={c.on}
-                    onChange={(v) => {
-                      setChannels((xs) => xs.map((x) => (x.t === c.t ? { ...x, on: v } : x)));
-                      toast("Kanal pembayaran diperbarui.", "info");
-                    }}
+                    onChange={(v) => toggleChannel(c, v)}
                     label={c.t}
                   />
                 </li>
@@ -1447,13 +1575,13 @@ export function AdminSystem() {
             <CardHead title="Mode pemeliharaan" sub="Saat aktif, penjual tidak bisa masuk selama 10 menit" icon="alert" />
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center gap-3">
-                <Badge tone={maintenance ? "red" : "green"} dot>
-                  {maintenance ? "Pemeliharaan aktif" : "Layanan normal"}
+                <Badge tone={maintenanceOn ? "red" : "green"} dot>
+                  {maintenanceOn ? "Pemeliharaan aktif" : "Layanan normal"}
                 </Badge>
                 <span className="text-[13.5px] text-muted">Pembeli tetap bisa membuka toko.</span>
               </div>
               <Button variant="danger" onClick={() => setClose(true)}>
-                {maintenance ? "Akhiri mode pemeliharaan" : "Aktifkan mode pemeliharaan"}
+                {maintenanceOn ? "Akhiri mode pemeliharaan" : "Aktifkan mode pemeliharaan"}
               </Button>
             </div>
           </Card>
@@ -1462,43 +1590,50 @@ export function AdminSystem() {
         <aside className="space-y-4 lg:sticky lg:top-24 lg:self-start">
           <Card>
             <CardHead title="Log audit terakhir" icon="shield" />
-            <ul className="space-y-3.5">
-              {[
-                ["Dwi Handoko", "Menyetujui PRM-0089", "12 Feb 08:31"],
-                ["Sari Utami", "Mengubah biaya QRIS 0,75% → 0,7%", "11 Feb 16:04"],
-                ["Dwi Handoko", "Menangguhkan SLR-0127", "10 Feb 11:22"],
-                ["Sistem", "Sinkronisasi bank selesai", "10 Feb 04:00"],
-              ].map(([who, what, when]) => (
-                <li key={what} className="flex gap-3">
-                  <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-brand-500" />
-                  <div>
-                    <div className="text-[13.5px] font-semibold text-ink">{what}</div>
-                    <div className="text-[12.5px] text-faint">
-                      {who} · {when}
+            {loading ? (
+              <div className="space-y-3">
+                <Skeleton className="h-9" />
+                <Skeleton className="h-9" />
+              </div>
+            ) : audit.length === 0 ? (
+              <p className="text-[13px] text-muted">Belum ada aksi tercatat.</p>
+            ) : (
+              <ul className="space-y-3.5">
+                {audit.map((a) => (
+                  <li key={a.id} className="flex gap-3">
+                    <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-brand-500" />
+                    <div>
+                      <div className="text-[13.5px] font-semibold text-ink">{a.action}</div>
+                      <div className="text-[12.5px] text-faint">
+                        {a.actor_name ?? "Admin"} · {when(a.created_at)}
+                      </div>
                     </div>
-                  </div>
-                </li>
-              ))}
-            </ul>
+                  </li>
+                ))}
+              </ul>
+            )}
           </Card>
 
           <Card>
-            <CardHead title="Status layanan" icon="info" />
-            <ul className="space-y-2.5 text-[13.5px]">
-              {[
-                ["API publik", "99,98%"],
-                ["Webhook pembayaran", "99,91%"],
-                ["Pengiriman notifikasi", "99,72%"],
-              ].map(([k, v]) => (
-                <li key={k}>
-                  <div className="mb-1 flex justify-between">
-                    <span className="text-muted">{k}</span>
-                    <span className="tnum font-semibold text-ok">{v}</span>
-                  </div>
-                  <Progress value={parseFloat(v.replace("%", "").replace(",", "."))} tone="ok" />
-                </li>
-              ))}
-            </ul>
+            <CardHead title="Status layanan" sub="30 hari terakhir" icon="info" />
+            {loading ? (
+              <div className="space-y-3">
+                <Skeleton className="h-9" />
+                <Skeleton className="h-9" />
+              </div>
+            ) : (
+              <ul className="space-y-2.5 text-[13.5px]">
+                {health.map((h) => (
+                  <li key={h.label}>
+                    <div className="mb-1 flex justify-between">
+                      <span className="text-muted">{h.label}</span>
+                      <span className="tnum font-semibold text-ok">{h.pct.toFixed(1).replace(".", ",")}%</span>
+                    </div>
+                    <Progress value={h.pct} tone="ok" />
+                  </li>
+                ))}
+              </ul>
+            )}
           </Card>
         </aside>
       </div>
@@ -1506,17 +1641,18 @@ export function AdminSystem() {
       <ConfirmDialog
         open={close}
         onClose={() => setClose(false)}
-        title={maintenance ? "Akhiri mode pemeliharaan?" : "Aktifkan mode pemeliharaan?"}
+        title={maintenanceOn ? "Akhiri mode pemeliharaan?" : "Aktifkan mode pemeliharaan?"}
         body={
-          maintenance
+          maintenanceOn
             ? "Seluruh penjual bisa masuk kembali dan transaksi berjalan normal."
             : "Penjual tidak bisa masuk ke dasbor selama 10 menit. Halaman toko dan checkout tetap berjalan untuk pembeli."
         }
-        confirmLabel={maintenance ? "Akhiri" : "Aktifkan 10 menit"}
-        tone={maintenance ? "primary" : "danger"}
+        confirmLabel={maintenanceOn ? "Akhiri" : "Aktifkan 10 menit"}
+        tone={maintenanceOn ? "primary" : "danger"}
         onConfirm={() => {
-          setMaintenance((m) => !m);
-          toast(maintenance ? "Mode pemeliharaan diakhiri." : "Mode pemeliharaan aktif selama 10 menit.", maintenance ? "ok" : "warn");
+          const next = !maintenanceOn;
+          setClose(false);
+          setMaintenance(next);
         }}
       />
     </AppShell>

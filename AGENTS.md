@@ -61,6 +61,11 @@ src/
                       # AdminUsers, AdminSystem
 ```
 
+Panel `/admin/*` adalah **panel khusus pemilik**: selain `role = 'admin'`,
+email login harus ada di `VITE_OWNER_EMAILS` (dan `OWNER_EMAILS` di server).
+Pengaturan sistem hidup di tabel `platform_settings`, jejak aksi admin di
+`admin_audit_log` (lihat `database/migrate_fase6_admin.sql`).
+
 Backend: Supabase (Postgres + Auth + Storage + Realtime). Payment: **BuatQris**
 (QRIS). Deploy: Vercel. Referensi keamanan (wajib direplikasi, standar dari
 produk lama NiagaBio):
