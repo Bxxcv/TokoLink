@@ -85,16 +85,19 @@ export function AdminHome() {
     { id: string; channel: string; amount: number | string; fee: number | string; status: string; seller: string }[]
   >([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    (async () => {
+  const load = async () => {
+    setLoading(true);
+    setError(null);
+    try {
       const now = new Date();
       const startMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
       const startDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
       const weekAgo = new Date(now.getTime() - 7 * 86400000).toISOString();
       const monthAgo = new Date(now.getTime() - 30 * 86400000).toISOString();
 
-      const [{ count: sellers }, { data: profs }, { data: orders }, { data: pays }, { data: prems }, { data: wds }, { data: recent }] =
+      const [{ count: sellers, error: e1 }, { data: profs, error: e2 }, { data: orders, error: e3 }, { data: pays, error: e4 }, { data: prems, error: e5 }, { data: wds, error: e6 }, { data: recent, error: e7 }] =
         await Promise.all([
           supabase.from("profiles").select("id", { count: "exact", head: true }),
           supabase.from("profiles").select("created_at").gte("created_at", weekAgo),
@@ -108,6 +111,8 @@ export function AdminHome() {
             .order("created_at", { ascending: false })
             .limit(5),
         ]);
+      const firstErr = e1 ?? e2 ?? e3 ?? e4 ?? e5 ?? e6 ?? e7;
+      if (firstErr) throw firstErr;
       const ord = (orders ?? []) as { total: number | string; status: string; created_at: string }[];
       const pay = (pays ?? []) as { status: string; fee: number | string; created_at: string }[];
       const gmvMonth = ord
@@ -151,8 +156,15 @@ export function AdminHome() {
           seller: Array.isArray(r.profiles) ? (r.profiles[0]?.store_name ?? "Toko") : (r.profiles?.store_name ?? "Toko"),
         })),
       );
+    } catch {
+      setError("Gagal memuat ringkasan platform. Periksa koneksi lalu coba lagi.");
+    } finally {
       setLoading(false);
-    })();
+    }
+  };
+
+  useEffect(() => {
+    load();
   }, []);
 
   const pendingTotal = stats.premiumWait + stats.wdWait;
@@ -171,6 +183,15 @@ export function AdminHome() {
           </Button>
         }
       />
+
+      {error && (
+        <div className="mb-4 flex flex-col gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-[13.5px] text-red-800 sm:flex-row sm:items-center">
+          <span className="flex-1">{error}</span>
+          <Button size="sm" variant="secondary" onClick={load}>
+            Coba lagi
+          </Button>
+        </div>
+      )}
 
       <div className="mb-4 flex flex-col gap-3 rounded-xl border border-line bg-navy-900 p-4 text-white sm:flex-row sm:items-center">
         <div className="flex items-center gap-3">
@@ -269,24 +290,6 @@ export function AdminHome() {
               </li>
             ))}
           </ul>
-
-          <div className="mt-5 border-t border-linesoft pt-4">
-            <div className="micro mb-3 text-faint">Status sistem</div>
-            <ul className="space-y-2.5 text-[13px]">
-              {[
-                ["Gateway QRIS", "normal"],
-                ["Sinkronisasi bank", "normal"],
-                ["Notifikasi WhatsApp", "terlambat 3 mnt"],
-              ].map(([k, v]) => (
-                <li key={k} className="flex items-center justify-between">
-                  <span className="text-muted">{k}</span>
-                  <Badge tone={v === "normal" ? "green" : "amber"} dot>
-                    {v}
-                  </Badge>
-                </li>
-              ))}
-            </ul>
-          </div>
         </Card>
       </div>
 
@@ -315,7 +318,29 @@ export function AdminHome() {
             </tr>
           </thead>
           <tbody>
-            {recentPays.map((p) => (
+            {loading ? (
+              <tr>
+                <td colSpan={6}>
+                  <div className="space-y-2 px-4 py-3 sm:px-5">
+                    <Skeleton className="h-10 w-full" />
+                    <Skeleton className="h-10 w-full" />
+                  </div>
+                </td>
+              </tr>
+            ) : recentPays.length === 0 ? (
+              <tr>
+                <td colSpan={6}>
+                  <div className="p-4 sm:p-5">
+                    <EmptyState
+                      icon="receipt"
+                      title="Belum ada transaksi"
+                      desc="Transaksi pembayaran dari seluruh toko akan muncul di sini."
+                    />
+                  </div>
+                </td>
+              </tr>
+            ) : (
+            recentPays.map((p) => (
               <tr key={p.id} className="transition-colors hover:bg-canvas/70">
                 <Td className="tnum text-[13px] font-semibold">{p.id.slice(0, 8).toUpperCase()}</Td>
                 <Td className="text-[13.5px]">{p.seller}</Td>
@@ -330,7 +355,7 @@ export function AdminHome() {
                   </Badge>
                 </Td>
               </tr>
-            ))}
+            )))}
           </tbody>
         </TableWrap>
       </Card>
@@ -350,28 +375,37 @@ export function AdminSellers() {
   const [sellers, setSellers] = useState<SellerRow[]>([]);
   const [agg, setAgg] = useState<Map<string, { sales: number; orders: number }>>(new Map());
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [detail, setDetail] = useState<SellerRow | null>(null);
   const [suspend, setSuspend] = useState<SellerRow | null>(null);
 
   const load = async () => {
     setLoading(true);
-    const { data: profs } = await supabase
-      .from("profiles")
-      .select("id,store_name,owner_name,city,plan,status,created_at")
-      .eq("role", "seller")
-      .order("created_at", { ascending: false });
-    const rows = ((profs ?? []) as SellerRow[]);
-    setSellers(rows);
-    const { data: orders } = await supabase.from("orders").select("seller_id,total");
-    const map = new Map<string, { sales: number; orders: number }>();
-    ((orders ?? []) as { seller_id: string; total: number | string }[]).forEach((o) => {
-      const cur = map.get(o.seller_id) ?? { sales: 0, orders: 0 };
-      cur.sales += Number(o.total);
-      cur.orders += 1;
-      map.set(o.seller_id, cur);
-    });
-    setAgg(map);
-    setLoading(false);
+    setLoadError(null);
+    try {
+      const { data: profs, error: e1 } = await supabase
+        .from("profiles")
+        .select("id,store_name,owner_name,city,plan,status,created_at")
+        .eq("role", "seller")
+        .order("created_at", { ascending: false });
+      if (e1) throw e1;
+      const rows = ((profs ?? []) as SellerRow[]);
+      setSellers(rows);
+      const { data: orders, error: e2 } = await supabase.from("orders").select("seller_id,total");
+      if (e2) throw e2;
+      const map = new Map<string, { sales: number; orders: number }>();
+      ((orders ?? []) as { seller_id: string; total: number | string }[]).forEach((o) => {
+        const cur = map.get(o.seller_id) ?? { sales: 0, orders: 0 };
+        cur.sales += Number(o.total);
+        cur.orders += 1;
+        map.set(o.seller_id, cur);
+      });
+      setAgg(map);
+    } catch {
+      setLoadError("Gagal memuat daftar penjual. Periksa koneksi lalu coba lagi.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -420,6 +454,15 @@ export function AdminSellers() {
         <StatCard label="Perlu verifikasi" value={String(sellers.filter((s) => s.status === "belum_verifikasi").length)} hint="lewat 1×24 jam" loading={loading} />
         <StatCard label="Ditangguhkan" value={String(sellers.filter((s) => s.status === "ditangguhkan").length)} hint="pelanggaran kebijakan" loading={loading} />
       </div>
+
+      {loadError && (
+        <div className="mb-4 flex flex-col gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-[13.5px] text-red-800 sm:flex-row sm:items-center">
+          <span className="flex-1">{loadError}</span>
+          <Button size="sm" variant="secondary" onClick={load}>
+            Coba lagi
+          </Button>
+        </div>
+      )}
 
       <Card pad={false}>
         <div className="flex flex-col gap-3 border-b border-line p-4 sm:flex-row sm:items-center sm:px-5">
@@ -953,18 +996,27 @@ export function AdminAnalytics() {
   const [stats, setStats] = useState({
     gmv: 0, fee: 0, sellers: 0, premium: 0, gratis: 0,
     daily: [] as number[], weekly: [] as { label: string; value: number }[],
+    channels: [] as { label: string; value: number }[],
   });
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    (async () => {
+  const load = async () => {
+    setLoading(true);
+    setError(null);
+    try {
       const now = new Date();
-      const { data: orders } = await supabase.from("orders").select("total,created_at");
-      const { data: pays } = await supabase.from("payments").select("fee,created_at");
-      const { data: profs } = await supabase.from("profiles").select("plan,created_at").eq("role", "seller");
+      const startMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+      const { data: orders, error: e1 } = await supabase.from("orders").select("total,created_at");
+      if (e1) throw e1;
+      const { data: pays, error: e2 } = await supabase.from("payments").select("channel,amount,fee,created_at");
+      if (e2) throw e2;
+      const { data: profs, error: e3 } = await supabase.from("profiles").select("plan,created_at").eq("role", "seller");
+      if (e3) throw e3;
       const ord = ((orders ?? []) as { total: number | string; created_at: string }[]);
+      const payRows = ((pays ?? []) as { channel: string; amount: number | string; fee: number | string; created_at: string }[]);
       const gmv = ord.reduce((s, o) => s + Number(o.total), 0);
-      const fee = ((pays ?? []) as { fee: number | string }[]).reduce((s, p) => s + Number(p.fee), 0);
+      const fee = payRows.reduce((s, p) => s + Number(p.fee), 0);
       const sellers = (profs ?? []).length;
       const premium = (profs ?? []).filter((p) => (p as { plan: string }).plan === "premium").length;
       const daily: number[] = [];
@@ -986,9 +1038,26 @@ export function AdminAnalytics() {
           }).length,
         };
       });
-      setStats({ gmv, fee, sellers, premium, gratis: sellers - premium, daily, weekly });
+      const byChannel = new Map<string, number>();
+      payRows
+        .filter((p) => new Date(p.created_at) >= startMonth)
+        .forEach((p) => {
+          const key = p.channel || "Lainnya";
+          byChannel.set(key, (byChannel.get(key) ?? 0) + Number(p.amount));
+        });
+      const channels = [...byChannel.entries()]
+        .map(([label, value]) => ({ label, value: Math.round(value) }))
+        .sort((a, b) => b.value - a.value);
+      setStats({ gmv, fee, sellers, premium, gratis: sellers - premium, daily, weekly, channels });
+    } catch {
+      setError("Gagal memuat analitik platform. Periksa koneksi lalu coba lagi.");
+    } finally {
       setLoading(false);
-    })();
+    }
+  };
+
+  useEffect(() => {
+    load();
   }, []);
 
   const avg = stats.sellers ? stats.gmv / stats.sellers : 0;
@@ -1001,6 +1070,15 @@ export function AdminAnalytics() {
         desc="Kesehatan bisnis TokoLink: pertumbuhan penjual, nilai transaksi, dan pendapatan layanan."
         actions={<Segmented items={["30 hari", "Kuartal", "Tahunan"]} active="30 hari" onChange={() => {}} />}
       />
+
+      {error && (
+        <div className="mb-4 flex flex-col gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-[13.5px] text-red-800 sm:flex-row sm:items-center">
+          <span className="flex-1">{error}</span>
+          <Button size="sm" variant="secondary" onClick={load}>
+            Coba lagi
+          </Button>
+        </div>
+      )}
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard label="GMV kumulatif" value={rupiahShort(stats.gmv)} hint="semua waktu" loading={loading} />
@@ -1041,15 +1119,24 @@ export function AdminAnalytics() {
       <div className="mt-4 grid gap-4 lg:grid-cols-2">
         <Card>
           <ChartFrame title="Kanal pembayaran" hint="Nilai transaksi bulan ini">
-            <BarRows
-              data={[
-                { label: "QRIS", value: 942000000 },
-                { label: "Transfer bank", value: 318000000 },
-                { label: "Dompet digital", value: 146000000 },
-                { label: "COD (uji coba)", value: 14000000 },
-              ]}
-              format={rupiahShort}
-            />
+            {loading ? (
+              <div className="flex h-[120px] items-end gap-2">
+                {[0, 1, 2].map((i) => (
+                  <div key={i} className="skeleton flex-1 rounded-t-md" style={{ height: `${50 + i * 15}%` }} />
+                ))}
+              </div>
+            ) : stats.channels.length === 0 ? (
+              <EmptyState
+                icon="receipt"
+                title="Belum ada transaksi bulan ini"
+                desc="Rincian per kanal pembayaran akan muncul di sini setelah ada pembayaran."
+              />
+            ) : (
+              <BarRows
+                data={stats.channels}
+                format={rupiahShort}
+              />
+            )}
           </ChartFrame>
         </Card>
 

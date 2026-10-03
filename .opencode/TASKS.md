@@ -167,8 +167,13 @@ DeepSeek yang sudah ditolak) — dipakai sebagai acuan IA & dasar
 bangun ulang tampilannya dari nol pakai komponen kita sendiri
 (`components/ui.tsx`, `AppShell`), JANGAN import/tempel kode dari
 referensi itu.
-- [ ] `AdminHome`, `AdminSellers`, `AdminAnalytics`: agregat dari
+- [x] `AdminHome`, `AdminSellers`, `AdminAnalytics`: agregat dari
       `profiles`, `orders`, `payments`, akses `role='admin'` saja.
+      **Selesai 3 Okt 2026:** ketiganya sudah query real + loading/empty/
+      error state; `AdminHome` blok "Status sistem" karangan dihapus;
+      `AdminAnalytics` "Kanal pembayaran" sekarang agregat real per
+      `payments.channel` bulan berjalan (sebelumnya 4 angka hardcode).
+      Akses dibatasi `RequireAdmin` (`src/App.tsx`) + RLS `is_admin()`.
 - [ ] `AdminPremium`: CRUD `premium_requests`, approve → update
       `profiles.plan` + catat `log_admin_action('approve_premium', ...)`.
 - [ ] `AdminWithdrawals`: update status withdrawal + catat
