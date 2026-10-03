@@ -6,6 +6,7 @@ import { useAuth } from "../lib/auth";
 import { digitsOnly, formatRibuan, isValidWA, normalizeWA } from "../lib/format";
 import { detectLinkIcon, iconForLink } from "../lib/links";
 import { uploadImage } from "../lib/storage";
+import { buildNotifications, getReadIds, markRead as markReadLib, type NotifItem } from "../lib/notifications";
 import {
   rupiah,
   useApp,
@@ -2580,72 +2581,20 @@ export function AccountSettings() {
 export function Notifications() {
   const { toast } = useApp();
   const { user } = useAuth();
-  type NItem = {
-    id: string; title: string; body: string; time: string;
-    tone: "ok" | "warn" | "info"; kind: "order" | "system"; link?: string; linkLabel?: string;
-  };
-  const [items, setItems] = useState<NItem[]>([]);
+  const [items, setItems] = useState<NotifItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [read, setRead] = useState<string[]>(() => {
-    try {
-      return JSON.parse(localStorage.getItem("tl_notif_read") ?? "[]");
-    } catch {
-      return [];
-    }
-  });
+  const [read, setRead] = useState<string[]>(() => getReadIds());
   const [tab, setTab] = useState("semua");
 
   useEffect(() => {
     if (!user) return;
     (async () => {
-      const [{ data: orders }, { data: wds }, { data: prods }] = await Promise.all([
-        supabase.from("orders").select("id,buyer_name,total,status,created_at").eq("seller_id", user.id).order("created_at", { ascending: false }).limit(15),
-        supabase.from("withdrawals").select("id,amount,status,created_at").eq("seller_id", user.id).order("created_at", { ascending: false }).limit(5),
-        supabase.from("products").select("id,name,stock").eq("seller_id", user.id).eq("status", "aktif"),
-      ]);
-      const fmt = (iso: string) =>
-        new Date(iso).toLocaleString("id-ID", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
-      const list: NItem[] = [];
-      ((orders ?? []) as { id: string; buyer_name: string; total: number | string; status: string; created_at: string }[]).forEach((o) => {
-        if (o.status === "menunggu")
-          list.push({ id: `o-${o.id}`, title: `Pesanan baru ${o.id}`, body: `${o.buyer_name} · ${rupiah(Number(o.total))} menunggu bayar.`, time: fmt(o.created_at), tone: "warn", kind: "order", link: `/app/orders/${o.id}`, linkLabel: "Lihat pesanan" });
-        else if (o.status === "dikemas")
-          list.push({ id: `o-${o.id}`, title: `Siap dikirim ${o.id}`, body: `${o.buyer_name} sudah bayar, segera kemas.`, time: fmt(o.created_at), tone: "info", kind: "order", link: `/app/orders/${o.id}`, linkLabel: "Lihat pesanan" });
-        else if (o.status === "selesai")
-          list.push({ id: `o-${o.id}`, title: `Pesanan selesai ${o.id}`, body: `${rupiah(Number(o.total))} masuk saldo.`, time: fmt(o.created_at), tone: "ok", kind: "order", link: `/app/orders/${o.id}`, linkLabel: "Lihat pesanan" });
-        else if (o.status === "batal")
-          list.push({ id: `o-${o.id}`, title: `Pesanan batal ${o.id}`, body: `Dari ${o.buyer_name}.`, time: fmt(o.created_at), tone: "warn", kind: "order" });
-      });
-      ((wds ?? []) as { id: string; amount: number | string; status: string; created_at: string }[]).forEach((w) => {
-        list.push({
-          id: `w-${w.id}`, title: `Penarikan ${rupiah(Number(w.amount))}`,
-          body: w.status === "selesai" ? "Dana cair ke rekening." : w.status === "ditolak" ? "Ditolak admin, saldo kembali." : "Menunggu diproses admin.",
-          time: fmt(w.created_at), tone: w.status === "selesai" ? "ok" : w.status === "ditolak" ? "warn" : "info",
-          kind: "system", link: "/app/wallet", linkLabel: "Lihat saldo",
-        });
-      });
-      ((prods ?? []) as { id: string; name: string; stock: number }[])
-        .filter((p) => p.stock === 0)
-        .slice(0, 5)
-        .forEach((p) => {
-          list.push({ id: `s-${p.id}`, title: `Stok habis: ${p.name}`, body: "Tambah stok agar tetap bisa dibeli.", time: "—", tone: "warn", kind: "system", link: "/app/products", linkLabel: "Perbarui stok" });
-        });
-      setItems(list);
+      setItems(await buildNotifications(user.id));
       setLoading(false);
     })();
   }, [user?.id]);
 
-  const markRead = (ids: string[]) => {
-    setRead((r) => {
-      const next = [...new Set([...r, ...ids])];
-      try {
-        localStorage.setItem("tl_notif_read", JSON.stringify(next));
-      } catch {
-        /* abaikan */
-      }
-      return next;
-    });
-  };
+  const markRead = (ids: string[]) => setRead(markReadLib(ids));
   const withUnread = items.map((n) => ({ ...n, unread: !read.includes(n.id) }));
   const shown = withUnread.filter((n) =>
     tab === "semua" ? true : tab === "belum" ? n.unread : tab === "pesanan" ? n.kind === "order" : n.tone === "warn",

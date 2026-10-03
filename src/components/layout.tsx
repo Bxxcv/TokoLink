@@ -1,8 +1,10 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import clsx from "clsx";
 import { Link, navigate, useRoute } from "../lib/router";
 import { signOut, useAuth } from "../lib/auth";
 import { useApp } from "../lib/data";
+import { supabase } from "../lib/supabase";
+import { countUnread } from "../lib/notifications";
 import { Logo, LogoMark } from "./Logo";
 import { Avatar, Badge, ButtonLink, Dropdown, Icon, cx } from "./ui";
 
@@ -23,7 +25,7 @@ export const SELLER_NAV: NavGroup[] = [
   {
     title: "Jualan",
     items: [
-      { label: "Pesanan", to: "/app/orders", icon: "receipt", badge: 3 },
+      { label: "Pesanan", to: "/app/orders", icon: "receipt" }, // badge dihitung live, lihat AppShell
       { label: "Produk", to: "/app/products", icon: "box" },
       { label: "Kode promo", to: "/app/discount", icon: "tag" },
     ],
@@ -159,10 +161,44 @@ export function AppShell({
 }) {
   const path = useRoute();
   const admin = group === "admin";
-  const groups = admin ? ADMIN_NAV : SELLER_NAV;
   const [sheet, setSheet] = useState(false);
   const { toast } = useApp();
-  const { profile } = useAuth();
+  const { user, profile } = useAuth();
+
+  // Badge "Pesanan" (sidebar) & lonceng notifikasi -- DULU hardcode `3`
+  // di kode, tidak nyambung ke data apapun. Sekarang dihitung dari
+  // database asli.
+  const [pendingOrders, setPendingOrders] = useState(0);
+  const [unreadNotif, setUnreadNotif] = useState(0);
+  useEffect(() => {
+    if (admin || !user) return;
+    let cancelled = false;
+    (async () => {
+      const [{ count }, unread] = await Promise.all([
+        supabase
+          .from("orders")
+          .select("id", { count: "exact", head: true })
+          .eq("seller_id", user.id)
+          .eq("status", "menunggu"),
+        countUnread(user.id),
+      ]);
+      if (cancelled) return;
+      setPendingOrders(count ?? 0);
+      setUnreadNotif(unread);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [admin, user?.id]);
+
+  const groups = admin
+    ? ADMIN_NAV
+    : SELLER_NAV.map((g) => ({
+        ...g,
+        items: g.items.map((it) =>
+          it.to === "/app/orders" ? { ...it, badge: pendingOrders || undefined } : it,
+        ),
+      }));
   // Nama & toko ikut profil yang login; admin tetap pakai label mock sampai Fase 6.
   const sellerName = profile?.owner_name || "";
   const storeSlug = profile?.store_slug || "";
@@ -274,13 +310,24 @@ export function AppShell({
           </div>
 
           <div className="ml-auto flex items-center gap-2 sm:gap-3">
-            <div className="relative hidden md:block">
-              <Icon name="search" size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-faint" />
-              <input
-                placeholder={admin ? "Cari penjual atau transaksi…" : "Cari produk atau pesanan…"}
-                className="h-10 w-56 rounded-md border border-line bg-canvas pl-9 pr-3 text-[13.5px] outline-none transition-[border-color,box-shadow] placeholder:text-faint focus:border-brand-500 focus:bg-white focus:ring-4 focus:ring-brand-100"
-              />
-            </div>
+            {!admin && (
+              <div className="relative hidden md:block">
+                <Icon name="search" size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-faint" />
+                <input
+                  placeholder="Cari produk… (Enter)"
+                  onKeyDown={(e) => {
+                    if (e.key !== "Enter") return;
+                    const v = (e.target as HTMLInputElement).value.trim();
+                    // Router ini berbasis hash (lihat lib/router.tsx) dan match path
+                    // persis string "/app/products" -- tidak baca query string.
+                    // Jadi kata kunci dititipkan lewat sessionStorage, bukan ?q=.
+                    if (v) sessionStorage.setItem("tl_products_q", v);
+                    navigate("/app/products");
+                  }}
+                  className="h-10 w-56 rounded-md border border-line bg-canvas pl-9 pr-3 text-[13.5px] outline-none transition-[border-color,box-shadow] placeholder:text-faint focus:border-brand-500 focus:bg-white focus:ring-4 focus:ring-brand-100"
+                />
+              </div>
+            )}
 
             {!admin && (
               <ButtonLink to={`/s/${storeSlug}`} variant="secondary" size="sm" className="hidden sm:inline-flex">
@@ -294,9 +341,11 @@ export function AppShell({
               className="relative rounded-md border border-line p-2 text-muted transition-colors hover:bg-canvas hover:text-brand-700"
             >
               <Icon name="bell" size={18} />
-              <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-bad px-1 text-[10px] font-bold leading-none text-white">
-                3
-              </span>
+              {!admin && unreadNotif > 0 && (
+                <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-bad px-1 text-[10px] font-bold leading-none text-white">
+                  {unreadNotif > 9 ? "9+" : unreadNotif}
+                </span>
+              )}
             </Link>
 
             <span className="hidden sm:block">

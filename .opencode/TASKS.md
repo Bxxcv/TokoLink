@@ -157,13 +157,33 @@ diperlukan di titik ini atau nanti).
       boleh dikunci ke daftar tetap — lihat Backlog.
 
 ## Fase 6 — Admin Master
+Referensi desain (2 Okt 2026): user kirim desain dari tool AI lain, HASILNYA
+NEXT.JS + DRIZZLE/PostgreSQL — **stack beda total dari kita (Vite+Supabase),
+tidak portable, jangan coba-coba "convert" kodenya.** TAPI struktur
+halaman & skema tabelnya sudah ditinjau dan match sama scope yang
+disepakati (bukan versi bloated ala RBAC/ticketing/API-key dari saran
+DeepSeek yang sudah ditolak) — dipakai sebagai acuan IA & dasar
+`database/migrate_admin_audit_broadcast.sql` yang sudah dibuat. Agent:
+bangun ulang tampilannya dari nol pakai komponen kita sendiri
+(`components/ui.tsx`, `AppShell`), JANGAN import/tempel kode dari
+referensi itu.
 - [ ] `AdminHome`, `AdminSellers`, `AdminAnalytics`: agregat dari
       `profiles`, `orders`, `payments`, akses `role='admin'` saja.
 - [ ] `AdminPremium`: CRUD `premium_requests`, approve → update
-      `profiles.plan`.
+      `profiles.plan` + catat `log_admin_action('approve_premium', ...)`.
+- [ ] `AdminWithdrawals`: update status withdrawal + catat
+      `log_admin_action('withdrawal_selesai', ...)` (lihat Fase 4).
 - [ ] `AdminPayments`: list `payments` semua seller.
 - [ ] `AdminUsers`: list `profiles` + email dari `auth.users`.
-- [ ] `AdminSystem`: **tanya user dulu** isinya apa sebelum implementasi.
+- [ ] `AdminAudit`: halaman baca `audit_log` (read-only, filter by aksi/
+      tanggal). Tabel & RPC `log_admin_action` sudah ada di migrasi.
+- [ ] `AdminBroadcast`: kelola `broadcasts` (judul+pesan+segmen), seller
+      lihat broadcast yang relevan di halaman Notifikasi
+      (`src/lib/notifications.ts` — tambah sebagai sumber ke-4, jangan
+      bikin sistem notifikasi terpisah).
+- [ ] `AdminSystem`: isi dari `settings` (key/value) — mulai dari
+      `maintenance_mode` dan fee platform (masih TBD di `docs/PRD.md`
+      §3) saja, JANGAN tambah System Health Monitor/feature flags.
 
 ## Fase 7 — Deploy
 - [x] Setup/verifikasi project Vercel + repo GitHub tersambung

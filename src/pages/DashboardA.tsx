@@ -683,7 +683,15 @@ export function Products() {
   const { toast } = useApp();
   const { user, profile } = useAuth();
   const slug = profile?.store_slug ?? "";
-  const [q, setQ] = useState("");
+  // Nilai awal boleh dititipkan dari pencarian di header (lihat
+  // components/layout.tsx) -- router berbasis hash tidak baca query
+  // string, jadi dititipkan lewat sessionStorage, dibaca sekali lalu
+  // dihapus.
+  const [q, setQ] = useState(() => {
+    const v = sessionStorage.getItem("tl_products_q");
+    if (v) sessionStorage.removeItem("tl_products_q");
+    return v ?? "";
+  });
   const [cat, setCat] = useState("Semua");
   const [status, setStatus] = useState("Semua status");
   const [del, setDel] = useState<Product | null>(null);
