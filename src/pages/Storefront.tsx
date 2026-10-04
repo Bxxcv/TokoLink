@@ -1274,6 +1274,12 @@ type TrackedOrder = {
   id: string;
   status: string;
   total: number | string;
+  // Jumlah SEBENARNYA yang ditagih ke buyer (termasuk biaya BuatQris) --
+  // beda dari `total` (harga produk sebelum biaya). Tampilkan ini ke
+  // buyer, bukan `total`, biar sama dengan angka di halaman QR BuatQris.
+  // Butuh database/migrate_fase3d_amount.sql; fallback ke `total` kalau
+  // migrasi belum jalan (RPC lama tidak mengembalikan field ini).
+  amount_due?: number | string;
   channel: string | null;
   created_at: string;
   buyer: string;
@@ -2188,8 +2194,10 @@ export function PaymentStatus({ orderId, token }: { orderId: string; token: stri
                 <span className="font-semibold text-ink">{order.channel ?? "QRIS"}</span>
               </div>
               <div className="mt-2 flex items-center justify-between text-[13.5px]">
-                <span className="text-muted">Total</span>
-                <span className="tnum font-bold text-ink">{rupiah(Number(order.total))}</span>
+                <span className="text-muted">Total dibayar</span>
+                <span className="tnum font-bold text-ink">
+                  {rupiah(Number(order.amount_due ?? order.total))}
+                </span>
               </div>
             </div>
           </div>
@@ -2320,7 +2328,9 @@ export function OrderSuccess({ orderId, token }: { orderId: string; token: strin
             <div className="mt-6 rounded-lg border border-line bg-canvas p-4 text-left">
               <div className="flex items-center justify-between border-b border-linesoft pb-3">
                 <span className="micro text-faint">Total dibayar</span>
-                <span className="tnum text-[19px] font-bold text-brand-700">{rupiah(Number(order.total))}</span>
+                <span className="tnum text-[19px] font-bold text-brand-700">
+                  {rupiah(Number(order.amount_due ?? order.total))}
+                </span>
               </div>
               <ul className="mt-3 space-y-2.5">
                 {order.items.map((it) => (
@@ -2375,7 +2385,8 @@ export function OrderTracking({ id }: { id: string }) {
   const token = new URLSearchParams(query ?? "").get("token") ?? "";
 
   type Tracked = {
-    id: string; status: string; total: number | string; channel: string | null;
+    id: string; status: string; total: number | string; amount_due?: number | string;
+    channel: string | null;
     created_at: string; buyer: string; city: string | null;
     store: string | null; slug: string | null;
     items: { name: string; qty: number; price: number | string }[];
@@ -2448,7 +2459,7 @@ export function OrderTracking({ id }: { id: string }) {
   });
   const timeline = [
     { t: "Pesanan dibuat", d: made, note: `Oleh ${order.buyer}${order.city ? `, ${order.city}` : ""}.` },
-    { t: "Pembayaran diterima", d: done[1] ? made : "—", note: done[1] ? `Rp${Number(order.total).toLocaleString("id-ID")} lewat ${order.channel ?? "QRIS"}.` : "Menunggu pembayaran." },
+    { t: "Pembayaran diterima", d: done[1] ? made : "—", note: done[1] ? `Rp${Number(order.amount_due ?? order.total).toLocaleString("id-ID")} lewat ${order.channel ?? "QRIS"}.` : "Menunggu pembayaran." },
     { t: "Dikemas penjual", d: done[2] ? made : "—", note: done[2] ? `Dikemas di ${order.store ?? "toko"}.` : "Menunggu pengemasan." },
     { t: "Sedang dikirim", d: done[3] ? made : "—", note: done[3] ? "Paket menuju alamat penerima." : "Belum dikirim." },
     { t: "Selesai", d: done[4] ? made : "—", note: done[4] ? "Barang sudah diterima." : "Konfirmasi setelah barang diterima." },
@@ -2517,7 +2528,9 @@ export function OrderTracking({ id }: { id: string }) {
               </ul>
               <div className="mt-4 flex items-center justify-between border-t border-linesoft pt-4">
                 <span className="text-[14px] font-bold text-ink">Total dibayar</span>
-                <span className="tnum text-[19px] font-bold text-brand-700">{rupiah(Number(order.total))}</span>
+                <span className="tnum text-[19px] font-bold text-brand-700">
+                  {rupiah(Number(order.amount_due ?? order.total))}
+                </span>
               </div>
             </div>
           </div>

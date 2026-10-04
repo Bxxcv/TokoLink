@@ -83,6 +83,16 @@ total - fee).
 pesan yang jelas (bukan loading selamanya), auto-update begitu webhook
 mengubah status.
 
+**Bug ditemukan & diperbaiki 4 Okt 2026** (dari screenshot user): halaman
+`PaymentStatus`, `OrderSuccess`, `OrderTracking` menampilkan `orders.total`
+(harga produk) sebagai "Total dibayar" buyer -- padahal yang beneran
+ditagih BuatQris sudah termasuk biaya layanan (`payments.amount`, lihat
+`total_amount` di respons BuatQris). Buyer lihat 2 angka beda di 2
+halaman buat 1 transaksi yang sama. Diperbaiki: `track_order` RPC
+sekarang juga balikin `amount_due` (lihat
+`database/migrate_fase3d_amount.sql`, WAJIB dijalankan), 4 titik
+tampilan di `Storefront.tsx` dipindah ke `amount_due ?? total`.
+
 ### 3.6 `OrderTracking` (buyer non-login)
 **Target state:** buyer akses via link berisi `access_token`, query order
 berdasarkan `id` + `access_token` cocok (bukan cuma `id` — lihat Memory
@@ -284,3 +294,10 @@ referensi itu.
       `database/schema.sql` di `database/`, `AGENTS.md`/`TASKS.md` di
       `.opencode/` sudah sesuai yang diinginkan. Tidak ada yang perlu
       dipindah.
+- [ ] **Fee platform (komisi % TokoLink per transaksi)** — ini item TBD
+      yang sama dari `docs/PRD.md` §3, user sudah konfirmasi MAU fitur
+      ini (4 Okt 2026) tapi 2 detail belum diputuskan: (1) besaran %,
+      (2) dipotong dari saldo seller (nambah ke `ledger` type `keluar`
+      terpisah) atau ditambahkan ke tagihan buyer (pola sama seperti
+      `fee_by` BuatQris). **JANGAN implementasi sebelum user jawab
+      kedua hal ini** — risiko salah = salah hitung uang orang.
