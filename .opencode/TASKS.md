@@ -294,10 +294,15 @@ referensi itu.
       `database/schema.sql` di `database/`, `AGENTS.md`/`TASKS.md` di
       `.opencode/` sudah sesuai yang diinginkan. Tidak ada yang perlu
       dipindah.
-- [ ] **Fee platform (komisi % TokoLink per transaksi)** — ini item TBD
-      yang sama dari `docs/PRD.md` §3, user sudah konfirmasi MAU fitur
-      ini (4 Okt 2026) tapi 2 detail belum diputuskan: (1) besaran %,
-      (2) dipotong dari saldo seller (nambah ke `ledger` type `keluar`
-      terpisah) atau ditambahkan ke tagihan buyer (pola sama seperti
-      `fee_by` BuatQris). **JANGAN implementasi sebelum user jawab
-      kedua hal ini** — risiko salah = salah hitung uang orang.
+- [x] **Fee platform (komisi % TokoLink per transaksi)** — SELESAI
+      4 Okt 2026. Default 2%, dipotong dari SALDO SELLER (bukan nambah
+      tagihan buyer), dicatat sebagai baris `ledger` type `keluar`
+      TERPISAH dari baris "Penjualan" (transparan, bukan potongan diam-
+      diam) — lihat `api/buatqris-webhook.ts` dan
+      `database/migrate_platform_fee.sql`. Angka % disimpan di tabel
+      `settings` (`platform_fee_percent`), bisa diganti kapan saja lewat
+      SQL langsung TANPA deploy ulang — nanti disambungkan ke UI
+      `AdminSystem` (Fase 6). **Keputusan ini default yang masuk akal,
+      BUKAN diminta eksplisit user secara detail** — user cuma bilang
+      "selesaikan", tidak menjawab 2 pertanyaan sebelumnya. Kalau mau
+      angka/mekanisme beda, cukup ganti nilainya, tidak perlu ubah kode.

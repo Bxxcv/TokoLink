@@ -110,6 +110,31 @@ export default async function handler(req: any, res: any) {
       type: "masuk",
       ref_order_id: payment.order_id,
     });
+
+    // Komisi platform -- baris ledger TERPISAH (bukan dikurangi diam-diam
+    // dari baris di atas) supaya seller bisa lihat jelas di riwayat saldo
+    // kenapa saldonya tidak 100% dari harga jual. Default 2% kalau
+    // belum pernah diatur admin -- lihat database/migrate_platform_fee.sql.
+    // Ganti angkanya kapan saja lewat tabel `settings`, tidak perlu ubah
+    // kode ini lagi.
+    const { data: feeSetting } = await db
+      .from("settings")
+      .select("value")
+      .eq("key", "platform_fee_percent")
+      .maybeSingle();
+    const feePercent = Number(feeSetting?.value ?? 2);
+    if (feePercent > 0) {
+      const platformFee = Math.round((credit * feePercent) / 100);
+      if (platformFee > 0) {
+        await db.from("ledger").insert({
+          seller_id: payment.seller_id,
+          label: `Komisi platform ${feePercent}% — ${payment.order_id}`,
+          amount: -platformFee,
+          type: "keluar",
+          ref_order_id: payment.order_id,
+        });
+      }
+    }
     return res.status(200).json({ ok: true });
   }
 

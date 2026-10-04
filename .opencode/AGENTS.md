@@ -124,6 +124,10 @@ UI = perubahan keputusan produk, bukan keputusan teknis biasa.
   urutan — **DIBOLEHKAN lanjut, tidak perlu revert.** Tapi ini
   PENGECUALIAN sekali, bukan izin umum untuk lompat fase lagi ke depan
   — aturan #6 di Bagian 3 tetap berlaku normal untuk sisanya.
+- **Komisi platform** (4 Okt 2026): 2% dari tiap penjualan, dipotong
+  dari saldo seller (BUKAN nambah tagihan buyer), angka disimpan di
+  `settings.platform_fee_percent` — ganti nilainya lewat SQL/AdminSystem
+  nanti, JANGAN hardcode ulang angka ini di tempat lain.
 - **Insiden 29 Sep 2026:** data contoh ("Dapoer Bu Ani" dari
   `src/lib/data.tsx`) sempat kelihatan di frontend dan bikin user
   kesal. Lihat aturan #9 Bagian 3 — ini sekarang pelanggaran fatal,
