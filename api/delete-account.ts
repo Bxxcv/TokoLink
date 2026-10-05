@@ -21,7 +21,34 @@ export default async function handler(req: any, res: any) {
   if (!me.user) return res.status(401).json({ error: "Sesi tidak valid." });
 
   const db = createClient(url, key, { auth: { persistSession: false } });
-  const { error } = await db.auth.admin.deleteUser(me.user.id);
+
+  // BUG-022: jangan hapus akun yang masih punya kewajiban.
+  const uid = me.user.id;
+  const { data: bal } = await db.from("ledger").select("amount").eq("seller_id", uid);
+  const balance = ((bal ?? []) as { amount: number | string }[]).reduce((s, r) => s + Number(r.amount), 0);
+  if (balance > 0) {
+    return res.status(409).json({ error: "Saldo masih ada. Tarik dulu sebelum menghapus akun." });
+  }
+  const { data: pend } = await db
+    .from("withdrawals")
+    .select("id")
+    .eq("seller_id", uid)
+    .in("status", ["menunggu", "diproses"])
+    .limit(1);
+  if ((pend ?? []).length > 0) {
+    return res.status(409).json({ error: "Masih ada penarikan yang diproses. Tunggu selesai dulu." });
+  }
+  const { data: ords } = await db
+    .from("orders")
+    .select("id")
+    .eq("seller_id", uid)
+    .in("status", ["menunggu", "dikemas", "dikirim"])
+    .limit(1);
+  if ((ords ?? []).length > 0) {
+    return res.status(409).json({ error: "Masih ada pesanan berjalan. Selesaikan dulu." });
+  }
+
+  const { error } = await db.auth.admin.deleteUser(uid);
   if (error) return res.status(500).json({ error: "Gagal menghapus akun." });
   // profiles + data seller ikut terhapus via ON DELETE CASCADE.
   return res.status(200).json({ ok: true });

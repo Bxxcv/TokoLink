@@ -100,6 +100,13 @@ export function StatCard({
 }
 
 /* ================================ OVERVIEW ================================ */
+/** Jam (0-23) dalam WIB dari timestamp ISO — jangan pakai getHours() browser. */
+export function hourWIB(iso: string): number {
+  const parts = new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Jakarta", hour: "numeric", hour12: false }).formatToParts(new Date(iso));
+  const h = Number(parts.find((p) => p.type === "hour")?.value ?? "0");
+  return h === 24 ? 0 : h;
+}
+
 export function DashboardHome() {
   const { toast } = useApp();
   const { user, profile } = useAuth();
@@ -114,7 +121,14 @@ export function DashboardHome() {
   const [products, setProducts] = useState<PRow[]>([]);
   const [balance, setBalance] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [check, setCheck] = useState([true, true, false, false]);
+  const [hasHours, setHasHours] = useState(false);
+  // Checklist DARI DATA ASLI (bukan state lokal yang hilang saat refresh).
+  const check = [
+    !!(profile?.avatar_url || profile?.cover_url),
+    products.length >= 5,
+    hasHours,
+    !!(profile?.store_slug),
+  ];
   const done = check.filter(Boolean).length;
 
   useEffect(() => {
@@ -123,16 +137,18 @@ export function DashboardHome() {
       const now = new Date();
       const d30 = new Date(now.getTime() - 30 * 86400000).toISOString();
       const d60 = new Date(now.getTime() - 60 * 86400000).toISOString();
-      const [{ data: o30 }, { data: o60 }, { data: prods }, { data: ledger }] = await Promise.all([
+      const [{ data: o30 }, { data: o60 }, { data: prods }, { data: ledger }, { count: hoursCount }] = await Promise.all([
         supabase.from("orders").select("id,buyer_name,total,status,created_at").eq("seller_id", user.id).gte("created_at", d30).order("created_at", { ascending: false }),
         supabase.from("orders").select("total").eq("seller_id", user.id).gte("created_at", d60).lt("created_at", d30),
         supabase.from("products").select("id,name,price,stock,sold,status").eq("seller_id", user.id).order("sold", { ascending: false }),
         supabase.from("ledger").select("amount").eq("seller_id", user.id),
+        supabase.from("store_hours").select("id", { count: "exact", head: true }).eq("seller_id", user.id),
       ]);
       setOrders((o30 ?? []) as ORow[]);
       setPrevOrders((o60 ?? []) as ORow[]);
       setProducts((prods ?? []) as PRow[]);
       setBalance(((ledger ?? []) as { amount: number | string }[]).reduce((s, l) => s + Number(l.amount), 0));
+      setHasHours((hoursCount ?? 0) > 0);
       setLoading(false);
     })();
   }, [user?.id]);
@@ -146,8 +162,11 @@ export function DashboardHome() {
   const activeProducts = products.filter((p) => p.status === "aktif");
   const stockTotal = products.reduce((s, p) => s + p.stock, 0);
   const daily: number[] = [];
+  const dayLabels: string[] = [];
   for (let i = 29; i >= 0; i--) {
-    const d = new Date(Date.now() - i * 86400000).toISOString().slice(0, 10);
+    const dt = new Date(Date.now() - i * 86400000);
+    const d = dt.toISOString().slice(0, 10);
+    dayLabels.push(String(dt.getDate()));
     daily.push(
       Math.round(live.filter((o) => o.created_at.slice(0, 10) === d).reduce((s, o) => s + Number(o.total), 0) / 1000),
     );
@@ -257,7 +276,7 @@ export function DashboardHome() {
               ) : (
                 <LineChart
                   series={daily}
-                  labels={DAY_LABELS.slice(-30)}
+                  labels={dayLabels}
                   format={(v) => (v >= 1000 ? `${Math.round(v / 1000)}rb` : String(v))}
                 />
               )}
@@ -289,15 +308,23 @@ export function DashboardHome() {
             <Progress value={(done / check.length) * 100} />
             <ul className="mt-4 space-y-3">
               {[
-                "Unggah foto profil & sampul toko",
-                "Tambahkan minimal 5 produk",
-                "Atur jam buka toko",
-                "Cetak QR toko untuk kasir",
-              ].map((t, i) => (
-                <li key={t}>
-                  <Checkbox checked={check[i]} onChange={(v) => setCheck((c) => c.map((x, j) => (j === i ? v : x)))}>
-                    <span className={cx(check[i] && "line-through text-faint")}>{t}</span>
-                  </Checkbox>
+                { t: "Unggah foto profil & sampul toko", to: "/app/settings" },
+                { t: "Tambahkan minimal 5 produk", to: "/app/products" },
+                { t: "Atur jam buka toko", to: "/app/hours" },
+                { t: "Atur alamat tautan toko", to: "/app/settings" },
+              ].map((s, i) => (
+                <li key={s.t}>
+                  <Link to={s.to} className="flex items-center gap-2.5 text-left">
+                    <span
+                      className={cx(
+                        "grid h-5 w-5 shrink-0 place-items-center rounded-sm border",
+                        check[i] ? "border-ok bg-ok text-white" : "border-line bg-white text-transparent",
+                      )}
+                    >
+                      <Icon name="check" size={13} strokeWidth={3} />
+                    </span>
+                    <span className={cx("text-[13.5px] font-semibold", check[i] ? "line-through text-faint" : "text-ink hover:text-brand-700")}>{s.t}</span>
+                  </Link>
                 </li>
               ))}
             </ul>
@@ -375,7 +402,6 @@ export function Analytics() {
   const { toast } = useApp();
   const { user } = useAuth();
   const [period, setPeriod] = useState("30 hari");
-  const [failed, setFailed] = useState(false);
   type AOrder = { total: number | string; status: string; created_at: string };
   type AProd = { name: string; price: number | string; sold: number };
   const [orders, setOrders] = useState<AOrder[]>([]);
@@ -473,18 +499,8 @@ export function Analytics() {
           title={`Omzet ${period}`}
           hint="Geser kursor pada grafik untuk melihat angka per hari"
           legend={<Legend items={[{ color: "#0A69C4", label: "Omzet" }]} />}
-          right={
-            <button
-              onClick={() => setFailed((f) => !f)}
-              className="micro text-faint underline underline-offset-4 hover:text-brand-700"
-            >
-              {failed ? "Coba lagi" : "Simulasi gangguan"}
-            </button>
-          }
         >
-          {failed ? (
-            <ErrorState onRetry={() => setFailed(false)} desc="Laporan omzet gagal dimuat dari server. Filter periode tetap tersimpan." />
-          ) : loading ? (
+          {loading ? (
             <ChartSkeleton height={220} />
           ) : (
             <LineChart series={series} labels={labels} height={150} format={rupiahShort} />
@@ -583,7 +599,7 @@ export function Traffic() {
       const days = period === "7 hari" ? 7 : period === "90 hari" ? 90 : 30;
       const since = new Date(Date.now() - days * 86400000).toISOString();
       const [{ data: v }, { data: o }] = await Promise.all([
-        supabase.from("store_visits").select("path,created_at").eq("seller_id", user.id).gte("created_at", since).order("created_at", { ascending: true }),
+        supabase.from("store_visits").select("path,created_at").eq("seller_id", user.id).gte("created_at", since).order("created_at", { ascending: true }).limit(5000),
         supabase.from("orders").select("created_at").eq("seller_id", user.id).gte("created_at", since),
       ]);
       setVisits((v ?? []) as { path: string; created_at: string }[]);
@@ -601,7 +617,7 @@ export function Traffic() {
   visits.forEach((v) => byPath.set(v.path, (byPath.get(v.path) ?? 0) + 1));
   const topPaths = [...byPath.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5);
   const hourly = Array.from({ length: 24 }, (_, h) =>
-    visits.filter((v) => new Date(v.created_at).getHours() === h).length,
+    visits.filter((v) => hourWIB(v.created_at) === h).length,
   );
   const peak = hourly.indexOf(Math.max(...hourly, 0));
   const conv = visits.length ? Math.round((orders.length / visits.length) * 1000) / 10 : 0;
@@ -618,7 +634,7 @@ export function Traffic() {
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard label="Pengunjung" value={angka(visits.length)} hint="kunjungan tercatat" loading={loading} />
-        <StatCard label="Halaman dilihat" value={angka(visits.length)} hint={`${topPaths.length} halaman berbeda`} loading={loading} />
+        <StatCard label="Halaman berbeda" value={angka(topPaths.length)} hint="jalur yang dibuka" loading={loading} />
         <StatCard label="Pesanan" value={angka(orders.length)} hint="dari kunjungan ini" loading={loading} />
         <StatCard label="Konversi" value={`${conv}%`} hint="pesanan / kunjungan" loading={loading} />
       </div>
@@ -670,7 +686,7 @@ export function Traffic() {
 
         <Card>
           <ChartFrame title="Pesanan per jam" hint="Jam order masuk (WIB)">
-            {loading ? <ChartSkeleton height={170} /> : <BarChart data={Array.from({ length: 24 }, (_, h) => ({ label: `${h}`, value: orders.filter((o) => new Date(o.created_at).getHours() === h).length }))} format={(v) => String(v)} color="#0B2E6E" />}
+            {loading ? <ChartSkeleton height={170} /> : <BarChart data={Array.from({ length: 24 }, (_, h) => ({ label: `${h}`, value: orders.filter((o) => hourWIB(o.created_at) === h).length }))} format={(v) => String(v)} color="#0B2E6E" />}
           </ChartFrame>
         </Card>
       </div>
@@ -1385,7 +1401,8 @@ export function Orders() {
       .from("orders")
       .select("id,buyer_name,buyer_city,total,status,channel,created_at")
       .eq("seller_id", user.id)
-      .order("created_at", { ascending: false });
+      .order("created_at", { ascending: false })
+      .limit(500);
     if (error || !orders) {
       setLoading(false);
       setLoadError(true);
@@ -1453,7 +1470,7 @@ export function Orders() {
         index="05"
         kicker="Pesanan"
         title="Pesanan"
-        desc="3 pesanan perlu diproses hari ini. Pesanan masuk otomatis setelah pembayaran terkonfirmasi."
+        desc="Pesanan masuk otomatis setelah pembayaran terkonfirmasi."
         actions={
           <>
             <Button variant="secondary" onClick={() => window.print()}>
@@ -1476,7 +1493,7 @@ export function Orders() {
           { id: "dikemas", label: "Dikemas", count: counts.dikemas },
           { id: "dikirim", label: "Dikirim", count: counts.dikirim },
           { id: "selesai", label: "Selesai", count: counts.selesai },
-          { id: "refund", label: "Refund", count: counts.refund },
+          { id: "refund", label: "Dibatalkan", count: counts.refund },
         ]}
       />
 
@@ -1637,9 +1654,8 @@ export function Orders() {
 
         <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3.5 text-[13px] text-muted sm:px-5">
           <span>
-            Menampilkan <span className="tnum font-semibold text-ink">{filtered.length}</span> pesanan
+            Menampilkan <span className="tnum font-semibold text-ink">{filtered.length}</span> dari {rows.length} pesanan (maks 500 terbaru)
           </span>
-          <span className="micro">Halaman 1 dari 1</span>
         </div>
       </Card>
     </AppShell>
@@ -1721,7 +1737,12 @@ export function OrderDetail({ id }: { id: string }) {
     const { error } = await supabase.from("orders").update({ status: next }).eq("id", o.id);
     if (error) {
       setO({ ...o, status: prev });
-      toast("Gagal mengubah status.", "bad");
+      const msg = (error.message ?? "").toUpperCase();
+      if (msg.includes("TRANSISI_STATUS_TIDAK_VALID")) {
+        toast("Transisi tidak valid. Pesanan berbayar tidak bisa dibatalkan sepihak.", "bad");
+      } else {
+        toast("Gagal mengubah status.", "bad");
+      }
       return;
     }
     toast(okMsg);
@@ -1991,7 +2012,7 @@ export function OrderDetail({ id }: { id: string }) {
                 variant="ghost"
                 className="w-full justify-start text-bad hover:bg-badsoft"
                 onClick={() => setCancel(true)}
-                disabled={o.status === "selesai" || o.status === "batal"}
+                disabled={o.status !== "menunggu"}
               >
                 <Icon name="trash" size={16} /> Batalkan pesanan
               </Button>
@@ -2007,9 +2028,9 @@ export function OrderDetail({ id }: { id: string }) {
         body={
           o.status === "dikirim"
             ? "Pesanan selesai dan arsip tersimpan."
-            : "Pembeli akan menerima notifikasi beserta nomor resi. Pastikan paket sudah diserahkan ke kurir."
+            : "Status berubah jadi Dikirim. Beri tahu pembeli manual via chat beserta nomor resinya."
         }
-        confirmLabel={o.status === "dikirim" ? "Ya, selesaikan" : "Ya, kirim notifikasi"}
+        confirmLabel={o.status === "dikirim" ? "Ya, selesaikan" : "Ya, tandai dikirim"}
         tone="primary"
         onConfirm={() =>
           setStatus(
@@ -2022,9 +2043,9 @@ export function OrderDetail({ id }: { id: string }) {
         open={cancel}
         onClose={() => setCancel(false)}
         title={`Batalkan pesanan ${o.id}?`}
-        body="Pembeli akan diberi tahu dan dana dikembalikan penuh. Riwayat pembatalan tetap tersimpan untuk laporan Anda."
+        body="Hanya pesanan yang belum dibayar yang bisa dibatalkan di sini. Uang yang sudah masuk TIDAK kembali otomatis — hubungi pembeli untuk refund manual."
         confirmLabel="Batalkan pesanan"
-        onConfirm={() => setStatus("batal", "Pesanan dibatalkan dan dana dikembalikan.")}
+        onConfirm={() => setStatus("batal", "Pesanan dibatalkan.")}
       />
     </AppShell>
   );

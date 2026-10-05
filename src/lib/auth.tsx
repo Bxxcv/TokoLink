@@ -58,7 +58,7 @@ export function friendlyAuthError(message: string): string {
   const m = message.toLowerCase();
   if (m.includes("invalid login credentials")) return "Email atau kata sandi salah.";
   if (m.includes("email not confirmed")) return "Email belum diverifikasi. Cek kotak masuk Anda.";
-  if (m.includes("user already registered")) return "Email ini sudah terdaftar. Masuk saja.";
+  if (m.includes("user already registered")) return "Email ini tidak bisa dipakai. Coba masuk atau pakai email lain.";
   if (m.includes("password should be")) return "Kata sandi terlalu lemah.";
   if (m.includes("rate limit") || m.includes("too many requests"))
     return "Terlalu banyak percobaan. Tunggu sebentar lalu coba lagi.";
@@ -74,7 +74,10 @@ export async function ensureProfile(userId: string, draft?: ProfileDraft): Promi
   const { data: existing } = await supabase.from("profiles").select("*").eq("id", userId).maybeSingle();
   if (existing) return existing as Profile;
 
-  const payload = { id: userId, role: "seller", ...(draft ?? {}) };
+  // SECURITY HOTFIX BUG-001: JANGAN kirim role/plan/status dari browser.
+  // Nilai default aman (seller/gratis/aktif) ditentukan database + trigger
+  // protect_profiles_privileged. Client hanya kirim field profil biasa.
+  const payload = { id: userId, ...(draft ?? {}) };
   const { data: created, error } = await supabase.from("profiles").insert(payload).select("*").single();
   if (!error) return created as Profile;
 
@@ -154,13 +157,36 @@ export async function signOut() {
   navigate("/login");
 }
 
-/** Bungkus halaman `/app/*`: belum login → redirect `/login`. */
+/** Bungkus halaman `/app/*`: belum login → redirect `/login`.
+ *  Akun ditangguhkan/nonaktif → paksa keluar + ke halaman penjelasan. */
 export function RequireAuth({ children }: { children: ReactNode }) {
-  const { session, loading } = useAuth();
+  const { session, loading, profile } = useAuth();
+  const [blocked, setBlocked] = useState(false);
   useEffect(() => {
     if (!loading && !session) navigate("/login");
   }, [loading, session]);
+  useEffect(() => {
+    if (!loading && session && profile && profile.status !== "aktif") {
+      setBlocked(true);
+    }
+  }, [loading, session, profile]);
+  useEffect(() => {
+    if (!blocked) return;
+    supabase.auth.signOut().finally(() => navigate("/login"));
+  }, [blocked]);
   if (loading || !session) return null;
+  if (blocked || (profile && profile.status !== "aktif")) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-canvas px-6 text-center">
+        <div className="max-w-sm rounded-xl border border-line bg-white p-8 shadow-card">
+          <h1 className="text-[20px] font-extrabold text-ink">Akun dinonaktifkan</h1>
+          <p className="mt-2 text-[14px] leading-relaxed text-muted">
+            Akun Anda berstatus “{profile?.status}”. Hubungi admin TokoLink untuk mengaktifkan kembali.
+          </p>
+        </div>
+      </div>
+    );
+  }
   return <>{children}</>;
 }
 

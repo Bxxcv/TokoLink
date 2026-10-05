@@ -42,11 +42,74 @@ export type StoreProfile = {
   cover_url: string | null;
   bio: string | null;
   is_closed: boolean | null;
+  is_premium?: boolean | null;
 };
+
+/** Link kontak publik toko (URL wa.me, tanpa bocorkan nomor mentah). */
+function useStoreContact(sellerId: string | null | undefined) {
+  const [waUrl, setWaUrl] = useState<string | null>(null);
+  useEffect(() => {
+    if (!sellerId) {
+      setWaUrl(null);
+      return;
+    }
+    let alive = true;
+    (async () => {
+      try {
+        const { data } = await supabase.rpc("store_contact_link", { p_seller_id: sellerId });
+        if (!alive) return;
+        setWaUrl((data as { wa_url: string | null } | null)?.wa_url ?? null);
+      } catch {
+        /* RPC belum ada (migrasi belum jalan) → fallback toast */
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [sellerId]);
+  return waUrl;
+}
+
+/** Buka chat WA toko di tab baru; fallback jujur bila belum diatur. */
+function openStoreWA(waUrl: string | null, toast: (m: string, t?: string) => void, text?: string) {
+  if (!waUrl) {
+    toast("Nomor WhatsApp toko belum diatur.", "info");
+    return;
+  }
+  const url = text ? `${waUrl}?text=${encodeURIComponent(text)}` : waUrl;
+  window.open(url, "_blank", "noopener,noreferrer");
+}
+
+/** Salin teks ke clipboard (dengan fallback). True bila berhasil. */
+async function copyText(text: string): Promise<boolean> {
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch {
+    /* lanjut ke fallback */
+  }
+  try {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.style.position = "fixed";
+    ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand("copy");
+    document.body.removeChild(ta);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 /**
  * Profil toko + katalog publik berdasarkan `store_slug`.
- * Hanya memakai policy publik: profil storefront + produk `aktif`.
+ * SECURITY HOTFIX BUG-004: baca dari view `public_stores` (tanpa PII:
+ * tanpa owner_name/wa_number/address/role/plan/status), BUKAN dari
+ * tabel `profiles` langsung. Hanya memakai policy publik.
  */
 function usePublicStore(slug: string) {
   const [store, setStore] = useState<StoreProfile | null>(null);
@@ -59,8 +122,8 @@ function usePublicStore(slug: string) {
       setLoading(true);
       setNotFound(false);
       const { data: prof } = await supabase
-        .from("profiles")
-        .select("id,store_name,store_slug,city,owner_name,wa_number,avatar_url,cover_url,bio,is_closed")
+        .from("public_stores")
+        .select("id,store_name,store_slug,city,avatar_url,cover_url,bio,is_closed,is_premium")
         .eq("store_slug", slug)
         .maybeSingle();
       if (!prof) {
@@ -288,8 +351,7 @@ export function LegalPrivacy() {
         <div className="mx-auto max-w-[640px] rounded-lg border border-line bg-white p-6 sm:p-8">
           <h1 className="text-[22px] font-extrabold text-ink">Syarat &amp; Kebijakan Privasi</h1>
           <p className="mt-1 text-[13px] text-faint">
-            Draf awal — belum ditinjau tim hukum. Tolong perbarui sebelum dipakai sebagai
-            dokumen resmi ke pengguna.
+            Aturan main TokoLink untuk pembeli dan penjual. Terakhir diperbarui Oktober 2026.
           </p>
           <div className="mt-6 space-y-5 text-[14px] leading-relaxed text-muted">
             <section>
@@ -297,7 +359,8 @@ export function LegalPrivacy() {
               <p className="mt-1">
                 Nama, nomor WhatsApp, dan alamat yang kamu isi saat checkout dipakai seller
                 untuk memproses pesananmu. Data pembayaran diproses oleh penyedia QRIS
-                (BuatQris), TokoLink tidak menyimpan detail kartu/rekening kamu.
+                (BuatQris). Nomor rekening seller disimpan untuk keperluan penarikan dana
+                dan hanya dibuka admin saat transfer.
               </p>
             </section>
             <section>
@@ -351,8 +414,9 @@ export function StoreHome({ slug }: { slug: string }) {
   );
   const name = store?.store_name || "Toko";
   const city = store?.city || "";
-  const wa = store?.wa_number || "";
+  const waUrl = useStoreContact(store?.id);
   const closed = store?.is_closed ?? false;
+  const isPremium = store?.is_premium ?? false;
   // Tema toko (warna, susunan, bagian tampil) — default bila seller belum atur.
   const [theme, setTheme] = useState({ accent: "#0A69C4", layout: "Kisi", hours: true, qr: true, cart: true });
   // ID tema presentasi dari Theme Engine ("klasik" = tampilan bawaan).
@@ -541,13 +605,14 @@ export function StoreHome({ slug }: { slug: string }) {
           showCart={theme.cart}
           cartCount={count}
           onAdd={onAdd}
-          onChatWA={() => toast(wa ? "Membuka chat WhatsApp " + wa : "Nomor WhatsApp toko belum diatur.", "info")}
+          onChatWA={() => openStoreWA(waUrl, toast)}
           qrData={qrData}
           onOpenQR={() => setQrOpen(true)}
-          onShare={() => {
-            setShared(true);
-            toast(`Tautan toko disalin: tokolink.store/s/${slug}`, "info");
-            setTimeout(() => setShared(false), 1600);
+          onShare={async () => {
+            const ok = await copyText(`https://tokolink.store/s/${slug}`);
+            setShared(ok);
+            toast(ok ? "Tautan toko disalin." : "Gagal menyalin. Salin manual: tokolink.store/s/" + slug, ok ? "info" : "bad");
+            window.setTimeout(() => setShared(false), 1600);
           }}
           shared={shared}
         />
@@ -613,11 +678,12 @@ export function StoreHome({ slug }: { slug: string }) {
         <PageShell className="absolute inset-x-0 top-4">
           <div className="flex items-center justify-end gap-3">
             <button
-                onClick={() => {
-                  setShared(true);
-                  toast(`Tautan toko disalin: tokolink.store/s/${slug}`, "info");
-                  setTimeout(() => setShared(false), 1600);
-                }}
+              onClick={async () => {
+                const ok = await copyText(`https://tokolink.store/s/${slug}`);
+                setShared(ok);
+                toast(ok ? "Tautan toko disalin." : "Gagal menyalin. Salin manual: tokolink.store/s/" + slug, ok ? "info" : "bad");
+                window.setTimeout(() => setShared(false), 1600);
+              }}
               className="inline-flex items-center gap-2 rounded-md border border-white/25 bg-navy-900/55 px-3 py-1.5 text-[13px] font-semibold text-white backdrop-blur-sm transition-colors hover:bg-white/15"
             >
               <Icon name={shared ? "check" : "external"} size={15} /> {shared ? "Tersalin" : "Bagikan"}
@@ -640,7 +706,7 @@ export function StoreHome({ slug }: { slug: string }) {
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2.5">
                 <h1 className="text-[22px] font-extrabold tracking-[-0.02em] text-ink">{name}</h1>
-                <Badge tone="blue">Premium</Badge>
+                {isPremium && <Badge tone="blue">Premium</Badge>}
               </div>
               <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px] text-muted">
                 {city && (
@@ -657,7 +723,7 @@ export function StoreHome({ slug }: { slug: string }) {
             <div className="flex w-full flex-wrap gap-2 sm:w-auto">
               <button
                 className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-md bg-[#0a7a56] px-4 text-[13.5px] font-bold text-white transition-colors hover:bg-[#0b6b4b] sm:flex-none"
-                onClick={() => toast(wa ? "Membuka chat WhatsApp " + wa : "Nomor WhatsApp toko belum diatur.", "info")}
+                onClick={() => openStoreWA(waUrl, toast)}
               >
                 <Icon name="wa" size={17} /> Chat WhatsApp
               </button>
@@ -683,9 +749,9 @@ export function StoreHome({ slug }: { slug: string }) {
               </span>
               {openNow === false ? "Tutup" : `Buka${todayHours ? ` · ${todayHours}` : ""}`}
             </span>
-            <span className="text-[13px] text-muted">
-              Pesanan sebelum 15.00 dikirim hari ini juga.
-            </span>
+            {todayHours && openNow !== false && (
+              <span className="text-[13px] text-muted">Pesanan di jam operasional diproses hari yang sama.</span>
+            )}
           </div>
 
           {/* bio links */}
@@ -929,7 +995,6 @@ export function ProductDetail({ id, slug }: { id: string; slug: string }) {
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [qty, setQty] = useState(1);
-  const [shot, setShot] = useState(0);
   useVisitBeacon(store?.id, `/s/${slug}/p/${id}`);
 
   useEffect(() => {
@@ -947,9 +1012,10 @@ export function ProductDetail({ id, slug }: { id: string; slug: string }) {
       const mapped = mapProduct(data as DbProduct);
       setP(mapped);
       const sellerId = (data as DbProduct).seller_id;
+      // BUG-004: profil publik via view tanpa PII.
       const { data: prof } = await supabase
-        .from("profiles")
-        .select("id,store_name,store_slug,city,owner_name,wa_number,avatar_url,cover_url,bio,is_closed")
+        .from("public_stores")
+        .select("id,store_name,store_slug,city,avatar_url,cover_url,bio,is_closed")
         .eq("id", sellerId)
         .maybeSingle();
       setStore((prof as StoreProfile | null) ?? null);
@@ -1003,7 +1069,7 @@ export function ProductDetail({ id, slug }: { id: string; slug: string }) {
   const out = p.stock === 0;
   const closedDetail = store?.is_closed ?? false;
   const cannotBuy = out || closedDetail;
-  const positions = ["50% 50%", "20% 30%", "80% 70%"];
+  const waUrlDetail = useStoreContact(store?.id);
 
   return (
     <div className="min-h-screen bg-canvas pb-32 lg:pb-16">
@@ -1027,26 +1093,7 @@ export function ProductDetail({ id, slug }: { id: string; slug: string }) {
                 src={p.img}
                 alt={p.name}
                 className="aspect-[4/3] w-full object-cover"
-                style={{ objectPosition: positions[shot] }}
               />
-            </div>
-            <div className="mt-3 flex gap-2.5">
-              {positions.map((pos, i) => (
-                <button
-                  key={pos}
-                  onClick={() => setShot(i)}
-                  aria-label={`Foto ${i + 1}`}
-                  className={cx(
-                    "relative w-20 overflow-hidden rounded-md border-2 transition-colors duration-150",
-                    shot === i ? "border-brand-600" : "border-transparent hover:border-brand-200",
-                  )}
-                >
-                  <img src={p.img} alt="" className="aspect-square w-full object-cover" style={{ objectPosition: pos }} />
-                  <span className="absolute bottom-0.5 right-0.5 rounded-xs bg-ink/70 px-1 text-[9px] font-bold text-white tnum">
-                    0{i + 1}
-                  </span>
-                </button>
-              ))}
             </div>
           </div>
 
@@ -1095,9 +1142,8 @@ export function ProductDetail({ id, slug }: { id: string; slug: string }) {
 
             <div className="mt-4 space-y-2.5 rounded-lg border border-line bg-white p-4 text-[13.5px]">
               {[
-                ["truck", "Pengiriman", "GoSend instan Rp18.000 · JNE reguler Rp10.000"],
-                ["clock", "Estimasi tiba", "Bandung hari ini · luar kota 2–3 hari"],
-                ["shield", "Garansi toko", "Barang rusak atau salah kirim diganti penuh"],
+                ["truck", "Pengiriman", "Reguler, instan, atau ambil sendiri — dipilih saat checkout."],
+                ["shield", "Komplain", "Ada masalah dengan pesanan? Hubungi penjual via WhatsApp."],
               ].map(([i, t, d]) => (
                 <div key={t} className="flex gap-3">
                   <Icon name={i} size={17} className="mt-0.5 shrink-0 text-brand-500" />
@@ -1130,7 +1176,7 @@ export function ProductDetail({ id, slug }: { id: string; slug: string }) {
                 size="lg"
                 variant="secondary"
                 disabled={out}
-                onClick={() => toast("Membuka chat WhatsApp dengan detail pesanan…", "info")}
+                onClick={() => openStoreWA(waUrlDetail, toast, `Halo, saya mau tanya stok ${p.name} (${rupiah(p.price)})`)}
               >
                 <Icon name="wa" size={17} className="text-[#0a7a56]" /> Pesan via WhatsApp
               </Button>
@@ -1155,7 +1201,7 @@ export function ProductDetail({ id, slug }: { id: string; slug: string }) {
             variant="secondary"
             size="lg"
             disabled={out}
-            onClick={() => toast("Membuka chat WhatsApp…", "info")}
+            onClick={() => openStoreWA(waUrlDetail, toast, `Halo, saya mau tanya stok ${p.name}`)}
             className="px-4"
             aria-label="WhatsApp"
           >
@@ -1184,13 +1230,14 @@ export function ProductDetail({ id, slug }: { id: string; slug: string }) {
  * Kode promo divalidasi ke `discount_codes` milik seller (server akan cek
  * ulang saat create-order).
  */
-function useTotals(promo: string | null) {
+function useTotals(promo: string | null, shipMethod: string = "reguler") {
   const { cart } = useApp();
   const [items, setItems] = useState<{ p: Product; qty: number; sellerId: string }[]>([]);
   const [discount, setDiscount] = useState(0);
   const [shipDisc, setShipDisc] = useState(0);
   const [promoNote, setPromoNote] = useState("");
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -1200,13 +1247,21 @@ function useTotals(promo: string | null) {
         setShipDisc(0);
         setPromoNote("");
         setLoading(false);
+        setLoadError(false);
         return;
       }
       setLoading(true);
+      setLoadError(false);
       // ID mock lama (mis. "p1") bukan uuid → dibuang dulu, kalau ikut
       // dikirim PostgREST menolak seluruh query dan keranjang jadi kosong.
       const ids = [...new Set(cart.map((c) => c.id))].filter((id) => /^[0-9a-f-]{36}$/i.test(id));
-      const { data } = await supabase.from("products").select("*").in("id", ids).eq("status", "aktif");
+      const { data, error } = await supabase.from("products").select("*").in("id", ids).eq("status", "aktif");
+      if (error) {
+        setItems([]);
+        setLoading(false);
+        setLoadError(true);
+        return;
+      }
       const rows = ((data ?? []) as DbProduct[]);
       const byId = new Map(rows.map((r) => [r.id, r]));
       const resolved = cart.flatMap((c) => {
@@ -1215,42 +1270,38 @@ function useTotals(promo: string | null) {
       });
       setItems(resolved);
 
-      // Kode promo milik seller — validasi: aktif, belum kedaluwarsa,
-      // kuota masih ada, subtotal seller tsb cukup (server cek ulang saat
-      // create-order; di sini hanya untuk tampilan total).
+      // Kode promo divalidasi SERVER (/api/validate-promo) per toko —
+      // tabel promo tidak lagi bisa dibaca publik (BUG-018). Server
+      // cek ulang saat create-order; di sini hanya untuk tampilan.
       let disc = 0;
       let sd = 0;
       let note = "";
       const code = (promo ?? "").trim();
       if (code && resolved.length > 0) {
         const sellerIds = [...new Set(resolved.map((i) => i.sellerId))];
-        const { data: codes } = await supabase
-          .from("discount_codes")
-          .select("seller_id,code,type,value,min_purchase,usage_limit,used_count,valid_until,is_active")
-          .in("seller_id", sellerIds)
-          .eq("is_active", true);
-        const match = ((codes ?? []) as DiscountRow[]).find((d) => d.code.toLowerCase() === code.toLowerCase());
-        if (!match) {
-          note = "Kode tidak dikenal di toko ini.";
-        } else {
-          const today = new Date().toISOString().slice(0, 10);
-          const sellerSubtotal = resolved
-            .filter((i) => i.sellerId === match.seller_id)
-            .reduce((s, i) => s + i.p.price * i.qty, 0);
-          if (match.valid_until && match.valid_until < today) note = "Kode sudah kedaluwarsa.";
-          else if (match.usage_limit != null && match.used_count >= match.usage_limit) note = "Kuota kode habis.";
-          else if (sellerSubtotal < Number(match.min_purchase))
-            note = `Belanja kurang dari ${rupiah(Number(match.min_purchase))}.`;
-          else if (match.type === "persen") {
-            disc = Math.round((sellerSubtotal * Number(match.value)) / 100);
-            note = `Potongan ${match.value}%.`;
-          } else if (match.type === "nominal") {
-            disc = Math.min(Math.round(Number(match.value)), sellerSubtotal);
-            note = `Potongan ${rupiah(Number(match.value))}.`;
-          } else {
-            sd = Math.round(Number(match.value));
-            note = "Potongan ongkir dipakai.";
-          }
+        const sellerSubtotal = resolved
+          .filter((i) => i.sellerId === sellerIds[0])
+          .reduce((s, i) => s + i.p.price * i.qty, 0);
+        try {
+          const r = await fetch("/api/validate-promo", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              seller_id: sellerIds[0],
+              code,
+              subtotal: sellerSubtotal,
+              shipping_method: shipMethod,
+            }),
+          });
+          const out = (await r.json()) as {
+            ok?: boolean; discount?: number; ship_discount?: number; message?: string;
+          };
+          disc = Number(out.discount ?? 0);
+          sd = Number(out.ship_discount ?? 0);
+          note = out.message ?? "";
+          if (!out.ok && !note) note = "Kode tidak berlaku.";
+        } catch {
+          note = "Tidak bisa cek kode saat ini.";
         }
       }
       setDiscount(disc);
@@ -1258,14 +1309,17 @@ function useTotals(promo: string | null) {
       setPromoNote(note);
       setLoading(false);
     })();
-  }, [cart, promo]);
+  }, [cart, promo, shipMethod]);
 
   const subtotal = items.reduce((s, i) => s + i.p.price * i.qty, 0);
-  const baseShipping = subtotal === 0 ? 0 : subtotal >= 200000 ? 0 : SHIP;
+  // Ongkir mengikuti ATURAN SERVER (reguler 10rb/gratis ≥200rb, gosend
+  // 18rb, ambil gratis) supaya angka di layar = yang ditagih QRIS.
+  const shipM = shipMethod.includes("gosend") ? "gosend" : shipMethod.includes("ambil") ? "ambil" : "reguler";
+  const baseShipping = subtotal === 0 ? 0 : shipM === "ambil" ? 0 : shipM === "gosend" ? 18000 : subtotal >= 200000 ? 0 : SHIP;
   const shipping = Math.max(0, baseShipping - shipDisc);
   const total = subtotal - discount + shipping;
   const promoValid = discount > 0 || shipDisc > 0;
-  return { items, subtotal, discount, shipping, total, promoNote, promoValid, loading };
+  return { items, subtotal, discount, shipping, total, promoNote, promoValid, loading, loadError };
 }
 
 /** Polling status order via RPC aman (id + token). Dipakai halaman
@@ -1287,6 +1341,9 @@ type TrackedOrder = {
   store: string | null;
   slug: string | null;
   external_ref?: string | null;
+  wa_url?: string | null;
+  shipping_method?: string | null;
+  shipping_cost?: number | string | null;
   items: { name: string; qty: number; price: number | string }[];
 };
 
@@ -1303,10 +1360,19 @@ function useOrderStatus(orderId: string, token: string) {
       return;
     }
     let alive = true;
+    let timer: number | undefined;
+    let tries = 0;
+    const TERMINAL = new Set(["selesai", "batal"]);
     const longTimer = window.setTimeout(() => {
       if (alive) setWaitingLong(true);
     }, 90000);
     const fetchOnce = async () => {
+      if (!alive) return;
+      // Hemat kuota: tab tidak terlihat → tunda sampai terlihat lagi.
+      if (document.visibilityState === "hidden") {
+        timer = window.setTimeout(fetchOnce, 10000);
+        return;
+      }
       const { data } = await supabase.rpc("track_order", { p_id: orderId, p_token: token });
       if (!alive) return;
       if (!data) {
@@ -1314,14 +1380,20 @@ function useOrderStatus(orderId: string, token: string) {
         setLoading(false);
         return;
       }
-      setOrder(data as TrackedOrder);
+      const next = data as TrackedOrder;
+      setOrder(next);
       setLoading(false);
+      // Berhenti total saat status final; backoff 3→10→30 dtk sebelumnya.
+      if (TERMINAL.has(String(next.status))) return;
+      tries += 1;
+      const wait = tries < 6 ? 3000 : tries < 12 ? 10000 : 30000;
+      if (tries >= 40) return; // ±15 menit, cukup.
+      timer = window.setTimeout(fetchOnce, wait);
     };
     fetchOnce();
-    const poll = window.setInterval(fetchOnce, 3000);
     return () => {
       alive = false;
-      window.clearInterval(poll);
+      window.clearTimeout(timer);
       window.clearTimeout(longTimer);
     };
   }, [orderId, token]);
@@ -1357,9 +1429,10 @@ function useCartStore(items: { sellerId: string }[]) {
       return;
     }
     (async () => {
+      // BUG-004: keranjang hanya butuh identitas publik toko, via view tanpa PII.
       const { data } = await supabase
-        .from("profiles")
-        .select("id,store_name,store_slug,city,owner_name,wa_number")
+        .from("public_stores")
+        .select("id,store_name,store_slug,city")
         .eq("id", sellerId)
         .maybeSingle();
       const resolved = (data as StoreProfile | null) ?? null;
@@ -1370,17 +1443,26 @@ function useCartStore(items: { sellerId: string }[]) {
 }
 
 export function Cart() {
-  const { setQty, promo, setPromo, toast } = useApp();
+  const { setQty, promo, setPromo, toast, clear } = useApp();
   const { items, subtotal, discount, shipping, total, promoNote, promoValid, loading } = useTotals(promo);
   const store = useCartStore(items);
   const storeSlug = store?.store_slug || "";
   const [code, setCode] = useState("");
   const [remove, setRemove] = useState<{ id: string; name: string } | null>(null);
+  // Satu checkout = satu toko. Beri tahu di awal (bukan setelah isi formulir).
+  const mixed = [...new Set(items.map((i) => i.sellerId))].length > 1;
 
   return (
     <div className="min-h-screen bg-canvas pb-28">
       <StoreHeader crumb="Keranjang belanja" store={store} />
       <PageShell className="py-6">
+        {mixed && (
+          <div className="mb-5 rounded-xl border border-warn/40 bg-warnsoft p-4 text-[13.5px] leading-relaxed text-ink">
+            <span className="font-bold">Keranjang berisi produk dari 2 toko berbeda.</span> Selesaikan
+            satu toko dulu — <button onClick={() => { clear(); toast("Keranjang dikosongkan. Mulai lagi dari satu toko.", "warn"); }} className="font-bold underline underline-offset-4">kosongkan keranjang</button> lalu
+            belanja lagi.
+          </div>
+        )}
         <div className="mb-5 flex items-end justify-between gap-3">
           <div>
             <div className="micro mb-2 text-brand-600">02 / Keranjang</div>
@@ -1530,9 +1612,15 @@ export function Cart() {
                   <span className="text-[14px] font-bold text-ink">Total bayar</span>
                   <span className="tnum text-[24px] font-bold leading-none text-brand-700">{rupiah(total)}</span>
                 </div>
-                <ButtonLink to="/checkout" size="lg" className="mt-5 w-full">
-                  Lanjut ke pembayaran <Icon name="arrowRight" size={17} />
-                </ButtonLink>
+                {mixed ? (
+                  <Button size="lg" className="mt-5 w-full" disabled>
+                    Selesaikan satu toko dulu
+                  </Button>
+                ) : (
+                  <ButtonLink to="/checkout" size="lg" className="mt-5 w-full">
+                    Lanjut ke pembayaran <Icon name="arrowRight" size={17} />
+                  </ButtonLink>
+                )}
                 <p className="mt-3 text-center text-[12.5px] leading-snug text-faint">
                   Pembayaran diproses lewat QRIS. Barang dikirim setelah pembayaran terkonfirmasi.
                 </p>
@@ -1622,19 +1710,22 @@ function CityCombobox({ value, onChange }: { value: string; onChange: (v: string
 
 export function Checkout() {
   const { cart, toast, promo, clear } = useApp();
-  const { items, subtotal, discount, shipping, total } = useTotals(promo);
-  const store = useCartStore(items);
   const [form, setForm] = useState({
     name: "",
     phone: "",
     addr: "",
     city: "Bandung",
+    postal: "",
     note: "",
     ship: "Reguler (2–3 hari)",
     pay: "QRIS",
   });
+  const { items, subtotal, discount, shipping, total, loadError } = useTotals(promo, form.ship);
+  const store = useCartStore(items);
   const [err, setErr] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
+  // Kunci idempotensi per upaya checkout: klik ganda / retry = 1 order.
+  const [idemKey] = useState(() => (typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `k-${Date.now()}-${Math.floor(Math.random() * 1e9)}`));
 
   useEffect(() => {
     if (cart.length === 0) navigate("/cart");
@@ -1659,12 +1750,10 @@ export function Checkout() {
       toast("Keranjang berisi produk beda toko. Selesaikan satu toko dulu.", "bad");
       return;
     }
-    if (form.pay !== "QRIS") {
-      toast("Saat ini pembayaran hanya via QRIS.", "bad");
-      return;
-    }
     setLoading(true);
     try {
+      const shipMethod = form.ship.includes("GoSend") ? "gosend" : form.ship.includes("Ambil") ? "ambil" : "reguler";
+      const fullAddr = (form.postal.trim() ? `${form.addr.trim()} (${form.postal.trim()})` : form.addr.trim()).slice(0, 500);
       const res = await fetch("/api/create-order", {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -1673,11 +1762,13 @@ export function Checkout() {
           buyer_name: form.name.trim(),
           buyer_phone: form.phone,
           buyer_city: form.city,
-          buyer_address: form.addr.trim(),
+          buyer_address: fullAddr,
           buyer_note: form.note.trim() || undefined,
           channel: "QRIS",
           cart: items.map((i) => ({ product_id: i.p.id, qty: i.qty })),
           promo_code: promo,
+          shipping_method: shipMethod,
+          idempotency_key: idemKey,
         }),
       });
       const out = (await res.json()) as {
@@ -1705,7 +1796,22 @@ export function Checkout() {
     }
   };
 
-  if (items.length === 0) return null;
+  if (items.length === 0) {
+    if (loadError) {
+      return (
+        <div className="min-h-screen bg-canvas pb-28">
+          <StoreHeader crumb="Checkout" store={store} />
+          <PageShell className="py-6">
+            <ErrorState
+              desc="Koneksi bermasalah atau sesi berakhir. Coba muat ulang — isian Anda tetap tersimpan di halaman ini."
+              onRetry={() => window.location.reload()}
+            />
+          </PageShell>
+        </div>
+      );
+    }
+    return null;
+  }
 
   return (
     <div className="min-h-screen bg-canvas pb-28">
@@ -1715,8 +1821,8 @@ export function Checkout() {
           {[
             ["1", "Keranjang", "/cart"],
             ["2", "Data pembeli", ""],
-            ["3", "Bayar", "/checkout/qris"],
-            ["4", "Selesai", "/checkout/success"],
+            ["3", "Bayar", ""],
+            ["4", "Selesai", ""],
           ].map(([n, l, to], i) => (
             <div key={l} className="flex items-center gap-2.5">
               <button
@@ -1780,8 +1886,13 @@ export function Checkout() {
                   <Field label="Kota / kabupaten" required>
                     <CityCombobox value={form.city} onChange={(v) => set("city", v)} />
                   </Field>
-                  <Field label="Kode pos">
-                    <Input defaultValue="40131" />
+                  <Field label="Kode pos (opsional)">
+                    <Input
+                      value={form.postal}
+                      inputMode="numeric"
+                      onChange={(e) => set("postal", e.target.value.replace(/\D/g, "").slice(0, 5))}
+                      placeholder="Contoh: 40131"
+                    />
                   </Field>
                 </div>
               </div>
@@ -1791,9 +1902,9 @@ export function Checkout() {
               <div className="micro mb-4 text-brand-600">02 / Pengiriman</div>
               <div className="space-y-2.5">
                 {[
-                  ["Reguler (2–3 hari)", "JNE / J&T", shipping === 0 ? "Gratis" : rupiah(SHIP)],
+                  ["Reguler (2–3 hari)", "JNE / J&T", subtotal >= 200000 ? "Gratis" : rupiah(SHIP)],
                   ["GoSend instan (hari ini)", "Kurir dalam kota", rupiah(18000)],
-                  ["Ambil sendiri di toko", "Jl. Cihampelas No. 28", "Gratis"],
+                  ["Ambil sendiri di toko", "Atur waktu pengambilan dengan penjual", "Gratis"],
                 ].map(([name, note, price]) => (
                   <label
                     key={name}
@@ -1824,7 +1935,6 @@ export function Checkout() {
               <div className="grid gap-2.5 sm:grid-cols-2">
                 {[
                   ["QRIS", "qr", "Semua e-wallet & m-banking", "Biaya 0,7%"],
-                  ["Transfer bank", "wallet", "BCA / Mandiri / BRI", "Verifikasi manual"],
                 ].map(([name, icon, note, fee]) => (
                   <label
                     key={name}
@@ -1923,6 +2033,7 @@ export function Qris({ orderId, token }: { orderId: string; token: string }) {
   const { toast } = useApp();
   const { order, loading, notFound } = useOrderStatus(orderId, token);
   const store = orderStore(order);
+  const [cancelling, setCancelling] = useState(false);
   const merchant = order?.store ?? store?.store_name ?? "Toko";
   const storeSlug = order?.slug ?? store?.store_slug ?? "";
   const [qr, setQr] = useState<{
@@ -1949,7 +2060,7 @@ export function Qris({ orderId, token }: { orderId: string; token: string }) {
 
   const externalRef = (order as (TrackedOrder & { external_ref?: string | null }) | null)?.external_ref ?? null;
   const qrSrc = qr?.qr_url ?? (externalRef ? `https://app.buatqris.site/poto/qris/${externalRef}.png` : null);
-  const amount = qr?.total_amount ?? Number(order?.total ?? 0);
+  const amount = qr?.total_amount ?? Number(order?.amount_due ?? order?.total ?? 0);
   const left = qr?.expired_at ? Math.max(0, Math.floor((new Date(qr.expired_at).getTime() - now) / 1000)) : 300;
   const mm = String(Math.floor(left / 60)).padStart(2, "0");
   const ss = String(left % 60).padStart(2, "0");
@@ -2103,11 +2214,35 @@ export function Qris({ orderId, token }: { orderId: string; token: string }) {
         open={confirmCancel}
         onClose={() => setConfirmCancel(false)}
         title="Batalkan pesanan ini?"
-        body="Pesanan dan pembayaran yang sudah dilakukan tidak bisa dikembalikan otomatis. Hubungi penjual bila Anda sudah terlanjur membayar."
-        confirmLabel="Ya, batalkan"
-        onConfirm={() => {
-          toast("Pesanan dibatalkan.", "warn");
-          navigate(`/s/${storeSlug}`);
+        body="Pesanan yang belum dibayar akan dibatalkan dan QR-nya mati. Kalau Anda sudah terlanjur membayar, hubungi penjual."
+        confirmLabel={cancelling ? "Membatalkan…" : "Ya, batalkan"}
+        onConfirm={async () => {
+          if (!order) return;
+          setCancelling(true);
+          try {
+            const res = await fetch("/api/cancel-order", {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({ order_id: order.id, access_token: token }),
+            });
+            const out = (await res.json()) as { ok?: boolean; error?: string };
+            if (!res.ok || !out.ok) {
+              toast(out.error ?? "Gagal membatalkan.", "bad");
+              return;
+            }
+            try {
+              sessionStorage.removeItem(`tl_qr_${order.id}`);
+            } catch {
+              /* abaikan */
+            }
+            toast("Pesanan dibatalkan.", "warn");
+            navigate(`/s/${storeSlug}`);
+          } catch {
+            toast("Tidak bisa menghubungi server.", "bad");
+          } finally {
+            setCancelling(false);
+            setConfirmCancel(false);
+          }
         }}
       />
     </div>
@@ -2118,9 +2253,14 @@ export function Qris({ orderId, token }: { orderId: string; token: string }) {
 export function PaymentStatus({ orderId, token }: { orderId: string; token: string }) {
   const { order, loading, notFound, waitingLong } = useOrderStatus(orderId, token);
   const store = orderStore(order);
-  // menunggu→0, dikemas→2 (bayar otomatis lunas), dikirim/selesai→3
-  const step = !order ? 0 : order.status === "menunggu" ? 0 : order.status === "dikemas" ? 2 : 3;
-  const finished = order?.status === "selesai";
+  const status = order?.status ?? "menunggu";
+  // Pemetaan status eksplisit (jangan else→selesai):
+  // menunggu = belum bayar, dikemas = UANG MASUK (webhook sukses),
+  // dikirim = kurir, selesai = terima, batal = gagal/kedaluwarsa.
+  const paid = status === "dikemas" || status === "dikirim" || status === "selesai";
+  const failed = status === "batal";
+  const step = status === "menunggu" ? 0 : status === "dikemas" ? 2 : failed ? 0 : 3;
+  const finished = paid;
   const steps = [
     { t: "Menunggu pembayaran", d: "QRIS dipindai, transaksi dibuat." },
     { t: "Pembayaran diterima", d: "Dana masuk ke saldo penjual." },
@@ -2167,12 +2307,34 @@ export function PaymentStatus({ orderId, token }: { orderId: string; token: stri
       <StoreHeader crumb="Status pembayaran" store={store} />
       <PageShell className="py-8">
         <div className="mx-auto max-w-[560px]">
-          <div className="notch rounded-xl border border-line bg-white p-6 text-center shadow-card">
-            <div className="relative mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-brand-50 text-brand-600">
-              <Spinner />
-              <span className="absolute inset-0 rounded-full border-2 border-brand-200" />
+          {failed ? (
+            <div className="notch rounded-xl border border-line bg-white p-6 text-center shadow-card">
+              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-badsoft text-bad">
+                <Icon name="alert" size={30} />
+              </div>
+              <div className="micro mt-5 text-bad">04 / Pembayaran gagal</div>
+              <h1 className="mt-2 text-[24px] font-extrabold tracking-[-0.02em] text-ink">
+                Pesanan dibatalkan
+              </h1>
+              <p className="mx-auto mt-2 max-w-sm text-[14px] leading-relaxed text-muted">
+                QR pembayaran ini sudah kedaluwarsa atau dibatalkan. Uang tidak jadi berpindah.
+                Mau coba lagi? Buat pesanan baru dari toko.
+              </p>
+              <div className="rise mt-6 flex flex-col gap-2.5 sm:flex-row">
+                <ButtonLink to={store?.store_slug ? `/s/${store.store_slug}` : "/"} className="flex-1" size="lg">
+                  Pesan ulang
+                </ButtonLink>
+              </div>
             </div>
-            <div className="micro mt-5 text-brand-600">04 / Memeriksa pembayaran</div>
+          ) : (
+          <div className="notch rounded-xl border border-line bg-white p-6 text-center shadow-card">
+            <div className={`relative mx-auto flex h-16 w-16 items-center justify-center rounded-full ${finished ? "bg-oksoft text-ok" : "bg-brand-50 text-brand-600"}`}>
+              {finished ? <Icon name="check" size={32} strokeWidth={2.6} /> : <Spinner />}
+              {!finished && <span className="absolute inset-0 rounded-full border-2 border-brand-200" />}
+            </div>
+            <div className={`micro mt-5 ${finished ? "text-ok" : "text-brand-600"}`}>
+              {finished ? "04 / Pembayaran diterima" : "04 / Memeriksa pembayaran"}
+            </div>
             <h1 className="mt-2 text-[24px] font-extrabold tracking-[-0.02em] text-ink">
               {finished ? "Pembayaran lunas!" : "Sedang mengonfirmasi ke bank…"}
             </h1>
@@ -2201,7 +2363,10 @@ export function PaymentStatus({ orderId, token }: { orderId: string; token: stri
               </div>
             </div>
           </div>
+          )}
 
+          {!failed && (
+          <>
           <div className="mt-4 rounded-xl border border-line bg-white p-5">
             <ol className="relative space-y-5 pl-8">
               <span className="absolute left-[11px] top-2 h-[calc(100%-24px)] w-px bg-line" />
@@ -2239,7 +2404,7 @@ export function PaymentStatus({ orderId, token }: { orderId: string; token: stri
             </ol>
           </div>
 
-          {step >= 2 && (
+          {step >= 2 && !failed && (
             <div className="rise mt-4 flex flex-col gap-2.5 sm:flex-row">
               <ButtonLink to={`/checkout/success?id=${order.id}&token=${token}`} className="flex-1" size="lg">
                 Lihat konfirmasi <Icon name="arrowRight" size={16} />
@@ -2248,6 +2413,8 @@ export function PaymentStatus({ orderId, token }: { orderId: string; token: stri
                 Lacak pesanan
               </ButtonLink>
             </div>
+          )}
+          </>
           )}
         </div>
       </PageShell>
@@ -2322,7 +2489,7 @@ export function OrderSuccess({ orderId, token }: { orderId: string; token: strin
             </h1>
             <p className="mx-auto mt-2 max-w-md text-[14.5px] leading-relaxed text-muted">
               Pesanan <span className="tnum font-bold text-ink">{order.id}</span> sudah diteruskan ke
-              {order.store ?? "toko"}. Nota dikirim ke WhatsApp Anda.
+              {order.store ?? "toko"}. Simpan ID pesanan ini untuk lacak status.
             </p>
 
             <div className="mt-6 rounded-lg border border-line bg-canvas p-4 text-left">
@@ -2356,7 +2523,7 @@ export function OrderSuccess({ orderId, token }: { orderId: string; token: strin
                 variant="secondary"
                 size="lg"
                 className="flex-1"
-                onClick={() => toast("Membuka chat WhatsApp penjual…", "info")}
+                onClick={() => openStoreWA(order.wa_url ?? null, toast, `Halo, saya mau tanya pesanan ${order.id}`)}
               >
                 <Icon name="wa" size={17} className="text-[#0a7a56]" /> Chat penjual
               </Button>
@@ -2386,7 +2553,7 @@ export function OrderTracking({ id }: { id: string }) {
 
   type Tracked = {
     id: string; status: string; total: number | string; amount_due?: number | string;
-    channel: string | null;
+    channel: string | null; wa_url?: string | null;
     created_at: string; buyer: string; city: string | null;
     store: string | null; slug: string | null;
     items: { name: string; qty: number; price: number | string }[];
@@ -2459,10 +2626,10 @@ export function OrderTracking({ id }: { id: string }) {
   });
   const timeline = [
     { t: "Pesanan dibuat", d: made, note: `Oleh ${order.buyer}${order.city ? `, ${order.city}` : ""}.` },
-    { t: "Pembayaran diterima", d: done[1] ? made : "—", note: done[1] ? `Rp${Number(order.amount_due ?? order.total).toLocaleString("id-ID")} lewat ${order.channel ?? "QRIS"}.` : "Menunggu pembayaran." },
-    { t: "Dikemas penjual", d: done[2] ? made : "—", note: done[2] ? `Dikemas di ${order.store ?? "toko"}.` : "Menunggu pengemasan." },
-    { t: "Sedang dikirim", d: done[3] ? made : "—", note: done[3] ? "Paket menuju alamat penerima." : "Belum dikirim." },
-    { t: "Selesai", d: done[4] ? made : "—", note: done[4] ? "Barang sudah diterima." : "Konfirmasi setelah barang diterima." },
+    { t: "Pembayaran diterima", d: done[1] ? "✓" : "—", note: done[1] ? `Rp${Number(order.amount_due ?? order.total).toLocaleString("id-ID")} lewat ${order.channel ?? "QRIS"}.` : "Menunggu pembayaran." },
+    { t: "Dikemas penjual", d: done[2] ? "✓" : "—", note: done[2] ? `Dikemas di ${order.store ?? "toko"}.` : "Menunggu pengemasan." },
+    { t: "Sedang dikirim", d: done[3] ? "✓" : "—", note: done[3] ? "Paket menuju alamat penerima." : "Belum dikirim." },
+    { t: "Selesai", d: done[4] ? "✓" : "—", note: done[4] ? "Barang sudah diterima." : "Konfirmasi setelah barang diterima." },
   ];
   const badgeTone = order.status === "selesai" ? "green" : order.status === "batal" ? "red" : order.status === "menunggu" ? "amber" : "blue";
   const badgeLabel =
@@ -2564,18 +2731,21 @@ export function OrderTracking({ id }: { id: string }) {
                 </span>
                 <div className="leading-tight">
                   <div className="text-[14px] font-bold text-ink">{order.store ?? "Toko"}</div>
-                  <div className="text-[12.5px] text-faint">Balas chat ≤ 10 menit</div>
+                  <div className="text-[12.5px] text-faint">Chat untuk tanya status pesanan</div>
                 </div>
               </div>
               {order.slug ? (
                 <ButtonLink to={`/s/${order.slug}`} variant="secondary" className="mt-4 w-full">
                   <Icon name="store" size={16} /> Kunjungi toko
                 </ButtonLink>
-              ) : (
-                <Button className="mt-4 w-full" variant="secondary" onClick={() => toast("Membuka chat WhatsApp…", "info")}>
-                  <Icon name="wa" size={16} className="text-[#0a7a56]" /> Butuh bantuan
-                </Button>
-              )}
+              ) : null}
+              <Button
+                className="mt-2.5 w-full"
+                variant="secondary"
+                onClick={() => openStoreWA(order.wa_url ?? null, toast, `Halo, saya mau tanya pesanan ${order.id}`)}
+              >
+                <Icon name="wa" size={16} className="text-[#0a7a56]" /> Butuh bantuan
+              </Button>
             </div>
 
             <Link

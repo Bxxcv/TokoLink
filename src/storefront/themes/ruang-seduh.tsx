@@ -253,7 +253,6 @@ export function RuangSeduh(p: ThemeStorefrontProps) {
               </button>
               <dl className="tnum" style={{ fontFamily: MONO, fontSize: 12, marginTop: 22, color: INK_SOFT }}>
                 {[
-                  ["WhatsApp", waNumber || "—"],
                   ...(city ? [["Kota", city] as [string, string]] : []),
                   ["Pembayaran", "QRIS"],
                 ].map(([k, v]) => (

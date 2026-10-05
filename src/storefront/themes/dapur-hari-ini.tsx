@@ -11,6 +11,7 @@
  */
 import { rupiah, type Product } from "../../lib/data";
 import type { ThemeStorefrontProps } from "../types";
+import { ThemeBioLinks } from "./shared";
 
 const PAPER = "#FFF8EC";
 const PANEL = "#FFFFFF";
@@ -79,12 +80,13 @@ function MenuRow({
 
 export function DapurHariIni(p: ThemeStorefrontProps) {
   const {
-    slug, storeName, city, bio, waNumber,
+    slug, storeName, city, bio, waNumber, closed,
     items, cats, cat, onCat, q, onQ, onResetFilter, loading,
+    bioLinks, onOpenBioLink,
     showHours, showCart, cartCount, onAdd, onChatWA, onShare, shared,
     openNow, todayHours,
   } = p;
-  const canAdd = showCart;
+  const canAdd = showCart && !closed;
 
   return (
     <div style={{ background: PAPER, color: INK, fontFamily: BODY, fontSize: 15, lineHeight: 1.5, minHeight: "100vh", paddingBottom: showCart && cartCount > 0 ? 76 : 0 }}>
@@ -99,6 +101,7 @@ export function DapurHariIni(p: ThemeStorefrontProps) {
               {todayWIB()}{city ? ` · ${city}` : ""}
             </div>
             {bio && <p style={{ fontSize: 14, color: INK_SOFT, marginTop: 8, lineHeight: 1.6, maxWidth: 560 }}>{bio}</p>}
+            <ThemeBioLinks links={bioLinks} onOpen={onOpenBioLink} />
           </div>
           <div className="lg:text-right">
             {showHours && (
@@ -178,7 +181,6 @@ export function DapurHariIni(p: ThemeStorefrontProps) {
         {[
           ["Lokasi", city || "—"],
           ["Pembayaran", "QRIS"],
-          ["WhatsApp", waNumber || "—"],
         ].map(([k, v]) => (
           <div key={k}>
             <span style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.12em", color: INK_SOFT }}>{k}</span>

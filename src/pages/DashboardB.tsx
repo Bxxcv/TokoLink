@@ -4,6 +4,7 @@ import { navigate } from "../lib/router";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
 import { digitsOnly, formatRibuan, isValidWA, normalizeWA } from "../lib/format";
+import { CITIES } from "../lib/cities";
 import { detectLinkIcon, iconForLink } from "../lib/links";
 import { uploadImage } from "../lib/storage";
 import { buildNotifications, getReadIds, markRead as markReadLib, type NotifItem } from "../lib/notifications";
@@ -71,7 +72,8 @@ function useLedger() {
       .from("ledger")
       .select("id,label,amount,type,ref_order_id,created_at")
       .eq("seller_id", user.id)
-      .order("created_at", { ascending: false });
+      .order("created_at", { ascending: false })
+      .limit(1000);
     setLoading(false);
     if (error) {
       setLoadError(true);
@@ -345,16 +347,21 @@ export function Withdraw() {
     setConfirm(false);
     setLoading(true);
     try {
-      const { error } = await supabase.from("withdrawals").insert({
-        seller_id: user.id,
-        bank: bankName,
-        account_number: digitsOnly(acctNum),
-        amount: value,
-        fee,
-        status: "menunggu",
+      // SECURITY HOTFIX BUG-003: penarikan WAJIB via RPC server-authoritative
+      // (validasi saldo + pending + anti-race di database). Insert langsung
+      // dari browser sudah dicabut (REVOKE) dan akan ditolak RLS.
+      const { error } = await supabase.rpc("request_withdrawal", {
+        p_bank: bankName,
+        p_account_number: digitsOnly(acctNum),
+        p_amount: value,
       });
       if (error) {
-        toast("Gagal membuat penarikan.", "bad");
+        const msg = (error.message ?? "").toUpperCase();
+        if (msg.includes("SALDO_TIDAK_CUKUP")) toast("Jumlah melebihi saldo tersedia (termasuk antrean).", "bad");
+        else if (msg.includes("MINIMAL_PENARIKAN")) toast("Penarikan minimal Rp50.000.", "bad");
+        else if (msg.includes("AKUN_NONAKTIF")) toast("Akun Anda sedang nonaktif. Hubungi admin.", "bad");
+        else if (msg.includes("REKENING_TIDAK_VALID")) toast("Nomor rekening belum benar (minimal 9 digit).", "bad");
+        else toast("Gagal membuat penarikan.", "bad");
         return;
       }
       toast("Permintaan penarikan diterima. Dana cair maksimal 1 hari kerja.");
@@ -649,7 +656,15 @@ export function BioLinks() {
         desc="Satu halaman berisi semua tautan penting. Taruh alamatnya di bio Instagram, WhatsApp, dan TikTok."
         actions={
           <>
-            <Button variant="secondary" onClick={() => toast(`Tautan disalin: tokolink.store/s/${storeSlug}`)}>
+            <Button variant="secondary" onClick={async () => {
+              const url = `https://tokolink.store/s/${storeSlug}`;
+              try {
+                await navigator.clipboard.writeText(url);
+                toast("Tautan toko disalin.");
+              } catch {
+                toast("Gagal menyalin: " + url, "bad");
+              }
+            }}>
               <Icon name="copy" size={16} /> Salin tautan
             </Button>
             <Button
@@ -1364,14 +1379,21 @@ export function Discount() {
     if (!user) return;
     setLoading(true);
     setLoadError("");
-    const { data, error } = await supabase
+    let req = supabase
       .from("discount_codes")
       .select("*")
       .eq("seller_id", user.id)
       .order("created_at", { ascending: false });
+    let { data, error } = await req;
+    if (error && /created_at/i.test(error.message)) {
+      // Kolom created_at belum ada (migrasi belum jalan) — muat tanpa urutan.
+      const retry = await supabase.from("discount_codes").select("*").eq("seller_id", user.id);
+      data = retry.data;
+      error = retry.error;
+    }
     if (error) {
       setLoading(false);
-      setLoadError(error.message);
+      setLoadError("Gagal memuat kode promo. Periksa koneksi lalu coba lagi.");
       return;
     }
     setList((data ?? []) as DRow[]);
@@ -1413,7 +1435,9 @@ export function Discount() {
         setErr(
           error.code === "23505"
             ? `Kode ${code} sudah dipakai. Pakai nama lain.`
-            : `Gagal menyimpan (${error.message}). Screenshot pesan ini ke developer.`,
+            : /discount_value_sane/i.test(error.message)
+              ? "Nilai tidak wajar (persen maks 100, nilai harus positif)."
+              : "Gagal menyimpan. Periksa isian lalu coba lagi.",
         );
         return;
       }
@@ -1627,6 +1651,41 @@ export function Discount() {
 }
 
 /* ================================== HOURS ================================== */
+/** Status buka/tutup ASLI dari baris jam + waktu WIB (bukan hardcode). */
+function HoursStatusCard({ rows }: { rows: { day: number; open: string; close: string; on: boolean }[] }) {
+  const wib = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Jakarta" }));
+  const day = (wib.getDay() + 6) % 7;
+  const now = `${String(wib.getHours()).padStart(2, "0")}:${String(wib.getMinutes()).padStart(2, "0")}`;
+  const row = rows.find((r) => r.day === day);
+  const open = !!row && row.on && !!row.open && !!row.close && row.open <= now && now <= row.close;
+  return (
+    <Card>
+      <CardHead title="Status sekarang" icon="clock" />
+      <div className={`flex items-center gap-3 rounded-lg p-3.5 ${open ? "bg-oksoft" : "bg-badsoft"}`}>
+        <span className={`grid h-10 w-10 place-items-center rounded-md bg-white ${open ? "text-ok" : "text-bad"}`}>
+          <Icon name={open ? "check" : "alert"} size={20} />
+        </span>
+        <div>
+          <div className="text-[14.5px] font-bold text-ink">{open ? "Toko sedang buka" : "Toko sedang tutup"}</div>
+          <div className="tnum text-[13px] text-muted">
+            {row && row.on && row.open && row.close ? `Hari ini ${row.open.replace(":", ".")}–${row.close.replace(":", ".")} WIB` : "Tidak ada jadwal hari ini"}
+          </div>
+        </div>
+      </div>
+      <div className="mt-4 space-y-2.5 text-[13.5px]">
+        <div className="flex justify-between">
+          <span className="text-muted">Pesanan di luar jam buka</span>
+          <span className="font-semibold text-ink">Tetap diterima</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-muted">Pengiriman</span>
+          <span className="font-semibold text-ink">Diproses hari berikutnya</span>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
 export function Hours() {
   const { toast } = useApp();
   const { user } = useAuth();
@@ -1754,7 +1813,6 @@ export function Hours() {
             >
               Buka setiap hari
             </Button>
-            <Button onClick={() => toast("Jam buka disimpan.")}>Simpan jam buka</Button>
           </>
         }
       />
@@ -1811,29 +1869,7 @@ export function Hours() {
         )}
 
         <aside className="space-y-4">
-          <Card>
-            <CardHead title="Status sekarang" icon="clock" />
-            <div className="flex items-center gap-3 rounded-lg bg-oksoft p-3.5">
-              <span className="grid h-10 w-10 place-items-center rounded-md bg-white text-ok">
-                <Icon name="check" size={20} />
-              </span>
-              <div>
-                <div className="text-[14.5px] font-bold text-ink">Toko sedang buka</div>
-                <div className="tnum text-[13px] text-muted">Sampai 20.00 WIB</div>
-              </div>
-            </div>
-            <div className="mt-4 space-y-2.5 text-[13.5px]">
-              <div className="flex justify-between">
-                <span className="text-muted">Pesanan di luar jam buka</span>
-                <span className="font-semibold text-ink">Tetap diterima</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted">Pengiriman</span>
-                <span className="font-semibold text-ink">Diproses hari berikutnya</span>
-              </div>
-            </div>
-          </Card>
-
+          <HoursStatusCard rows={rows} />
           <Card>
             <CardHead title="Hari libur khusus" sub="Cut-off, libur lebaran, atau libur keluarga" icon="calendar" />
             <EmptyState
@@ -1960,10 +1996,6 @@ export function StoreQR() {
                   <dt className="text-muted">Ukuran cetak</dt>
                   <dd className="font-semibold text-ink">5 × 5 cm (min. 2 cm)</dd>
                 </div>
-                <div className="flex justify-between">
-                  <dt className="text-muted">Pemindaian bulan ini</dt>
-                  <dd className="tnum font-semibold text-ink">405 kali</dd>
-                </div>
               </dl>
 
               <div className="mt-5 flex flex-wrap gap-2">
@@ -2008,14 +2040,12 @@ export function StoreQR() {
 
           <Card>
             <CardHead title="Performa QR" icon="chartAlt" />
-            <BarRows
-              data={[
-                { label: "QR kasir toko", value: 218 },
-                { label: "QR kemasan", value: 96 },
-                { label: "QR status WhatsApp", value: 64 },
-              ]}
-              format={(v) => `${v} pindaian`}
-            />
+            <p className="text-[13px] leading-relaxed text-faint">
+              Statistik pindaian per lokasi QR belum tersedia. Halaman Traffic mencatat kunjungan tokomu.
+            </p>
+            <ButtonLink to="/app/traffic" variant="secondary" size="sm" className="mt-3">
+              Lihat Traffic
+            </ButtonLink>
           </Card>
         </aside>
       </div>
@@ -2034,11 +2064,11 @@ export function StoreSettings() {
   const [f, setF] = useState({
     name: "",
     slug: "",
-    cat: "Kue & Snack",
+    cat: "",
     city: "",
     phone: "",
-    bio: "Masakan rumahan dan bumbu jadi, dimasak pagi hari dikirim siang.",
-    address: "Jl. Cihampelas No. 28, Bandung 40131",
+    bio: "",
+    address: "",
   });
 
   // Muat sekali dari profiles.
@@ -2100,12 +2130,29 @@ export function StoreSettings() {
       setSaving(false);
     }
   };
-  const [notifs, setNotifs] = useState([
-    { t: "Pesanan baru", d: "WhatsApp + notifikasi aplikasi", on: true },
-    { t: "Pembayaran diterima", d: "Notifikasi aplikasi", on: true },
-    { t: "Stok hampir habis", d: "WhatsApp", on: true },
-    { t: "Ringkasan jualan mingguan", d: "Email setiap Senin", on: false },
-  ]);
+  const [notifs, setNotifs] = useState(() => {
+    try {
+      const raw = localStorage.getItem("tl_notif_prefs");
+      if (raw) {
+        const parsed = JSON.parse(raw) as boolean[];
+        const base = [
+          { t: "Pesanan baru", d: "Notifikasi di halaman Notifikasi", on: true },
+          { t: "Pembayaran diterima", d: "Notifikasi di halaman Notifikasi", on: true },
+          { t: "Stok hampir habis", d: "Peringatan di dasbor", on: true },
+          { t: "Ringkasan jualan mingguan", d: "Segera hadir", on: false },
+        ];
+        return base.map((b, i) => ({ ...b, on: typeof parsed[i] === "boolean" ? parsed[i] : b.on }));
+      }
+    } catch {
+      /* abaikan */
+    }
+    return [
+      { t: "Pesanan baru", d: "Notifikasi di halaman Notifikasi", on: true },
+      { t: "Pembayaran diterima", d: "Notifikasi di halaman Notifikasi", on: true },
+      { t: "Stok hampir habis", d: "Peringatan di dasbor", on: true },
+      { t: "Ringkasan jualan mingguan", d: "Segera hadir", on: false },
+    ];
+  });
 
   return (
     <AppShell>
@@ -2146,8 +2193,9 @@ export function StoreSettings() {
                 <Field label="Kota asal" required>
                   <Select value={f.city} onChange={(e) => setF({ ...f, city: e.target.value })}>
                     <option value="">Pilih kota…</option>
-                    {["Bandung", "Cimahi", "Jakarta Selatan", "Surabaya", "Yogyakarta"].map((c) => (
-                      <option key={c}>{option(c)}</option>
+                    {f.city && !CITIES.includes(f.city) && <option value={f.city}>{f.city}</option>}
+                    {CITIES.map((c) => (
+                      <option key={c}>{c}</option>
                     ))}
                   </Select>
                 </Field>
@@ -2183,8 +2231,16 @@ export function StoreSettings() {
                   <Toggle
                     checked={n.on}
                     onChange={(v) => {
-                      setNotifs((xs) => xs.map((x) => (x.t === n.t ? { ...x, on: v } : x)));
-                      toast("Preferensi notifikasi diperbarui.", "info");
+                      setNotifs((xs) => {
+                        const next = xs.map((x) => (x.t === n.t ? { ...x, on: v } : x));
+                        try {
+                          localStorage.setItem("tl_notif_prefs", JSON.stringify(next.map((x) => x.on)));
+                        } catch {
+                          /* abaikan */
+                        }
+                        return next;
+                      });
+                      toast("Preferensi tersimpan di perangkat ini.", "info");
                     }}
                     label={n.t}
                   />
@@ -2215,21 +2271,31 @@ export function StoreSettings() {
         <aside className="space-y-4 lg:sticky lg:top-24 lg:self-start">
           <div className="notch rounded-xl border border-line bg-navy-900 p-5 text-white">
             <div className="micro text-brand-300">Paket saat ini</div>
-            <div className="mt-2 flex items-baseline gap-2">
-              <span className="text-[24px] font-extrabold">Premium</span>
-              <span className="tnum text-[15px] text-white/60">Rp59.000/bln</span>
-            </div>
-            <p className="mt-2 text-[13px] leading-relaxed text-white/65">
-              Perpanjang otomatis 12 Mar 2025. Biaya QRIS 0,5% dan laporan bisa diunduh.
-            </p>
-            <Segmented
-              items={["Bulanan", "Tahunan"]}
-              active={plan}
-              onChange={(v) => {
-                setPlan(v);
-                toast(`Paket diubah ke ${v}. Selisih tagihan dihitung otomatis.`, "info");
-              }}
-            />
+            {(profile?.plan ?? "gratis") === "premium" ? (
+              <>
+                <div className="mt-2 flex items-baseline gap-2">
+                  <span className="text-[24px] font-extrabold">Premium</span>
+                  <Badge tone="green" dot>Aktif</Badge>
+                </div>
+                <p className="mt-2 text-[13px] leading-relaxed text-white/65">
+                  Toko memakai fitur Premium. Komisi platform mengikuti pengaturan admin.
+                </p>
+              </>
+            ) : (
+              <>
+                <div className="mt-2 flex items-baseline gap-2">
+                  <span className="text-[24px] font-extrabold">Gratis</span>
+                </div>
+                <p className="mt-2 text-[13px] leading-relaxed text-white/65">
+                  Naik ke Premium: Rp59.000/bln atau Rp590.000/thn. Pengajuan ditinjau admin 1×24 jam.
+                </p>
+                <Segmented
+                  items={["Bulanan", "Tahunan"]}
+                  active={plan}
+                  onChange={(v) => setPlan(v)}
+                />
+              </>
+            )}
             <Button
               className="mt-3 w-full bg-brand-500! text-navy-900! hover:bg-brand-400!"
               onClick={async () => {
@@ -2411,14 +2477,9 @@ export function AccountSettings() {
                 </label>
               </div>
               <div className="flex-1 space-y-4">
-                <FieldRow cols={2}>
-                  <Field label="Nama lengkap" required>
-                    <Input value={owner} onChange={(e) => setOwner(e.target.value)} placeholder="Nama Anda" />
-                  </Field>
-                  <Field label="Nama tampilan" hint="Muncul di pesanan dan chat.">
-                    <Input defaultValue="" placeholder="Nama panggilan" />
-                  </Field>
-                </FieldRow>
+                <Field label="Nama lengkap" required hint="Muncul di pesanan dan profil toko.">
+                  <Input value={owner} onChange={(e) => setOwner(e.target.value)} placeholder="Nama Anda" />
+                </Field>
                 <FieldRow cols={2}>
                   <Field label="Email" required>
                     <Input defaultValue={user?.email ?? ""} type="email" readOnly />
@@ -2562,8 +2623,9 @@ export function AccountSettings() {
               method: "POST",
               headers: { authorization: `Bearer ${token}` },
             });
+            const out = (await res.json().catch(() => ({}))) as { error?: string };
             if (!res.ok) {
-              toast("Gagal menghapus akun.", "bad");
+              toast(out.error ?? "Gagal menghapus akun.", "bad");
               return;
             }
             await supabase.auth.signOut({ scope: "local" });

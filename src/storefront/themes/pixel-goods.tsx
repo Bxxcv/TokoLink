@@ -10,6 +10,7 @@
  */
 import { rupiah, type Product } from "../../lib/data";
 import type { ThemeStorefrontProps } from "../types";
+import { ThemeBioLinks } from "./shared";
 
 const PAPER = "#0B0E11";
 const PANEL = "#141920";
@@ -65,12 +66,13 @@ function Row({
 
 export function PixelGoods(p: ThemeStorefrontProps) {
   const {
-    slug, storeName, city, bio, waNumber, avatarUrl,
+    slug, storeName, city, bio, waNumber, avatarUrl, closed,
     items, cats, cat, onCat, q, onQ, onResetFilter, loading,
+    bioLinks, onOpenBioLink,
     showHours, showCart, cartCount, onAdd, onChatWA, onShare, shared,
     openNow, todayHours,
   } = p;
-  const canAdd = showCart;
+  const canAdd = showCart && !closed;
 
   return (
     <div style={{ background: PAPER, color: INK, fontFamily: DISPLAY, fontSize: 14, lineHeight: 1.5, minHeight: "100vh" }}>
@@ -135,6 +137,7 @@ export function PixelGoods(p: ThemeStorefrontProps) {
           />
         </div>
         {bio && <p style={{ fontSize: 13.5, color: INK_SOFT, marginBottom: 16, lineHeight: 1.65, maxWidth: 720 }}>{bio}</p>}
+        <ThemeBioLinks links={bioLinks} onOpen={onOpenBioLink} />
 
         <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_296px]">
           <div className="grid min-w-0 gap-3">

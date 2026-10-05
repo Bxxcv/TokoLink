@@ -29,9 +29,11 @@ function readRaw(req: any): Promise<string> {
 export default async function handler(req: any, res: any) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method tidak didukung." });
 
-  // Rate limit sederhana per-IP.
-  const ip =
-    (req.headers["x-forwarded-for"] as string | undefined)?.split(",")[0]?.trim() ?? "unknown";
+  // Rate limit sederhana per-IP (pakai header terpercaya, bukan XFF pertama).
+  const realIp = (req.headers["x-real-ip"] as string | undefined)?.trim();
+  const xvf = (req.headers["x-vercel-forwarded-for"] as string | undefined)?.split(",").map((s) => s.trim()).filter(Boolean);
+  const xff = (req.headers["x-forwarded-for"] as string | undefined)?.split(",").map((s) => s.trim()).filter(Boolean);
+  const ip = realIp || (xvf && xvf[0]) || (xff && xff[xff.length - 1]) || "unknown";
   const g = globalThis as unknown as { __whHits?: Map<string, { n: number; reset: number }> };
   g.__whHits = g.__whHits ?? new Map();
   const now = Date.now();
@@ -94,6 +96,13 @@ export default async function handler(req: any, res: any) {
   const fee = Number(payload.admin_fee ?? 0);
 
   if (evt === "payment.success") {
+    // Rekonsiliasi nominal: yang dibayar HARUS sama dengan yang diminta.
+    // Beda → tandai perlu_cek, JANGAN kreditkan saldo.
+    const paidTotal = Number(payload.total_amount);
+    if (Number.isFinite(paidTotal) && Math.round(paidTotal) !== Math.round(Number(payment.amount))) {
+      await db.from("payments").update({ status: "perlu_cek", fee }).eq("id", payment.id).eq("status", "menunggu");
+      return res.status(200).json({ ok: true, flagged: true });
+    }
     const { data: claimed } = await db
       .from("payments")
       .update({ status: "berhasil", fee })
@@ -101,8 +110,16 @@ export default async function handler(req: any, res: any) {
       .eq("status", "menunggu")
       .select("id");
     if (!claimed || claimed.length === 0) return res.status(200).json({ ok: true, deduped: true });
-    await db.from("orders").update({ status: "dikemas" }).eq("id", payment.order_id);
-    const credit = Number(payload.credit_amount ?? Number(payment.amount) - fee);
+    // Jangan turunkan status order yang sudah jalan (kirim/selesai).
+    const { data: ord } = await db.from("orders").select("status").eq("id", payment.order_id).maybeSingle();
+    if ((ord as { status: string } | null)?.status === "menunggu") {
+      await db.from("orders").update({ status: "dikemas" }).eq("id", payment.order_id).eq("status", "menunggu");
+    }
+    // Kredit dibatasi maksimal sebesar tagihan (jangan percaya payload mentah).
+    const credit = Math.min(
+      Math.max(0, Number(payload.credit_amount ?? Number(payment.amount) - fee)),
+      Number(payment.amount),
+    );
     await db.from("ledger").insert({
       seller_id: payment.seller_id,
       label: `Penjualan ${payment.order_id}`,
@@ -135,12 +152,32 @@ export default async function handler(req: any, res: any) {
         });
       }
     }
+    // Kurangi stok + tambah counter terjual ATOMIK per produk via RPC.
+    // Kalau stok ternyata kurang (race), tandai perlu_cek untuk review admin.
+    const { data: items } = await db
+      .from("order_items")
+      .select("product_id,qty")
+      .eq("order_id", payment.order_id);
+    let short = false;
+    for (const it of ((items ?? []) as { product_id: string | null; qty: number }[])) {
+      if (!it.product_id) continue;
+      const { data: ok } = await db.rpc("decrement_stock", {
+        p_product_id: it.product_id,
+        p_qty: Math.max(1, Math.floor(Number(it.qty))),
+      });
+      if (!ok) short = true;
+    }
+    if (short) {
+      await db.from("payments").update({ status: "perlu_cek" }).eq("id", payment.id);
+    }
     return res.status(200).json({ ok: true });
   }
 
   if (evt === "payment.expired") {
+    // Expired yang datang SETELAH sukses tidak boleh membatalkan order lunas.
+    if (payment.status !== "menunggu") return res.status(200).json({ ok: true, deduped: true });
     await db.from("payments").update({ status: "gagal", fee }).eq("id", payment.id).eq("status", "menunggu");
-    await db.from("orders").update({ status: "batal" }).eq("id", payment.order_id);
+    await db.from("orders").update({ status: "batal" }).eq("id", payment.order_id).eq("status", "menunggu");
     return res.status(200).json({ ok: true });
   }
 

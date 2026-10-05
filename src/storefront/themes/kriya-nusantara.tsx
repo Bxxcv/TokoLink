@@ -11,6 +11,7 @@
  */
 import { rupiah } from "../../lib/data";
 import type { ThemeStorefrontProps } from "../types";
+import { ThemeBioLinks } from "./shared";
 
 const PAPER = "#F0E9DE";
 const PANEL = "#E7DECF";
@@ -27,12 +28,13 @@ const RATIOS = ["4 / 5", "1 / 1", "3 / 2", "4 / 5", "1 / 1", "3 / 2"];
 
 export function KriyaNusantara(p: ThemeStorefrontProps) {
   const {
-    slug, storeName, city, bio, waNumber, avatarUrl,
+    slug, storeName, city, bio, waNumber, avatarUrl, closed,
     items, cats, cat, onCat, q, onQ, onResetFilter, loading,
+    bioLinks, onOpenBioLink,
     showHours, showCart, cartCount, onAdd, onChatWA, onShare, shared,
     openNow, todayHours, hourRows,
   } = p;
-  const canAdd = showCart;
+  const canAdd = showCart && !closed;
 
   return (
     <div style={{ background: PAPER, color: INK, fontFamily: BODY, fontSize: 15, lineHeight: 1.5, minHeight: "100vh" }}>
@@ -182,12 +184,15 @@ export function KriyaNusantara(p: ThemeStorefrontProps) {
               <p className="tnum" style={{ fontFamily: MONO, fontSize: 12, lineHeight: 1.8, color: INK_SOFT, marginTop: 10 }}>
                 {city && <>{city}<br /></>}
                 Bayar via QRIS<br />
-                {waNumber || ""}
                 {showHours && hourRows.length > 0 && <><br />{hourRows.map((h) => `${h.day.slice(0, 3)}: ${h.text}`).join(" · ")}</>}
               </p>
             </div>
           </div>
         </div>
+      </div>
+
+      <div className="px-5 lg:px-11" style={{ marginTop: 18 }}>
+        <ThemeBioLinks links={bioLinks} onOpen={onOpenBioLink} />
       </div>
 
       <footer className="flex flex-wrap items-center justify-between gap-2 px-5 py-5 lg:px-11">

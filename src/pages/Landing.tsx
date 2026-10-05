@@ -284,9 +284,9 @@ function Hero() {
 
             <dl className="mt-10 flex flex-wrap gap-x-8 gap-y-4 border-t border-white/15 pt-6">
               {[
-                ["4.820", "toko aktif"],
-                ["Rp12,8 M", "diproses tahun ini"],
-                ["10 menit", "rata-rata siap jualan"],
+                ["1 link", "bio, katalog & checkout"],
+                ["QRIS", "semua e-wallet & m-banking"],
+                ["Rp0", "mulai paket gratis"],
               ].map(([v, l]) => (
                 <div key={l}>
                   <dt className="tnum text-[22px] font-bold leading-none text-white">{v}</dt>
@@ -627,10 +627,10 @@ export function QRMark({ size = 120, fg = "#061B45", bg = "transparent" }: { siz
 /* ---------------------------- 05 seller benefits -------------------------- */
 function Manfaat() {
   const stats = [
-    ["62%", "pembeli datang dari tautan bio"],
-    ["3,8%", "rata-rata pengunjung jadi pesanan"],
-    ["2 hari", "rata-rata dana bisa ditarik"],
-    ["0,7%", "biaya QRIS paket gratis"],
+    ["1 link", "bio, katalog, dan checkout dalam satu halaman"],
+    ["QRIS", "pembayaran e-wallet & m-banking"],
+    ["1 hari", "target cair penarikan ke rekening"],
+    ["Rp0", "mulai gratis, naik Premium bila perlu"],
   ];
   return (
     <section id="manfaat" className="relative overflow-hidden bg-navy-900 py-20 lg:py-28">
@@ -673,8 +673,7 @@ function Manfaat() {
               ))}
             </div>
             <p className="mt-4 text-[12.5px] leading-relaxed text-white/60">
-              Angka diambil dari rata-rata toko aktif TokoLink, 90 hari terakhir. Hasil tiap toko bisa
-              berbeda.
+              Hasil tiap toko tergantung produk dan promosinya masing-masing.
             </p>
           </div>
         </div>
@@ -686,7 +685,7 @@ function Manfaat() {
 /* --------------------------- 06 analytics preview ------------------------- */
 function Analitik() {
   const [period, setPeriod] = useState("30 hari");
-  const data = SALES_30;
+  const data = period === "7 hari" ? SALES_30.slice(-7) : SALES_30;
   return (
     <section id="analitik" className="border-b border-line bg-white py-20 lg:py-28">
       <PageShell>
@@ -769,8 +768,7 @@ function Analitik() {
               </div>
 
               <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line bg-canvas px-5 py-3">
-                <span className="text-[12.5px] text-muted">Diperbarui 12 Feb 2025, 09:44</span>
-                <span className="micro text-faint">Sumber: TokoLink Analytics</span>
+                <span className="text-[12.5px] text-muted">Contoh tampilan laporan di dasbor penjual</span>
               </div>
             </div>
           </div>

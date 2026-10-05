@@ -93,7 +93,7 @@ function RouteView({ path }: { path: string }) {
   if (path === "/login") return <Login />;
   if (path === "/register") return <Register />;
   if (path === "/forgot") return <Forgot />;
-  if (path === "/system") return <SystemPage />;
+  if (path === "/system") return <RequireAuth><SystemPage /></RequireAuth>;
   if (path === "/legal/privacy") return <LegalPrivacy />;
 
   /* ---- phase 2: storefront ---- */
