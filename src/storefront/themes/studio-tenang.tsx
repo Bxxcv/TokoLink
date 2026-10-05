@@ -12,6 +12,7 @@
  */
 import { rupiah } from "../../lib/data";
 import type { ThemeStorefrontProps } from "../types";
+import { ThemeBioLinks } from "./shared";
 
 const PAPER = "#F6F5F1";
 const PANEL = "#FFFFFF";
@@ -26,12 +27,13 @@ const MONO = "'IBM Plex Mono', ui-monospace, monospace";
 
 export function StudioTenang(p: ThemeStorefrontProps) {
   const {
-    slug, storeName, city, bio, waNumber, coverUrl,
+    slug, storeName, city, bio, waNumber, coverUrl, closed,
     items, cats, cat, onCat, q, onQ, onResetFilter, loading,
+    bioLinks, onOpenBioLink,
     showHours, showCart, cartCount, onAdd, onChatWA, onShare, shared,
     openNow, todayHours, hourRows,
   } = p;
-  const canAdd = showCart;
+  const canAdd = showCart && !closed;
 
   return (
     <div style={{ background: PAPER, color: INK, fontFamily: BODY, fontSize: 16, lineHeight: 1.6, minHeight: "100vh" }}>
@@ -68,6 +70,11 @@ export function StudioTenang(p: ThemeStorefrontProps) {
           </a>
         )}
       </header>
+
+      {/* tautan bio */}
+      <div style={{ maxWidth: 720, margin: "10px auto 0", padding: "0 24px" }}>
+        <ThemeBioLinks links={bioLinks} onOpen={onOpenBioLink} />
+      </div>
 
       {/* sampul */}
       {coverUrl && (
@@ -168,8 +175,6 @@ export function StudioTenang(p: ThemeStorefrontProps) {
         <div style={{ background: PANEL, border: `1px solid ${LINE}`, padding: "26px 28px", boxShadow: "0 12px 30px rgba(27,28,24,.06)" }}>
           <span style={{ fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.2em", color: INK_SOFT }}>Hubungi</span>
           <div className="tnum" style={{ fontFamily: MONO, fontSize: 14, marginTop: 12, lineHeight: 1.8 }}>
-            {waNumber || "WhatsApp belum diatur"}
-            <br />
             <span style={{ fontSize: 12, color: INK_SOFT }}>Bayar via QRIS{showCart && <> · Keranjang <span>{cartCount}</span> item</>}</span>
           </div>
           <div className="flex flex-wrap gap-3" style={{ marginTop: 16 }}>

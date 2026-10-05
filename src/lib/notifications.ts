@@ -140,8 +140,8 @@ export async function buildNotifications(userId: string): Promise<NotifItem[]> {
   return list;
 }
 
-export async function countUnread(userId: string): Promise<number> {
-  const items = await buildNotifications(userId);
+export async function countUnread(userId: string, prebuilt?: Awaited<ReturnType<typeof buildNotifications>>): Promise<number> {
+  const items = prebuilt ?? (await buildNotifications(userId));
   const read = getReadIds();
   return items.filter((n) => !read.includes(n.id)).length;
 }

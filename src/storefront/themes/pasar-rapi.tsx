@@ -12,6 +12,7 @@
  */
 import { rupiah, type Product } from "../../lib/data";
 import type { ThemeStorefrontProps } from "../types";
+import { ThemeBioLinks } from "./shared";
 
 const PAPER = "#F5F9F8";
 const PANEL = "#FFFFFF";
@@ -105,6 +106,7 @@ export function PasarRapi(p: ThemeStorefrontProps) {
   const {
     slug, storeName, city, bio, waNumber, avatarUrl, closed,
     items, cats, cat, onCat, q, onQ, onResetFilter, loading,
+    bioLinks, onOpenBioLink,
     showHours, showQR, showCart, cartCount, onAdd, onChatWA,
     qrData, onOpenQR, onShare, shared, openNow, todayHours,
   } = p;
@@ -203,6 +205,9 @@ export function PasarRapi(p: ThemeStorefrontProps) {
           <div style={{ fontSize: 13, fontWeight: 600, lineHeight: 1.5 }}>{bio}</div>
         </div>
       )}
+      <div className="px-4 sm:px-6">
+        <ThemeBioLinks links={bioLinks} onOpen={onOpenBioLink} />
+      </div>
 
       {/* grid */}
       <div className="px-4 pb-6 pt-4 sm:px-6 sm:pt-5">
@@ -255,8 +260,8 @@ export function PasarRapi(p: ThemeStorefrontProps) {
           <div className="tnum" style={{ fontFamily: MONO, fontSize: 12, marginTop: 7, lineHeight: 1.6 }}>QRIS</div>
         </div>
         <div>
-          <span style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.1em", color: INK_SOFT, display: "block" }}>WhatsApp</span>
-          <div className="tnum" style={{ fontFamily: MONO, fontSize: 12, marginTop: 7, lineHeight: 1.6 }}>{waNumber || "—"}</div>
+          <span style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.1em", color: INK_SOFT, display: "block" }}>Kontak</span>
+          <div className="tnum" style={{ fontFamily: MONO, fontSize: 12, marginTop: 7, lineHeight: 1.6 }}>Chat via tombol WhatsApp</div>
         </div>
         {showQR && (
           <div className="flex items-start gap-3">

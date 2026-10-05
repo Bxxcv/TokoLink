@@ -45,7 +45,7 @@ function AuthLayout({
 
           <ul className="mt-8 space-y-3 border-t border-white/12 pt-6">
             {[
-              "Toko aktif dalam 10 menit, tanpa kartu kredit",
+              "Toko aktif dalam hitungan menit, tanpa kartu kredit",
               "Pembayaran QRIS resmi, dana bisa ditarik kapan saja",
               "Dibantu lewat WhatsApp pada jam kerja",
             ].map((t) => (
@@ -493,8 +493,8 @@ export function Forgot() {
             <Icon name="mail" size={26} />
           </div>
           <p className="mt-5 text-[15px] leading-relaxed text-ink">
-            Cek kotak masuk <span className="font-bold">{email}</span> dan folder spam. Tautan reset ada di
-            email dari <span className="font-bold">halo@tokolink.store</span>.
+            Cek kotak masuk <span className="font-bold">{email}</span> dan folder spam. Tautan reset dikirim
+            dari alamat email notifikasi TokoLink.
           </p>
           <div className="mt-6 space-y-2.5">
             <Button variant="secondary" className="w-full" onClick={() => setSent(false)}>
@@ -505,7 +505,7 @@ export function Forgot() {
             </ButtonLink>
           </div>
           <p className="mt-4 text-[13px] text-faint">
-            Tidak menerima email setelah 5 menit? Hubungi WhatsApp 0812-0000-0000.
+            Tidak menerima email setelah 5 menit? Cek folder spam atau tulis ke support@tokolink.store.
           </p>
         </div>
       ) : (

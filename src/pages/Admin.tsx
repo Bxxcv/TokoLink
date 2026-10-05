@@ -34,6 +34,39 @@ import {
 import { BarRows, ChartFrame, Donut, LineChart } from "../components/charts";
 import { StatCard } from "./DashboardA";
 
+/** Catat aksi admin ke audit_log (best-effort, jangan blokir aksi utama). */
+async function logAdmin(
+  action: string,
+  targetType: string,
+  targetId: string | null,
+  detail: string,
+  amount?: number,
+) {
+  try {
+    await supabase.rpc("log_admin_action", {
+      p_action: action,
+      p_target_type: targetType,
+      p_target_id: targetId,
+      p_detail: detail,
+      p_amount: amount ?? null,
+    });
+  } catch {
+    /* tabel/RPC audit belum ada (migrasi belum jalan) — aksi tetap jalan */
+  }
+}
+
+/** Unduh baris sebagai CSV (pengganti jujur tombol "unduh" yang dulu toast). */
+function downloadCSV(filename: string, headers: string[], rows: (string | number)[][]) {
+  const esc = (v: string | number) => `"${String(v).replace(/"/g, '""')}"`;
+  const csv = [headers.map(esc).join(","), ...rows.map((r) => r.map(esc).join(","))].join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+  window.setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+}
+
 const D = DAY();
 
 function DAY() {
@@ -176,7 +209,7 @@ export function AdminHome() {
         index="A01"
         kicker="Admin Master"
         title="Ringkasan platform"
-        desc={`Kondisi TokoLink hari ini, ${today} WIB. Data diperbarui tiap 5 menit.`}
+        desc={`Kondisi TokoLink hari ini, ${today} WIB. Data dimuat ulang setiap membuka halaman.`}
         actions={
           <Button variant="secondary" onClick={() => toast("Ekspor ringkasan platform diunduh.", "info")}>
             <Icon name="download" size={16} /> Ekspor
@@ -391,7 +424,7 @@ export function AdminSellers() {
       if (e1) throw e1;
       const rows = ((profs ?? []) as SellerRow[]);
       setSellers(rows);
-      const { data: orders, error: e2 } = await supabase.from("orders").select("seller_id,total");
+      const { data: orders, error: e2 } = await supabase.from("orders").select("seller_id,total").limit(5000);
       if (e2) throw e2;
       const map = new Map<string, { sales: number; orders: number }>();
       ((orders ?? []) as { seller_id: string; total: number | string }[]).forEach((o) => {
@@ -422,6 +455,7 @@ export function AdminSellers() {
       toast("Gagal mengubah status.", "bad");
       return;
     }
+    await logAdmin(next === "ditangguhkan" ? "suspend_seller" : "activate_seller", "profiles", row.id, row.store_name ?? "");
     toast(
       next === "ditangguhkan" ? `${row.store_name ?? "Toko"} ditangguhkan.` : `${row.store_name ?? "Toko"} diaktifkan kembali.`,
       next === "ditangguhkan" ? "warn" : "ok",
@@ -443,7 +477,14 @@ export function AdminSellers() {
         kicker="Operasi"
         title="Kelola penjual"
         desc={`${sellers.length} toko terdaftar. Verifikasi akun baru maksimal 1×24 jam pada hari kerja.`}
-        actions={<Button variant="secondary" onClick={() => toast("Daftar penjual diekspor ke CSV.", "info")}>
+        actions={<Button variant="secondary" onClick={() => {
+          downloadCSV(
+            "daftar-penjual.csv",
+            ["toko", "pemilik", "kota", "paket", "status", "terdaftar"],
+            sellers.map((s) => [nm(s), s.owner_name ?? "", s.city ?? "", s.plan ?? "", s.status ?? "", s.created_at ?? ""]),
+          );
+          toast("Daftar penjual diunduh (CSV).");
+        }}>
           <Icon name="download" size={16} /> Ekspor daftar
         </Button>}
       />
@@ -660,6 +701,7 @@ export function AdminPremium() {
       toast("Gagal menyetujui.", "bad");
       return;
     }
+    await logAdmin("approve_premium", "premium_requests", row.id, `${storeOf(row)} · ${row.plan}`, Number(row.amount));
     toast("Permintaan Premium disetujui. Akses langsung aktif.");
   };
 
@@ -677,7 +719,8 @@ export function AdminPremium() {
       toast("Gagal menolak.", "bad");
       return;
     }
-    toast("Permintaan ditolak dan penjual diberi tahu.", "warn");
+    await logAdmin("reject_premium", "premium_requests", target, "Ditolak oleh admin");
+    toast("Permintaan ditolak. Penjual bisa lihat statusnya di halaman Premium.", "warn");
   };
 
   const filtered = list.filter((l) => (filter === "Semua" ? true : l.status === "menunggu"));
@@ -792,20 +835,33 @@ export function AdminWithdrawals() {
   type WRow = {
     id: string; bank: string; account_number: string; amount: number | string;
     fee: number | string; status: string; created_at: string; seller_id: string;
-    profiles: { store_name: string | null } | { store_name: string | null }[] | null;
+    store_name?: string | null;
+    profiles?: { store_name: string | null } | { store_name: string | null }[] | null;
   };
   const [list, setList] = useState<WRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState("semua");
   const [confirm, setConfirm] = useState<{ id: string; act: "proses" | "selesai" | "tolak" } | null>(null);
+  // Nomor rekening utuh hanya diambil saat dialog transfer dibuka (diaudit).
+  const [fullAcct, setFullAcct] = useState<string | null>(null);
 
   const load = async () => {
     setLoading(true);
-    const { data } = await supabase
-      .from("withdrawals")
-      .select("id,bank,account_number,amount,fee,status,created_at,seller_id,profiles(store_name)")
-      .order("created_at", { ascending: false });
-    setList((data ?? []) as WRow[]);
+    // BUG-009: daftar via RPC tersamarkan (bukan nomor utuh ke browser).
+    const { data, error } = await supabase.rpc("admin_withdrawal_list");
+    if (!error) {
+      setList(((data ?? []) as {
+        id: string; bank: string; account_masked: string; amount: number | string;
+        fee: number | string; status: string; created_at: string; seller_id: string; store_name: string | null;
+      }[]).map((w) => ({ ...w, account_number: w.account_masked })));
+    } else {
+      // Fallback bila migrasi belum jalan: query lama (sementara, tidak aman).
+      const { data: legacy } = await supabase
+        .from("withdrawals")
+        .select("id,bank,account_number,amount,fee,status,created_at,seller_id,profiles(store_name)")
+        .order("created_at", { ascending: false });
+      setList((legacy ?? []) as WRow[]);
+    }
     setLoading(false);
   };
 
@@ -813,9 +869,18 @@ export function AdminWithdrawals() {
     load();
   }, []);
 
+  const openConfirm = async (id: string, act: "proses" | "selesai" | "tolak") => {
+    setConfirm({ id, act });
+    setFullAcct(null);
+    if (act === "proses") {
+      const { data } = await supabase.rpc("admin_withdrawal_account", { p_id: id });
+      if (typeof data === "string") setFullAcct(data);
+    }
+  };
+
   const masked = (acct: string) => (acct.includes("•") ? acct : `•••• ${acct.slice(-4)}`);
   const storeOf = (w: WRow) =>
-    Array.isArray(w.profiles) ? (w.profiles[0]?.store_name ?? "Toko") : (w.profiles?.store_name ?? "Toko");
+    w.store_name ?? (Array.isArray(w.profiles) ? (w.profiles[0]?.store_name ?? "Toko") : (w.profiles?.store_name ?? "Toko"));
   const filtered = list.filter((w) => (tab === "semua" ? true : w.status === tab));
   const sum = (st: string) => filtered.filter((w) => w.status === st).reduce((s, w) => s + Number(w.amount), 0);
 
@@ -826,7 +891,14 @@ export function AdminWithdrawals() {
         kicker="Operasi"
         title="Penarikan dana"
         desc="Penarikan di atas Rp5.000.000 perlu persetujuan admin. Transfer dilakukan 09.00–16.00 WIB."
-        actions={<Button variant="secondary" onClick={() => toast("Antrean transfer diunduh.", "info")}>
+        actions={<Button variant="secondary" onClick={() => {
+          downloadCSV(
+            "antrean-transfer.csv",
+            ["id", "toko", "bank", "rekening", "diminta", "biaya", "status", "tanggal"],
+            filtered.map((w) => [w.id, storeOf(w), w.bank, masked(w.account_number), Number(w.amount), Number(w.fee), w.status, w.created_at]),
+          );
+          toast("Antrean transfer diunduh (CSV).");
+        }}>
           <Icon name="download" size={16} /> Unduh antrean
         </Button>}
       />
@@ -900,14 +972,14 @@ export function AdminWithdrawals() {
                 <Td>
                   <div className="flex justify-end gap-2">
                     {w.status === "diproses" ? (
-                      <Button size="sm" onClick={() => setConfirm({ id: w.id, act: "selesai" })}>
+                      <Button size="sm" onClick={() => openConfirm(w.id, "selesai")}>
                         Selesai
                       </Button>
                     ) : (
                       <Button
                         size="sm"
                         disabled={w.status !== "menunggu"}
-                        onClick={() => setConfirm({ id: w.id, act: "proses" })}
+                        onClick={() => openConfirm(w.id, "proses")}
                       >
                         Proses
                       </Button>
@@ -915,8 +987,8 @@ export function AdminWithdrawals() {
                     <Button
                       size="sm"
                       variant="ghost"
-                      disabled={w.status !== "menunggu"}
-                      onClick={() => setConfirm({ id: w.id, act: "tolak" })}
+                      disabled={w.status !== "menunggu" && w.status !== "diproses"}
+                      onClick={() => openConfirm(w.id, "tolak")}
                     >
                       Tolak
                     </Button>
@@ -941,10 +1013,10 @@ export function AdminWithdrawals() {
         }
         body={
           confirm?.act === "proses"
-            ? "Dana akan dikirim ke rekening penjual pada batch transfer berikutnya. Tindakan ini tercatat di log audit."
+            ? `Transfer ke ${list.find((x) => x.id === confirm.id)?.bank} ${fullAcct ?? "•••• (memuat…)"}. Tindakan ini tercatat di log audit.`
             : confirm?.act === "selesai"
               ? "Saldo penjual berkurang dan tercatat di ledger sebagai keluar."
-              : "Dana dikembalikan ke saldo penjual dan alasan penolakan wajib diisi pada catatan internal."
+              : "Penarikan ditolak. Dana tetap di saldo penjual (tidak ada potongan)."
         }
         confirmLabel={confirm?.act === "proses" ? "Proses transfer" : confirm?.act === "selesai" ? "Ya, selesai" : "Tolak penarikan"}
         tone={confirm?.act === "tolak" ? "danger" : "primary"}
@@ -953,33 +1025,32 @@ export function AdminWithdrawals() {
           const target = list.find((x) => x.id === confirm.id);
           if (!target) return;
           setConfirm(null);
-          // Idempotent: baca ulang status, hanya proses dari state yang sah.
-          const { data: fresh } = await supabase.from("withdrawals").select("status").eq("id", target.id).single();
-          const cur = (fresh as { status: string } | null)?.status ?? target.status;
           const want =
             confirm.act === "proses" ? "diproses" : confirm.act === "selesai" ? "selesai" : "ditolak";
-          const allowed =
-            (confirm.act === "proses" && cur === "menunggu") ||
-            (confirm.act === "selesai" && cur === "diproses") ||
-            (confirm.act === "tolak" && cur === "menunggu");
-          if (!allowed) {
-            toast("Status sudah berubah. Muat ulang antrean.", "bad");
+          // SECURITY HOTFIX BUG-003: status + ledger ATOMIK via RPC
+          // admin_process_withdrawal (cek admin, kunci baris, validasi
+          // transisi + saldo di database). Update langsung dari browser
+          // sudah dicabut dan akan ditolak.
+          const { error } = await supabase.rpc("admin_process_withdrawal", {
+            p_id: target.id,
+            p_action: want,
+          });
+          if (error) {
+            const msg = (error.message ?? "").toUpperCase();
+            if (msg.includes("TRANSISI_TIDAK_VALID")) toast("Status sudah berubah. Muat ulang antrean.", "bad");
+            else if (msg.includes("SALDO_TIDAK_CUKUP")) toast("Saldo penjual tidak cukup untuk penarikan ini.", "bad");
+            else if (msg.includes("HANYA_ADMIN")) toast("Khusus admin.", "bad");
+            else toast("Gagal memperbarui status.", "bad");
             load();
             return;
           }
-          const { error } = await supabase.from("withdrawals").update({ status: want, processed_at: new Date().toISOString() }).eq("id", target.id);
-          if (error) {
-            toast("Gagal memperbarui status.", "bad");
-            return;
-          }
-          if (want === "selesai") {
-            await supabase.from("ledger").insert({
-              seller_id: target.seller_id,
-              label: `Penarikan ke ${target.bank}`,
-              amount: -Math.abs(Number(target.amount)),
-              type: "keluar",
-            });
-          }
+          await logAdmin(
+            want === "diproses" ? "withdrawal_proses" : want === "selesai" ? "withdrawal_selesai" : "withdrawal_tolak",
+            "withdrawals",
+            target.id,
+            `${storeOf(target)} · ${target.bank} · ${rupiah(Number(target.amount))}`,
+            Number(target.amount),
+          );
           setList((l) => l.map((x) => (x.id === target.id ? { ...x, status: want } : x)));
           toast(
             want === "diproses" ? "Penarikan masuk antrean transfer." : want === "selesai" ? "Penarikan selesai, saldo berkurang." : "Penarikan ditolak.",
@@ -1007,9 +1078,9 @@ export function AdminAnalytics() {
     try {
       const now = new Date();
       const startMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-      const { data: orders, error: e1 } = await supabase.from("orders").select("total,created_at");
+      const { data: orders, error: e1 } = await supabase.from("orders").select("total,created_at").limit(5000);
       if (e1) throw e1;
-      const { data: pays, error: e2 } = await supabase.from("payments").select("channel,amount,fee,created_at");
+      const { data: pays, error: e2 } = await supabase.from("payments").select("channel,amount,fee,created_at").limit(5000);
       if (e2) throw e2;
       const { data: profs, error: e3 } = await supabase.from("profiles").select("plan,created_at").eq("role", "seller");
       if (e3) throw e3;
@@ -1165,6 +1236,7 @@ export function AdminPayments() {
   };
   const [rows, setRows] = useState<PayRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [inspect, setInspect] = useState<PayRow | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -1192,8 +1264,15 @@ export function AdminPayments() {
         kicker="Operasi"
         title="Pemantauan pembayaran"
         desc="Semua transaksi masuk. Transaksi gagal perlu dicek paling lambat H+1."
-        actions={<Button variant="secondary" onClick={() => toast("Rekonsiliasi dijalankan. Hasil dikirim via email.", "info")}>
-          <Icon name="refresh" size={16} /> Jalankan rekonsiliasi
+        actions={<Button variant="secondary" onClick={() => {
+          downloadCSV(
+            "rekonsiliasi-pembayaran.csv",
+            ["id", "order", "toko", "kanal", "nominal", "biaya", "status", "referensi", "waktu"],
+            filtered.map((p) => [p.id, p.order_id, storeOf(p), p.channel, Number(p.amount), Number(p.fee), p.status, p.external_ref ?? "", p.created_at]),
+          );
+          toast("Data rekonsiliasi diunduh (CSV).");
+        }}>
+          <Icon name="download" size={16} /> Unduh rekonsiliasi
         </Button>}
       />
 
@@ -1258,7 +1337,7 @@ export function AdminPayments() {
                       <Button
                         size="sm"
                         variant={p.status === "gagal" || p.status === "perlu_cek" ? "secondary" : "ghost"}
-                        onClick={() => navigate(`/admin/withdrawals`)}
+                        onClick={() => setInspect(p)}
                       >
                         Periksa
                       </Button>
@@ -1270,12 +1349,35 @@ export function AdminPayments() {
           </TableWrap>
         )}
         <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3.5 text-[13px] text-muted sm:px-5">
-          <span>Total nilai pada tab ini</span>
+          <span>Total nilai {filtered.length} dari {rows.length} baris terbaru (maks 200)</span>
           <span className="tnum font-bold text-ink">
             {rupiah(filtered.reduce((s, r) => s + Number(r.amount), 0))}
           </span>
         </div>
       </Card>
+
+      <Modal open={!!inspect} onClose={() => setInspect(null)} title="Detail pembayaran" eyebrow={inspect?.order_id}>
+        {inspect && (
+          <dl className="space-y-2.5 text-[13.5px]">
+            {[
+              ["ID pembayaran", inspect.id],
+              ["Order", inspect.order_id],
+              ["Toko", storeOf(inspect)],
+              ["Kanal", inspect.channel],
+              ["Nominal", rupiah(Number(inspect.amount))],
+              ["Biaya", rupiah(Number(inspect.fee))],
+              ["Status", inspect.status],
+              ["Referensi gateway", inspect.external_ref ?? "—"],
+              ["Waktu", new Date(inspect.created_at).toLocaleString("id-ID")],
+            ].map(([k, v]) => (
+              <div key={k} className="flex items-center justify-between gap-4">
+                <dt className="text-muted">{k}</dt>
+                <dd className="tnum text-right font-semibold text-ink">{v}</dd>
+              </div>
+            ))}
+          </dl>
+        )}
+      </Modal>
     </AppShell>
   );
 }
@@ -1334,6 +1436,7 @@ export function AdminUsers() {
       toast("Gagal mengubah status.", "bad");
       return;
     }
+    await logAdmin(next === "ditangguhkan" ? "suspend_user" : "activate_user", "profiles", row.id, row.email);
     toast("Status akun diperbarui.", next === "ditangguhkan" ? "warn" : "ok");
   };
 
@@ -1344,7 +1447,15 @@ export function AdminUsers() {
         kicker="Sistem"
         title="Pengguna & akun"
         desc="Akun penjual, staf, dan admin. Peran menentukan halaman mana yang bisa dibuka."
-        actions={<Button onClick={() => toast("Formulir undangan staf dibuka.", "info")}>
+        actions={<Button onClick={async () => {
+          const link = `${window.location.origin}/#/register`;
+          try {
+            await navigator.clipboard.writeText(link);
+            toast("Tautan pendaftaran disalin. Peran admin diatur manual via database.");
+          } catch {
+            toast("Gagal menyalin. Tautan: " + link, "bad");
+          }
+        }}>
           <Icon name="plus" size={16} /> Undang pengguna
         </Button>}
       />
@@ -1438,7 +1549,7 @@ export function AdminUsers() {
         body={
           suspend?.status === "ditangguhkan"
             ? "Pengguna bisa masuk kembali dengan peran yang sama seperti sebelumnya."
-            : "Pengguna langsung keluar dari seluruh sesi dan tidak bisa masuk sampai diaktifkan kembali."
+            : "Pengguna tidak bisa masuk sampai diaktifkan kembali. Sesi yang sedang berjalan akan ditolak saat memuat ulang."
         }
         confirmLabel="Konfirmasi"
         tone={suspend?.status === "ditangguhkan" ? "primary" : "danger"}
@@ -1452,18 +1563,109 @@ export function AdminUsers() {
 }
 
 /* ============================ SYSTEM SETTINGS ============================ */
+/** Panel log audit ASLI dari tabel audit_log (pengganti array hardcode). */
+function AuditList() {
+  const [rows, setRows] = useState<{ id: string; action: string; detail: string; amount: number | string | null; created_at: string }[]>([]);
+  const [empty, setEmpty] = useState(false);
+  useEffect(() => {
+    (async () => {
+      const { data, error } = await supabase
+        .from("audit_log")
+        .select("id,action,detail,amount,created_at")
+        .order("created_at", { ascending: false })
+        .limit(10);
+      if (error) {
+        setEmpty(true);
+        return;
+      }
+      const list = (data ?? []) as { id: string; action: string; detail: string; amount: number | string | null; created_at: string }[];
+      setRows(list);
+      setEmpty(list.length === 0);
+    })();
+  }, []);
+  if (empty) {
+    return <p className="text-[13px] leading-relaxed text-faint">Belum ada aktivitas tercatat. Aksi admin yang menyentuh uang akan muncul di sini.</p>;
+  }
+  if (rows.length === 0) {
+    return (
+      <div className="space-y-2 py-1">
+        <Skeleton className="h-9 w-full" />
+        <Skeleton className="h-9 w-full" />
+      </div>
+    );
+  }
+  return (
+    <ul className="space-y-3.5">
+      {rows.map((r) => (
+        <li key={r.id} className="flex gap-3">
+          <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-brand-500" />
+          <div>
+            <div className="text-[13.5px] font-semibold text-ink">
+              {r.action}{r.amount != null ? ` · ${rupiah(Number(r.amount))}` : ""}
+            </div>
+            <div className="text-[12.5px] text-faint">
+              {r.detail || "—"} · {new Date(r.created_at).toLocaleString("id-ID", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+            </div>
+          </div>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 export function AdminSystem() {
   const { toast } = useApp();
   const [maintenance, setMaintenance] = useState(false);
-  const [fee, setFee] = useState("0,7");
+  const [fee, setFee] = useState("2");
   const [minWithdraw, setMinWithdraw] = useState("50000");
   const [close, setClose] = useState(false);
-  const [channels, setChannels] = useState([
-    { t: "QRIS", d: "Semua e-wallet dan m-banking", on: true },
-    { t: "Transfer bank manual", d: "Verifikasi otomatis via rekening bersama", on: true },
-    { t: "Dompet digital (GoPay, OVO, DANA)", d: "Sedang uji coba", on: false },
-    { t: "Bayar di tempat (COD)", d: "Baru untuk Jawa & Bali", on: false },
-  ]);
+  const [saving, setSaving] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+
+  // Pengaturan ASLI dari tabel settings (bukan state lokal).
+  useEffect(() => {
+    (async () => {
+      const { data } = await supabase.from("settings").select("key,value").in("key", ["maintenance_mode", "platform_fee_percent", "min_withdrawal"]);
+      for (const r of ((data ?? []) as { key: string; value: string }[])) {
+        if (r.key === "maintenance_mode") setMaintenance(r.value === "1");
+        if (r.key === "platform_fee_percent") setFee(r.value.replace(".", ","));
+        if (r.key === "min_withdrawal") setMinWithdraw(r.value);
+      }
+      setLoaded(true);
+    })();
+  }, []);
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      const feeNum = Number(fee.replace(",", "."));
+      if (!Number.isFinite(feeNum) || feeNum < 0 || feeNum > 20) {
+        toast("Komisi platform harus 0–20%.", "bad");
+        return;
+      }
+      const minNum = Number(minWithdraw);
+      if (!Number.isFinite(minNum) || minNum < 10000) {
+        toast("Minimal penarikan minimal Rp10.000.", "bad");
+        return;
+      }
+      const rows = [
+        { key: "platform_fee_percent", value: String(feeNum) },
+        { key: "min_withdrawal", value: String(Math.round(minNum)) },
+        { key: "maintenance_mode", value: maintenance ? "1" : "0" },
+      ];
+      for (const r of rows) {
+        const { error } = await supabase.from("settings").upsert(r, { onConflict: "key" });
+        if (error) {
+          toast("Gagal menyimpan pengaturan.", "bad");
+          return;
+        }
+      }
+      await logAdmin("update_settings", "settings", null, `komisi ${feeNum}%, min WD ${Math.round(minNum)}, maintenance ${maintenance ? "on" : "off"}`);
+      toast("Pengaturan sistem disimpan dan masuk log audit.");
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <AppShell group="admin">
@@ -1472,66 +1674,59 @@ export function AdminSystem() {
         kicker="Sistem"
         title="Pengaturan sistem"
         desc="Parameter platform. Perubahan berlaku untuk transaksi baru setelah disimpan."
-        actions={<Button onClick={() => toast("Pengaturan sistem disimpan dan masuk log audit.")}>Simpan pengaturan</Button>}
+        actions={<Button onClick={save} loading={saving}>Simpan pengaturan</Button>}
       />
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
         <div className="space-y-4">
           <Card>
             <CardHead title="Biaya & limit" sub="Berlaku untuk seluruh penjual" icon="wallet" />
-            <FieldRow cols={3}>
-              <Field label="Biaya layanan QRIS (%)" hint="Saat ini 0,7%">
+            {!loaded ? (
+              <div className="space-y-2">
+                <Skeleton className="h-12 w-full" />
+                <Skeleton className="h-12 w-full" />
+              </div>
+            ) : (
+            <FieldRow cols={2}>
+              <Field label="Komisi platform (%)" hint="Dipotong dari saldo seller per penjualan">
                 <Input value={fee} onChange={(e) => setFee(e.target.value)} className="tnum" />
               </Field>
-              <Field label="Minimum penarikan (Rp)">
+              <Field label="Minimum penarikan (Rp)" hint="Dipakai validasi penarikan baru">
                 <Input value={minWithdraw} onChange={(e) => setMinWithdraw(e.target.value.replace(/\D/g, ""))} className="tnum" />
               </Field>
-              <Field label="Batas penarikan otomatis (Rp)">
-                <Input defaultValue="5000000" className="tnum" />
-              </Field>
             </FieldRow>
-            <div className="mt-4 grid gap-4 sm:grid-cols-2">
-              <Field label="Biaya transfer bank">
-                <Select defaultValue="Rp6.500">
-                  <option>Rp6.500</option>
-                  <option>Gratis</option>
-                  <option>Rp10.000</option>
-                </Select>
-              </Field>
-              <Field label="Masa berlaku kode promo maksimal">
-                <Select defaultValue="90 hari">
-                  <option>30 hari</option>
-                  <option>90 hari</option>
-                  <option>Tanpa batas</option>
-                </Select>
-              </Field>
-            </div>
+            )}
+            <p className="mt-3 text-[12.5px] text-faint">Biaya transfer bank Rp6.500 dan biaya QRIS mengikuti ketentuan BuatQris.</p>
           </Card>
 
           <Card>
             <CardHead title="Kanal pembayaran aktif" sub="Pilihan yang dilihat pembeli saat checkout" icon="qr" />
             <ul className="divide-y divide-linesoft">
-              {channels.map((c) => (
-                <li key={c.t} className="flex items-center justify-between gap-4 py-3.5">
+              <li className="flex items-center justify-between gap-4 py-3.5">
+                <div>
+                  <div className="text-[14.5px] font-bold text-ink">QRIS</div>
+                  <div className="text-[13px] text-muted">Semua e-wallet dan m-banking</div>
+                </div>
+                <Badge tone="green" dot>Aktif</Badge>
+              </li>
+              {[
+                ["Transfer bank manual", "Segera hadir — belum ada verifikasi otomatis"],
+                ["Dompet digital (GoPay, OVO, DANA)", "Segera hadir"],
+                ["Bayar di tempat (COD)", "Segera hadir"],
+              ].map(([t, d]) => (
+                <li key={t} className="flex items-center justify-between gap-4 py-3.5 opacity-70">
                   <div>
-                    <div className="text-[14.5px] font-bold text-ink">{c.t}</div>
-                    <div className="text-[13px] text-muted">{c.d}</div>
+                    <div className="text-[14.5px] font-bold text-ink">{t}</div>
+                    <div className="text-[13px] text-muted">{d}</div>
                   </div>
-                  <Toggle
-                    checked={c.on}
-                    onChange={(v) => {
-                      setChannels((xs) => xs.map((x) => (x.t === c.t ? { ...x, on: v } : x)));
-                      toast("Kanal pembayaran diperbarui.", "info");
-                    }}
-                    label={c.t}
-                  />
+                  <Badge tone="gray">Nonaktif</Badge>
                 </li>
               ))}
             </ul>
           </Card>
 
           <Card className="border-[#F3DDba]">
-            <CardHead title="Mode pemeliharaan" sub="Saat aktif, penjual tidak bisa masuk selama 10 menit" icon="alert" />
+            <CardHead title="Mode pemeliharaan" sub="Saat aktif, penjual tidak bisa masuk" icon="alert" />
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center gap-3">
                 <Badge tone={maintenance ? "red" : "green"} dot>
@@ -1543,49 +1738,21 @@ export function AdminSystem() {
                 {maintenance ? "Akhiri mode pemeliharaan" : "Aktifkan mode pemeliharaan"}
               </Button>
             </div>
+            <p className="mt-3 text-[12.5px] text-faint">Berlaku setelah tombol “Simpan pengaturan” ditekan.</p>
           </Card>
         </div>
 
         <aside className="space-y-4 lg:sticky lg:top-24 lg:self-start">
           <Card>
             <CardHead title="Log audit terakhir" icon="shield" />
-            <ul className="space-y-3.5">
-              {[
-                ["Dwi Handoko", "Menyetujui PRM-0089", "12 Feb 08:31"],
-                ["Sari Utami", "Mengubah biaya QRIS 0,75% → 0,7%", "11 Feb 16:04"],
-                ["Dwi Handoko", "Menangguhkan SLR-0127", "10 Feb 11:22"],
-                ["Sistem", "Sinkronisasi bank selesai", "10 Feb 04:00"],
-              ].map(([who, what, when]) => (
-                <li key={what} className="flex gap-3">
-                  <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-brand-500" />
-                  <div>
-                    <div className="text-[13.5px] font-semibold text-ink">{what}</div>
-                    <div className="text-[12.5px] text-faint">
-                      {who} · {when}
-                    </div>
-                  </div>
-                </li>
-              ))}
-            </ul>
+            <AuditList />
           </Card>
 
           <Card>
             <CardHead title="Status layanan" icon="info" />
-            <ul className="space-y-2.5 text-[13.5px]">
-              {[
-                ["API publik", "99,98%"],
-                ["Webhook pembayaran", "99,91%"],
-                ["Pengiriman notifikasi", "99,72%"],
-              ].map(([k, v]) => (
-                <li key={k}>
-                  <div className="mb-1 flex justify-between">
-                    <span className="text-muted">{k}</span>
-                    <span className="tnum font-semibold text-ok">{v}</span>
-                  </div>
-                  <Progress value={parseFloat(v.replace("%", "").replace(",", "."))} tone="ok" />
-                </li>
-              ))}
-            </ul>
+            <p className="text-[13px] leading-relaxed text-faint">
+              Monitoring uptime belum dipasang. Angka ketersediaan akan muncul di sini setelah ada sistem monitoring.
+            </p>
           </Card>
         </aside>
       </div>
@@ -1597,13 +1764,13 @@ export function AdminSystem() {
         body={
           maintenance
             ? "Seluruh penjual bisa masuk kembali dan transaksi berjalan normal."
-            : "Penjual tidak bisa masuk ke dasbor selama 10 menit. Halaman toko dan checkout tetap berjalan untuk pembeli."
+            : "Penjual tidak bisa masuk ke dasbor. Halaman toko dan checkout tetap berjalan untuk pembeli."
         }
-        confirmLabel={maintenance ? "Akhiri" : "Aktifkan 10 menit"}
+        confirmLabel={maintenance ? "Akhiri" : "Aktifkan"}
         tone={maintenance ? "primary" : "danger"}
         onConfirm={() => {
           setMaintenance((m) => !m);
-          toast(maintenance ? "Mode pemeliharaan diakhiri." : "Mode pemeliharaan aktif selama 10 menit.", maintenance ? "ok" : "warn");
+          toast("Pilihan diubah. Tekan “Simpan pengaturan” agar berlaku.", "warn");
         }}
       />
     </AppShell>

@@ -11,6 +11,7 @@
  */
 import { rupiah, type Product } from "../../lib/data";
 import type { ThemeStorefrontProps } from "../types";
+import { ThemeBioLinks } from "./shared";
 
 const PAPER = "#F3EEE8";
 const PANEL = "#E9E1D7";
@@ -67,12 +68,13 @@ function Figure({
 
 export function Atelier(p: ThemeStorefrontProps) {
   const {
-    slug, storeName, city, bio,
+    slug, storeName, city, bio, closed,
     items, cats, cat, onCat, q, onQ, onResetFilter, loading,
+    bioLinks, onOpenBioLink,
     showHours, showCart, cartCount, onAdd, onChatWA, onShare, shared,
     openNow, todayHours, hourRows,
   } = p;
-  const canAdd = showCart;
+  const canAdd = showCart && !closed;
   const left = items.filter((_, i) => i % 2 === 0);
   const right = items.filter((_, i) => i % 2 === 1);
 
@@ -167,6 +169,7 @@ export function Atelier(p: ThemeStorefrontProps) {
             “{bio}”
           </p>
         )}
+        <ThemeBioLinks links={bioLinks} onOpen={onOpenBioLink} />
       </div>
 
       {/* panel info */}

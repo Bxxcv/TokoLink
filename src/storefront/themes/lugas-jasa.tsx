@@ -12,6 +12,7 @@
 import { useMemo } from "react";
 import { rupiah, type Product } from "../../lib/data";
 import type { ThemeStorefrontProps } from "../types";
+import { ThemeBioLinks } from "./shared";
 
 const PAPER = "#EDF1F4";
 const PANEL = "#FFFFFF";
@@ -72,12 +73,13 @@ function Row({
 
 export function LugasJasa(p: ThemeStorefrontProps) {
   const {
-    slug, storeName, city, bio, avatarUrl,
+    slug, storeName, city, bio, avatarUrl, closed,
     items, allItems, cats, cat, onCat, q, onQ, onResetFilter, loading,
+    bioLinks, onOpenBioLink,
     showHours, showCart, cartCount, onAdd, onChatWA, onShare, shared,
     openNow, todayHours, hourRows,
   } = p;
-  const canAdd = showCart;
+  const canAdd = showCart && !closed;
 
   const counts = useMemo(() => {
     const m = new Map<string, number>();
@@ -147,6 +149,9 @@ export function LugasJasa(p: ThemeStorefrontProps) {
               {bio}
             </p>
           )}
+          <div style={{ margin: "0 20px" }}>
+            <ThemeBioLinks links={bioLinks} onOpen={onOpenBioLink} />
+          </div>
         </aside>
 
         {/* tabel */}

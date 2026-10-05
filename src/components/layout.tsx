@@ -67,8 +67,8 @@ export const ADMIN_NAV: NavGroup[] = [
     title: "Operasi",
     items: [
       { label: "Kelola penjual", to: "/admin/sellers", icon: "store" },
-      { label: "Permintaan Premium", to: "/admin/premium", icon: "star", badge: 2 },
-      { label: "Penarikan dana", to: "/admin/withdrawals", icon: "wallet", badge: 1 },
+      { label: "Permintaan Premium", to: "/admin/premium", icon: "star" },
+      { label: "Penarikan dana", to: "/admin/withdrawals", icon: "wallet" },
       { label: "Pemantauan bayar", to: "/admin/payments", icon: "receipt" },
     ],
   },
@@ -170,6 +170,8 @@ export function AppShell({
   // database asli.
   const [pendingOrders, setPendingOrders] = useState(0);
   const [unreadNotif, setUnreadNotif] = useState(0);
+  const [pendingPremium, setPendingPremium] = useState(0);
+  const [pendingWithdraw, setPendingWithdraw] = useState(0);
   useEffect(() => {
     if (admin || !user) return;
     let cancelled = false;
@@ -191,8 +193,35 @@ export function AppShell({
     };
   }, [admin, user?.id]);
 
+  // Badge antrean admin: hitung asli (premium + withdrawal menunggu).
+  useEffect(() => {
+    if (!admin || !user) return;
+    let cancelled = false;
+    (async () => {
+      const [prem, wd] = await Promise.all([
+        supabase.from("premium_requests").select("id", { count: "exact", head: true }).eq("status", "menunggu"),
+        supabase.from("withdrawals").select("id", { count: "exact", head: true }).eq("status", "menunggu"),
+      ]);
+      if (cancelled) return;
+      setPendingPremium(prem.count ?? 0);
+      setPendingWithdraw(wd.count ?? 0);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [admin, user?.id]);
+
   const groups = admin
-    ? ADMIN_NAV
+    ? ADMIN_NAV.map((g) => ({
+        ...g,
+        items: g.items.map((it) =>
+          it.to === "/admin/premium"
+            ? { ...it, badge: pendingPremium || undefined }
+            : it.to === "/admin/withdrawals"
+              ? { ...it, badge: pendingWithdraw || undefined }
+              : it,
+        ),
+      }))
     : SELLER_NAV.map((g) => ({
         ...g,
         items: g.items.map((it) =>
