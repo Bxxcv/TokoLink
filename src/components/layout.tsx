@@ -176,12 +176,17 @@ export function AppShell({
     if (!sheet) return;
     const el = drawerRef.current;
     if (el) el.scrollTop = drawerTop;
-    const prev = document.body.style.overflow;
+    // Kunci scroll halaman belakang: html DAN body (salah satu saja
+    // masih bisa lolos di sebagian browser HP).
+    const prevBody = document.body.style.overflow;
+    const prevHtml = document.documentElement.style.overflow;
     document.body.style.overflow = "hidden";
+    document.documentElement.style.overflow = "hidden";
     return () => {
       const cur = drawerRef.current;
       if (cur) drawerTop = cur.scrollTop;
-      document.body.style.overflow = prev;
+      document.body.style.overflow = prevBody;
+      document.documentElement.style.overflow = prevHtml;
     };
   }, [sheet]);
 
