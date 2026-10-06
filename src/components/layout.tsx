@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import clsx from "clsx";
 import { Link, navigate, useRoute } from "../lib/router";
 import { signOut, useAuth } from "../lib/auth";
@@ -9,6 +9,10 @@ import { Logo, LogoMark } from "./Logo";
 import { Avatar, Badge, ButtonLink, Dropdown, Icon, cx } from "./ui";
 
 const cx2 = clsx;
+
+// Posisi scroll drawer mobile — modul-level supaya tetap ingat walau
+// AppShell remount saat pindah halaman.
+let drawerTop = 0;
 
 type NavItem = { label: string; to: string; icon: string; badge?: number };
 type NavGroup = { title?: string; items: NavItem[] };
@@ -164,6 +168,22 @@ export function AppShell({
   const [sheet, setSheet] = useState(false);
   const { toast } = useApp();
   const { user, profile } = useAuth();
+
+  // Posisi scroll drawer diingat (modul-level: tetap walau pindah halaman),
+  // dan halaman belakang dikunci saat drawer terbuka.
+  const drawerRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!sheet) return;
+    const el = drawerRef.current;
+    if (el) el.scrollTop = drawerTop;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      const cur = drawerRef.current;
+      if (cur) drawerTop = cur.scrollTop;
+      document.body.style.overflow = prev;
+    };
+  }, [sheet]);
 
   // Badge "Pesanan" (sidebar) & lonceng notifikasi -- DULU hardcode `3`
   // di kode, tidak nyambung ke data apapun. Sekarang dihitung dari
@@ -465,7 +485,13 @@ export function AppShell({
               <Icon name="x" size={18} />
             </button>
           </div>
-          <div className="tl-scroll flex-1 overflow-y-auto">
+          <div
+            ref={drawerRef}
+            className="tl-scroll flex-1 overflow-y-auto"
+            onScroll={(e) => {
+              drawerTop = (e.target as HTMLDivElement).scrollTop;
+            }}
+          >
             <NavList groups={groups} path={path} onNavigate={() => setSheet(false)} />
           </div>
           <div className="shrink-0 border-t border-line p-4">
