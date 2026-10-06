@@ -37,9 +37,7 @@ function clientIp(req: any): string {
   return "unknown";
 }
 
-const SHIP_REG = 10000;
-const SHIP_GOSEND = 18000;
-const FREE_AT = 200000;
+/* Ongkir dihapus (keputusan produk Okt 2026): total = subtotal - diskon. */
 
 export default async function handler(req: any, res: any) {
   if (req.method !== "POST") return json(res, { error: "Method tidak didukung." }, 405);
@@ -81,10 +79,6 @@ export default async function handler(req: any, res: any) {
   const address = String(body.buyer_address ?? "").trim().slice(0, 500) || null;
   const note = String(body.buyer_note ?? "").trim().slice(0, 500) || null;
   if (name.length < 3) return json(res, { error: "Tulis nama penerima." }, 400);
-
-  const shipMethodRaw = String(body.shipping_method ?? "reguler").toLowerCase();
-  const shipMethod = shipMethodRaw.includes("gosend") ? "gosend"
-    : shipMethodRaw.includes("ambil") ? "ambil" : "reguler";
 
   const idemKey = String(body.idempotency_key ?? "").trim().slice(0, 64) || null;
 
@@ -167,12 +161,12 @@ export default async function handler(req: any, res: any) {
   if (!s || s.status !== "aktif") return json(res, { error: "Toko tidak aktif." }, 400);
   if (s.is_closed) return json(res, { error: "Toko sedang tutup. Coba lagi nanti." }, 400);
 
-  // 3) Ongkir SERVER-SIDE dari metode (bukan dari browser).
-  const shipping = shipMethod === "ambil" ? 0 : shipMethod === "gosend" ? SHIP_GOSEND : subtotal >= FREE_AT ? 0 : SHIP_REG;
+  // 3) Tanpa ongkir: total = subtotal - diskon (pengiriman via chat).
+  const shipping = 0;
+  const shipDisc = 0;
 
-  // 4) Promo server-side + kuota atomik.
+  // 4) Promo server-side + kuota atomik. Promo ongkir sudah tidak berlaku.
   let discount = 0;
-  let shipDisc = 0;
   const code = String(body.promo_code ?? "").trim().slice(0, 40);
   if (code) {
     const { data: codes } = await db
@@ -194,10 +188,11 @@ export default async function handler(req: any, res: any) {
           discount = Math.min(Math.round((subtotal * pct) / 100), subtotal);
         } else if (match.type === "nominal") {
           discount = Math.min(Math.max(Math.round(Number(match.value)), 0), subtotal);
-        } else if (match.type === "potongan_ongkir") {
-          shipDisc = Math.min(Math.max(Math.round(Number(match.value)), 0), shipping);
+        } else {
+          // potongan_ongkir: ongkir sudah dihapus → kode tidak berlaku.
+          return json(res, { error: "Promo ongkir sudah tidak berlaku." }, 400);
         }
-        if (discount > 0 || shipDisc > 0) {
+        if (discount > 0) {
           // Klaim kuota ATOMIK dulu; gagal = habis dipakai orang lain.
           const { data: claimed } = await db.rpc("consume_promo", { p_id: match.id });
           if (!claimed) {
@@ -208,7 +203,7 @@ export default async function handler(req: any, res: any) {
     }
   }
 
-  const total = subtotal - discount + (shipping - shipDisc);
+  const total = subtotal - discount;
   // Tolak SEBELUM insert (jangan bikin order sampah).
   if (!Number.isFinite(total) || total < 1000) {
     return json(res, { error: "Minimal pembayaran Rp1.000 (aturan BuatQris)." }, 400);
@@ -231,8 +226,8 @@ export default async function handler(req: any, res: any) {
         total,
         status: "menunggu",
         channel: "QRIS",
-        shipping_method: shipMethod,
-        shipping_cost: shipping - shipDisc,
+        shipping_method: null,
+        shipping_cost: 0,
         idempotency_key: idemKey,
       })
       .select("id,access_token")

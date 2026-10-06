@@ -1601,9 +1601,9 @@ export function Discount() {
             />
           </Field>
           <FieldRow cols={2}>
-            <Field label="Jenis potongan" required>
+            <Field label="Jenis potongan" required hint={form.type === "Potongan ongkir" ? "Ongkir sudah dihapus — jenis ini tidak berlaku." : undefined}>
               <Select value={form.type} onChange={(e) => setForm((f) => ({ ...f, type: e.target.value }))}>
-                {["Persen", "Nominal", "Potongan ongkir"].map((t) => (
+                {["Persen", "Nominal"].map((t) => (
                   <option key={t}>{t}</option>
                 ))}
               </Select>

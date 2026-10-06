@@ -29,7 +29,7 @@ import { QRMark } from "./Landing";
 import { isEngineTheme } from "../storefront/registry";
 import { ENGINE_COMPONENTS } from "../storefront/themes";
 
-const SHIP = 10000;
+/* Ongkir dihapus (keputusan produk Okt 2026) — tidak ada konstanta ongkir. */
 
 /* ------------------------------ shared chrome ----------------------------- */
 export type StoreProfile = {
@@ -1143,7 +1143,7 @@ export function ProductDetail({ id, slug }: { id: string; slug: string }) {
 
             <div className="mt-4 space-y-2.5 rounded-lg border border-line bg-white p-4 text-[13.5px]">
               {[
-                ["truck", "Pengiriman", "Reguler, instan, atau ambil sendiri — dipilih saat checkout."],
+                ["truck", "Pengiriman", "Diatur langsung dengan penjual via chat setelah bayar."],
                 ["shield", "Komplain", "Ada masalah dengan pesanan? Hubungi penjual via WhatsApp."],
               ].map(([i, t, d]) => (
                 <div key={t} className="flex gap-3">
@@ -1231,7 +1231,7 @@ export function ProductDetail({ id, slug }: { id: string; slug: string }) {
  * Kode promo divalidasi ke `discount_codes` milik seller (server akan cek
  * ulang saat create-order).
  */
-function useTotals(promo: string | null, shipMethod: string = "reguler") {
+function useTotals(promo: string | null) {
   const { cart } = useApp();
   const [items, setItems] = useState<{ p: Product; qty: number; sellerId: string }[]>([]);
   const [discount, setDiscount] = useState(0);
@@ -1291,7 +1291,6 @@ function useTotals(promo: string | null, shipMethod: string = "reguler") {
               seller_id: sellerIds[0],
               code,
               subtotal: sellerSubtotal,
-              shipping_method: shipMethod,
             }),
           });
           const out = (await r.json()) as {
@@ -1310,16 +1309,14 @@ function useTotals(promo: string | null, shipMethod: string = "reguler") {
       setPromoNote(note);
       setLoading(false);
     })();
-  }, [cart, promo, shipMethod]);
+  }, [cart, promo]);
 
   const subtotal = items.reduce((s, i) => s + i.p.price * i.qty, 0);
-  // Ongkir mengikuti ATURAN SERVER (reguler 10rb/gratis ≥200rb, gosend
-  // 18rb, ambil gratis) supaya angka di layar = yang ditagih QRIS.
-  const shipM = shipMethod.includes("gosend") ? "gosend" : shipMethod.includes("ambil") ? "ambil" : "reguler";
-  const baseShipping = subtotal === 0 ? 0 : shipM === "ambil" ? 0 : shipM === "gosend" ? 18000 : subtotal >= 200000 ? 0 : SHIP;
-  const shipping = Math.max(0, baseShipping - shipDisc);
-  const total = subtotal - discount + shipping;
-  const promoValid = discount > 0 || shipDisc > 0;
+  // Tanpa ongkir (keputusan produk Okt 2026): pengiriman diatur langsung
+  // dengan penjual via chat. Total layar = total yang ditagih QRIS.
+  const shipping = 0;
+  const total = subtotal - discount;
+  const promoValid = discount > 0;
   return { items, subtotal, discount, shipping, total, promoNote, promoValid, loading, loadError };
 }
 
@@ -1445,7 +1442,7 @@ function useCartStore(items: { sellerId: string }[]) {
 
 export function Cart() {
   const { setQty, promo, setPromo, toast, clear } = useApp();
-  const { items, subtotal, discount, shipping, total, promoNote, promoValid, loading } = useTotals(promo);
+  const { items, subtotal, discount, total, promoNote, promoValid, loading } = useTotals(promo);
   const store = useCartStore(items);
   const storeSlug = store?.store_slug || "";
   const [code, setCode] = useState("");
@@ -1602,12 +1599,6 @@ export function Cart() {
                       <dd className="tnum font-semibold text-ok">−{rupiah(discount)}</dd>
                     </div>
                   )}
-                  <div className="flex justify-between">
-                    <dt className="text-muted">Ongkos kirim</dt>
-                    <dd className="tnum font-semibold text-ink">
-                      {shipping === 0 ? <span className="text-ok">Gratis</span> : rupiah(shipping)}
-                    </dd>
-                  </div>
                 </dl>
                 <div className="mt-4 flex items-end justify-between border-t border-linesoft pt-4">
                   <span className="text-[14px] font-bold text-ink">Total bayar</span>
@@ -1718,10 +1709,9 @@ export function Checkout() {
     city: "Bandung",
     postal: "",
     note: "",
-    ship: "Reguler (2–3 hari)",
     pay: "QRIS",
   });
-  const { items, subtotal, discount, shipping, total, loadError } = useTotals(promo, form.ship);
+  const { items, subtotal, discount, total, loadError } = useTotals(promo);
   const store = useCartStore(items);
   const [err, setErr] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
@@ -1753,7 +1743,6 @@ export function Checkout() {
     }
     setLoading(true);
     try {
-      const shipMethod = form.ship.includes("GoSend") ? "gosend" : form.ship.includes("Ambil") ? "ambil" : "reguler";
       const fullAddr = (form.postal.trim() ? `${form.addr.trim()} (${form.postal.trim()})` : form.addr.trim()).slice(0, 500);
       const res = await fetch("/api/create-order", {
         method: "POST",
@@ -1768,7 +1757,6 @@ export function Checkout() {
           channel: "QRIS",
           cart: items.map((i) => ({ product_id: i.p.id, qty: i.qty })),
           promo_code: promo,
-          shipping_method: shipMethod,
           idempotency_key: idemKey,
         }),
       });
@@ -1901,33 +1889,12 @@ export function Checkout() {
 
             <section className="rounded-xl border border-line bg-white p-5">
               <div className="micro mb-4 text-brand-600">02 / Pengiriman</div>
-              <div className="space-y-2.5">
-                {[
-                  ["Reguler (2–3 hari)", "JNE / J&T", subtotal >= 200000 ? "Gratis" : rupiah(SHIP)],
-                  ["GoSend instan (hari ini)", "Kurir dalam kota", rupiah(18000)],
-                  ["Ambil sendiri di toko", "Atur waktu pengambilan dengan penjual", "Gratis"],
-                ].map(([name, note, price]) => (
-                  <label
-                    key={name}
-                    className={cx(
-                      "flex cursor-pointer items-center gap-3 rounded-lg border p-3.5 transition-colors duration-150",
-                      form.ship === name ? "border-brand-500 bg-brand-50" : "border-line hover:border-brand-200",
-                    )}
-                  >
-                    <input
-                      type="radio"
-                      name="ship"
-                      checked={form.ship === name}
-                      onChange={() => set("ship", name)}
-                      className="h-4 w-4 accent-[#0A69C4]"
-                    />
-                    <span className="flex-1">
-                      <span className="block text-[14px] font-bold text-ink">{name}</span>
-                      <span className="block text-[12.5px] text-faint">{note}</span>
-                    </span>
-                    <span className="tnum text-[14px] font-semibold text-ink">{price}</span>
-                  </label>
-                ))}
+              <div className="flex gap-3 rounded-lg bg-canvas p-4 text-[13.5px] leading-relaxed text-muted">
+                <Icon name="truck" size={17} className="mt-0.5 shrink-0 text-brand-500" />
+                <p>
+                  Barang diantar, diambil, atau dikirim ekspedisi — <span className="font-bold text-ink">atur langsung dengan penjual via chat</span> setelah
+                  bayar. Tidak ada ongkir yang ditagih di sini.
+                </p>
               </div>
             </section>
 
@@ -2004,12 +1971,6 @@ export function Checkout() {
                     <dd className="tnum font-semibold text-ok">−{rupiah(discount)}</dd>
                   </div>
                 )}
-                <div className="flex justify-between">
-                  <dt className="text-muted">Ongkos kirim</dt>
-                  <dd className="tnum font-semibold text-ink">
-                    {shipping === 0 ? <span className="text-ok">Gratis</span> : rupiah(shipping)}
-                  </dd>
-                </div>
               </dl>
               <div className="mt-4 flex items-end justify-between border-t border-linesoft pt-4">
                 <span className="text-[14px] font-bold text-ink">Total bayar</span>

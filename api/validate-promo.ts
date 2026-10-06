@@ -9,9 +9,7 @@ function json(res: any, data: unknown, status = 200) {
   return res.status(status).json(data);
 }
 
-const SHIP_REG = 10000;
-const SHIP_GOSEND = 18000;
-const FREE_AT = 200000;
+/* Ongkir dihapus (keputusan produk Okt 2026). */
 
 export default async function handler(req: any, res: any) {
   if (req.method !== "POST") return json(res, { error: "Method tidak didukung." }, 405);
@@ -26,9 +24,6 @@ export default async function handler(req: any, res: any) {
   const sellerId = String(body?.seller_id ?? "");
   const code = String(body?.code ?? "").trim().slice(0, 40);
   const subtotal = Math.max(0, Math.round(Number(body?.subtotal ?? 0)));
-  const shipRaw = String(body?.shipping_method ?? "reguler").toLowerCase();
-  const shipMethod = shipRaw.includes("gosend") ? "gosend" : shipRaw.includes("ambil") ? "ambil" : "reguler";
-  const shipping = shipMethod === "ambil" ? 0 : shipMethod === "gosend" ? SHIP_GOSEND : subtotal >= FREE_AT ? 0 : SHIP_REG;
 
   if (!sellerId || !code) return json(res, { ok: false, message: "Kode belum diisi." });
 
@@ -67,7 +62,6 @@ export default async function handler(req: any, res: any) {
     const discount = Math.min(Math.max(Math.round(Number(match.value)), 0), subtotal);
     return json(res, { ok: true, discount, ship_discount: 0, message: "Potongan dipakai." });
   }
-  // potongan_ongkir
-  const shipDiscount = Math.min(Math.max(Math.round(Number(match.value)), 0), shipping);
-  return json(res, { ok: true, discount: 0, ship_discount: shipDiscount, message: "Potongan ongkir dipakai." });
+  // potongan_ongkir: ongkir sudah dihapus → tidak berlaku.
+  return json(res, { ok: false, discount: 0, ship_discount: 0, message: "Promo ongkir sudah tidak berlaku." });
 }
