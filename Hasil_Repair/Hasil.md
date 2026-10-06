@@ -259,3 +259,21 @@ garansi ini baru berlaku SETELAH 2 migrasi dijalankan + confirm-email aktif +
 smoke test sandbox lolos. Tanpa itu, statusnya tetap 🔴 NOT READY. Setelah
 syarat beres + Redis terpasang, TokoLink layak terima uang sungguhan untuk
 skala UMKM.
+
+## 10. AUDIT & FIX RESPONSIVE MOBILE (6 Okt 2026)
+
+Temuan contoh: tabel "Riwayat transaksi" (Wallet) kepotong kiri-kanan di HP —
+5 kolom dipaksa dalam 360px lewat scroll horizontal. Audit global menyimpulkan
+strateginya salah untuk tabel berkolom sedikit, jadi diperbaiki per kasus:
+
+- Wallet (riwayat saldo) → daftar kartu di HP, tabel hanya ≥sm.
+- Diskon (daftar kode) → daftar kartu di HP + loading/empty state HP.
+- OrderDetail (isi pesanan) → daftar kartu di HP.
+- Produk & Orders → sudah kartu di HP (verifikasi, tidak diubah).
+- Tabel admin (7–8 kolom) → tetap scroll container (strategi benar untuk
+  data padat) + pagaman global overflow-x: clip di html/body tetap jaga.
+- Pager produk palsu (tombol mati "1") → dibuang, jadi teks jujur + limit 1000.
+- 8 tema: tidak ada lebar tetap ≥320px; grid menumpuk; harga/sku ellipsis atau
+  wrap; tombol tambah full-width di HP. Tidak diubah struktural.
+- Modal bottom-sheet + max-h scroll, Tabs scroll, PageHeader + FieldRow menumpuk,
+  bottom-nav + drawer aman. Build PASS. Cek visual HP asli tetap disarankan.

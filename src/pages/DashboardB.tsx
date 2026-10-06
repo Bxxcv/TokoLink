@@ -249,6 +249,10 @@ export function Wallet() {
             />
           </div>
         ) : (
+        <>
+        {/* Tabel hanya untuk layar ≥sm; di HP pakai daftar kartu di bawah
+            (tabel 5 kolom yang di-scroll horizontal terbukti kepotong). */}
+        <div className="hidden sm:block">
         <TableWrap>
           <thead>
             <tr>
@@ -293,6 +297,34 @@ export function Wallet() {
             })}
           </tbody>
         </TableWrap>
+        </div>
+        {/* Daftar kartu khusus HP: info sama, tanpa scroll horizontal. */}
+        <ul className="divide-y divide-linesoft px-4 sm:hidden">
+          {filtered.map((r) => {
+            const amt = Number(r.amount);
+            const when = new Date(r.created_at).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" });
+            return (
+              <li key={r.id} className="flex items-center gap-3 py-3">
+                <span
+                  className={cx(
+                    "grid h-9 w-9 shrink-0 place-items-center rounded-md",
+                    amt > 0 ? "bg-oksoft text-ok" : "bg-warnsoft text-warn",
+                  )}
+                >
+                  <Icon name={amt > 0 ? "arrowDown" : "arrowUp"} size={16} />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-[13.5px] font-semibold text-ink">{r.label}</div>
+                  <div className="mt-0.5 text-[12px] text-faint">{when} · Saldo {rupiah(running.get(r.id) ?? 0)}</div>
+                </div>
+                <span className={cx("tnum shrink-0 text-[14px] font-bold", amt > 0 ? "text-ok" : "text-ink")}>
+                  {amt > 0 ? "+" : "−"}{rupiah(Math.abs(amt))}
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+        </>
         )}
         <div className="px-4 py-3.5 text-[12.5px] text-faint sm:px-5">
           Saldo dihitung ulang setiap transaksi masuk. Biaya layanan QRIS dipotong otomatis.
@@ -1490,6 +1522,7 @@ export function Discount() {
         <div className="px-4 pb-1 pt-4 sm:px-5">
           <CardHead title="Semua kode" sub={`${list.length} kode terdaftar`} icon="tag" />
         </div>
+        <div className="hidden md:block">
         <TableWrap>
           <thead>
             <tr>
@@ -1572,6 +1605,49 @@ export function Discount() {
             )}
           </tbody>
         </TableWrap>
+        </div>
+        {/* Daftar kartu khusus layar kecil: kode + potongan + toggle, tanpa scroll. */}
+        {loading ? (
+          <div className="space-y-3 px-4 py-2 md:hidden">
+            <Skeleton className="h-14 w-full" />
+            <Skeleton className="h-14 w-full" />
+          </div>
+        ) : loadError ? (
+          <div className="px-4 py-2 md:hidden">
+            <ErrorState onRetry={load} desc={`Kode promo gagal dimuat: ${loadError}`} />
+          </div>
+        ) : list.length === 0 ? (
+          <div className="px-4 py-2 md:hidden">
+            <EmptyState
+              icon="tag"
+              title="Belum ada kode promo"
+              desc="Buat kode pertama untuk menarik pembeli baru atau menghabiskan stok lama."
+            />
+          </div>
+        ) : (
+        <ul className="divide-y divide-linesoft px-4 md:hidden">
+          {list.map((d) => (
+            <li key={d.id} className="flex items-center gap-3 py-3.5">
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="notch-sm inline-block bg-navy-800 px-2.5 py-1.5 tnum text-[13px] font-bold tracking-wider text-brand-300">
+                    {d.code}
+                  </span>
+                  <Badge tone={d.is_active ? "green" : "gray"} dot>
+                    {d.is_active ? "Aktif" : "Nonaktif"}
+                  </Badge>
+                </div>
+                <div className="mt-1.5 text-[13px] text-muted">
+                  <span className="font-bold text-ink">{d.type === "persen" ? `${d.value}%` : rupiah(Number(d.value))}</span>
+                  {" · "}{d.usage_limit ? `${d.used_count}/${d.usage_limit} terpakai` : `${d.used_count} terpakai`}
+                  {d.valid_until ? ` · s.d. ${fmtDate(d.valid_until)}` : ""}
+                </div>
+              </div>
+              <Toggle checked={d.is_active} onChange={(v) => setActive(d.id, v, d.code)} label={`Status ${d.code}`} />
+            </li>
+          ))}
+        </ul>
+        )}
       </Card>
 
       <Modal

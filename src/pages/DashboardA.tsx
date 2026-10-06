@@ -758,7 +758,8 @@ export function Products() {
       .from("products")
       .select("*")
       .eq("seller_id", user.id)
-      .order("created_at", { ascending: false });
+      .order("created_at", { ascending: false })
+      .limit(1000);
     setLoading(false);
     if (error) {
       setLoadError(true);
@@ -1021,15 +1022,6 @@ export function Products() {
             Menampilkan <span className="tnum font-semibold text-ink">{rows.length}</span> dari{" "}
             <span className="tnum">{items.length}</span> produk
           </span>
-          <div className="flex items-center gap-1.5">
-            <button disabled className="rounded-md border border-line px-2.5 py-1.5 text-faint disabled:opacity-45">
-              <Icon name="left" size={14} />
-            </button>
-            <span className="tnum rounded-md bg-navy-800 px-3 py-1.5 text-[13px] font-bold text-white">1</span>
-            <button disabled className="rounded-md border border-line px-2.5 py-1.5 text-faint disabled:opacity-45">
-              <Icon name="right" size={14} />
-            </button>
-          </div>
         </div>
       </Card>
 
@@ -1871,6 +1863,7 @@ export function OrderDetail({ id }: { id: string }) {
             <div className="px-4 pb-1 pt-4 sm:px-5">
               <CardHead title="Isi pesanan" icon="box" />
             </div>
+            <div className="hidden sm:block">
             <TableWrap>
               <thead>
                 <tr>
@@ -1893,6 +1886,18 @@ export function OrderDetail({ id }: { id: string }) {
                 ))}
               </tbody>
             </TableWrap>
+            </div>
+            <ul className="divide-y divide-linesoft px-4 sm:hidden">
+              {lines.map((l) => (
+                <li key={l.name} className="flex items-center gap-3 py-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-[13.5px] font-semibold text-ink">{l.name}</div>
+                    <div className="tnum mt-0.5 text-[12px] text-faint">{l.qty} × {rupiah(l.price)}</div>
+                  </div>
+                  <span className="tnum shrink-0 text-[13.5px] font-bold text-ink">{rupiah(l.price * l.qty)}</span>
+                </li>
+              ))}
+            </ul>
             <div className="flex justify-end gap-6 px-4 py-4 sm:px-5">
               <dl className="w-full max-w-xs space-y-2 text-[13.5px]">
                 <div className="flex justify-between">
