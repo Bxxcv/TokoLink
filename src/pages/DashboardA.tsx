@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { navigate } from "../lib/router";
+import { Link, navigate } from "../lib/router";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
 import {
