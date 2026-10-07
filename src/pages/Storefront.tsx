@@ -124,7 +124,7 @@ function usePublicStore(slug: string) {
       setNotFound(false);
       const { data: prof } = await supabase
         .from("public_stores")
-        .select("id,store_name,store_slug,city,avatar_url,cover_url,bio,is_closed,is_premium")
+        .select("id,store_name,store_slug,city,avatar_url,cover_url,bio,is_closed")
         .eq("store_slug", slug)
         .maybeSingle();
       if (!prof) {
@@ -134,7 +134,17 @@ function usePublicStore(slug: string) {
         setLoading(false);
         return;
       }
-      setStore(prof as StoreProfile);
+      // Badge premium via RPC (kolom plan tertutup untuk publik).
+      let premium = false;
+      try {
+        const { data: prem } = await supabase.rpc("store_is_premium", {
+          p_seller_id: (prof as StoreProfile).id,
+        });
+        premium = prem === true;
+      } catch {
+        /* RPC belum ada (migrasi part 3 belum jalan) → anggap gratis */
+      }
+      setStore({ ...(prof as StoreProfile), is_premium: premium });
       const { data: prods } = await supabase
         .from("products")
         .select("*")
