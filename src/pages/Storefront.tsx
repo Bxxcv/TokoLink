@@ -72,7 +72,8 @@ function useStoreContact(sellerId: string | null | undefined) {
 }
 
 /** Buka chat WA toko di tab baru; fallback jujur bila belum diatur. */
-function openStoreWA(waUrl: string | null, toast: (m: string, t?: string) => void, text?: string) {
+type ToastFn = (msg: string, tone?: "info" | "ok" | "warn" | "bad") => void;
+function openStoreWA(waUrl: string | null, toast: ToastFn, text?: string) {
   if (!waUrl) {
     toast("Nomor WhatsApp toko belum diatur.", "info");
     return;
@@ -589,7 +590,7 @@ export function StoreHome({ slug }: { slug: string }) {
           storeName={name}
           city={city}
           bio={store?.bio ?? null}
-          waNumber={wa}
+          waNumber={""}
           avatarUrl={store?.avatar_url ?? null}
           coverUrl={store?.cover_url ?? null}
           closed={closed}
