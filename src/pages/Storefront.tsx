@@ -5,6 +5,7 @@ import { rupiah, useApp, type Product } from "../lib/data";
 import { supabase } from "../lib/supabase";
 import { mapProduct, type DbProduct } from "../lib/products";
 import { normalizeWA } from "../lib/format";
+import { accentHex } from "../lib/theme-accent";
 import { iconForLink } from "../lib/links";
 import { searchCities } from "../lib/cities";
 import { Logo, LogoMark } from "../components/Logo";
@@ -447,11 +448,8 @@ export function StoreHome({ slug }: { slug: string }) {
         .maybeSingle();
       const t = data as { accent: string; layout: string; show_hours: boolean; show_qr: boolean; show_cart: boolean } | null;
       if (!t) return;
-      const hex: Record<string, string> = {
-        Biru: "#0A69C4", Navy: "#0B2E6E", Toska: "#1B9AE0", Hijau: "#0E9F6E", "Jingga hangat": "#B45309",
-      };
       setTheme({
-        accent: hex[t.accent] ?? "#0A69C4",
+        accent: accentHex(t.accent),
         layout: t.layout,
         hours: t.show_hours,
         qr: t.show_qr,
@@ -1724,6 +1722,21 @@ export function Checkout() {
   });
   const { items, subtotal, discount, total, loadError } = useTotals(promo);
   const store = useCartStore(items);
+  // Aksen toko (dari store_theme) dipakai tombol bayar + total supaya
+  // checkout terasa bagian dari tokonya. Logic & validasi tidak berubah.
+  const [payAccent, setPayAccent] = useState("#0A69C4");
+  useEffect(() => {
+    if (!store) return;
+    (async () => {
+      const { data } = await supabase
+        .from("store_theme")
+        .select("accent")
+        .eq("seller_id", store.id)
+        .maybeSingle();
+      const a = (data as { accent?: string } | null)?.accent;
+      if (a) setPayAccent(accentHex(a));
+    })();
+  }, [store]);
   const [err, setErr] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   // Kunci idempotensi per upaya checkout: klik ganda / retry = 1 order.
@@ -1985,9 +1998,9 @@ export function Checkout() {
               </dl>
               <div className="mt-4 flex items-end justify-between border-t border-linesoft pt-4">
                 <span className="text-[14px] font-bold text-ink">Total bayar</span>
-                <span className="tnum text-[24px] font-bold leading-none text-brand-700">{rupiah(total)}</span>
+                <span className="tnum text-[24px] font-bold leading-none" style={{ color: payAccent }}>{rupiah(total)}</span>
               </div>
-              <Button type="submit" size="lg" loading={loading} className="mt-5 w-full">
+              <Button type="submit" size="lg" loading={loading} className="mt-5 w-full" style={{ backgroundColor: payAccent, borderColor: payAccent }}>
                 {loading ? "Menyiapkan…" : form.pay === "QRIS" ? "Bayar dengan QRIS" : "Buat pesanan"}
               </Button>
               <p className="mt-3 text-center text-[12.5px] leading-snug text-faint">

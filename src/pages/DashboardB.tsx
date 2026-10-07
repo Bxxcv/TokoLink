@@ -856,12 +856,14 @@ export function BioLinks() {
 /* Pratinjau mini generik untuk tema engine selain 01–02: nama toko +
    2 produk ASLI dengan kertas & aksen tema itu. Bukan data contoh. */
 const MINI_SWATCH: Record<string, { paper: string; ink: string; soft: string; accent: string; font: string }> = {
-  "lugas-jasa": { paper: "#EDF1F4", ink: "#121A21", soft: "#5D6874", accent: "#1B5E8C", font: "'IBM Plex Sans', system-ui, sans-serif" },
-  atelier: { paper: "#F3EEE8", ink: "#171310", soft: "#7C7168", accent: "#7B2E2E", font: "'Instrument Serif', Georgia, serif" },
-  "dapur-hari-ini": { paper: "#FFF8EC", ink: "#1E1A12", soft: "#6E6455", accent: "#D2452C", font: "'Bricolage Grotesque', system-ui, sans-serif" },
-  "kriya-nusantara": { paper: "#F0E9DE", ink: "#2A211A", soft: "#7A6C5D", accent: "#9C4B1E", font: "Fraunces, Georgia, serif" },
-  "pixel-goods": { paper: "#0B0E11", ink: "#E7EBEF", soft: "#8A94A0", accent: "#E8A33D", font: "'Space Grotesk', system-ui, sans-serif" },
-  "studio-tenang": { paper: "#F6F5F1", ink: "#1B1C18", soft: "#6F7269", accent: "#3F5D4E", font: "Newsreader, Georgia, serif" },
+  "warung-rame": { paper: "#FFF7EC", ink: "#21170F", soft: "#6B5B4C", accent: "#C2380A", font: "'Bricolage Grotesque', system-ui, sans-serif" },
+  "kopi-sore": { paper: "#F1EDE4", ink: "#241E1A", soft: "#6E635A", accent: "#1F4D3F", font: "'Instrument Serif', Georgia, serif" },
+  "butik-rapi": { paper: "#F7F5F2", ink: "#16130F", soft: "#5F5951", accent: "#6E2B3D", font: "Fraunces, Georgia, serif" },
+  "jasa-kilat": { paper: "#EDF1F4", ink: "#0E1721", soft: "#4E5A66", accent: "#0B57D0", font: "'IBM Plex Sans', system-ui, sans-serif" },
+  "dapur-ngebul": { paper: "#FAF6ED", ink: "#221B14", soft: "#615649", accent: "#8A6A00", font: "Fraunces, Georgia, serif" },
+  "kriya-asli": { paper: "#F2EDE3", ink: "#2A2318", soft: "#655A49", accent: "#2E4A7D", font: "Newsreader, Georgia, serif" },
+  "digital-kilat": { paper: "#0E1116", ink: "#EDF1F5", soft: "#8FA0B0", accent: "#F2B01E", font: "'Space Grotesk', system-ui, sans-serif" },
+  "konsultan-tenang": { paper: "#F5F6F4", ink: "#1B201C", soft: "#5C645C", accent: "#2F5D50", font: "Newsreader, Georgia, serif" },
 };
 
 function GenericThemeMini({ themeId, storeName, products }: {
@@ -869,7 +871,7 @@ function GenericThemeMini({ themeId, storeName, products }: {
   storeName: string;
   products: { name: string; price: number; image_url: string | null }[];
 }) {
-  const s = MINI_SWATCH[themeId] ?? MINI_SWATCH["studio-tenang"];
+  const s = MINI_SWATCH[themeId] ?? MINI_SWATCH["konsultan-tenang"];
   const rows = products.length > 0 ? products : [{ name: "Produk aktif Anda akan tampil di sini", price: 0, image_url: null }];
   return (
     <div className="overflow-hidden rounded-lg" style={{ background: s.paper }}>
@@ -1223,92 +1225,7 @@ export function Theme() {
               <span>Pratinjau langsung</span>
               <span>{themeId === "klasik" ? layout : themeName(themeId)}</span>
             </div>
-            {themeId === "ruang-seduh" ? (
-              <div className="overflow-hidden rounded-lg" style={{ background: "#FBF6EE" }}>
-                <div className="px-3.5 pb-3 pt-4" style={{ borderBottom: "1px solid #E2D6C4" }}>
-                  <div className="flex items-center gap-2.5">
-                    <span className="grid h-9 w-9 shrink-0 place-items-center overflow-hidden" style={{ background: "#B4552E", color: "#FFF7EE", fontFamily: "Fraunces, Georgia, serif", fontWeight: 600, fontSize: 15, borderRadius: 2 }}>
-                      {profile?.avatar_url ? (
-                        <img src={profile.avatar_url} alt="" className="h-full w-full object-cover" />
-                      ) : (
-                        (storeName || "T").slice(0, 1).toUpperCase()
-                      )}
-                    </span>
-                    <div className="min-w-0">
-                      <div className="truncate" style={{ fontFamily: "Fraunces, Georgia, serif", fontWeight: 600, fontSize: 17, color: "#2A1D14", lineHeight: 1.1 }}>
-                        {storeName || "Nama toko"}
-                      </div>
-                      <div className="tnum truncate" style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 9.5, color: "#7A6A5B", marginTop: 3 }}>
-                        tokolink.store/s/…
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                <div className="px-3.5">
-                  {(previewProducts.length > 0
-                    ? previewProducts
-                    : [{ name: "Produk aktif Anda akan tampil di sini", price: 0, image_url: null }]
-                  ).map((p, i) => (
-                    <div key={p.name + i} className="grid items-baseline gap-2.5" style={{ gridTemplateColumns: "24px minmax(0,1fr) auto", padding: "12px 2px", borderTop: "1px solid #E2D6C4" }}>
-                      <span className="tnum" style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 10, color: "#B4552E" }}>
-                        {String(i + 1).padStart(2, "0")}
-                      </span>
-                      <span className="min-w-0">
-                        <span className="block truncate" style={{ fontFamily: "Fraunces, Georgia, serif", fontSize: 15, color: "#2A1D14" }}>
-                          {p.name}
-                        </span>
-                      </span>
-                      {p.price > 0 && (
-                        <span className="tnum" style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, color: "#2A1D14" }}>
-                          {rupiah(p.price)}
-                        </span>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ) : themeId === "pasar-rapi" ? (
-              <div className="overflow-hidden rounded-lg" style={{ background: "#F5F9F8" }}>
-                <div className="px-3.5 pb-2.5 pt-3.5" style={{ background: "#FFFFFF", borderBottom: "1px solid #D9E6E3" }}>
-                  <div className="flex items-center gap-2.5">
-                    <span className="grid h-8 w-8 shrink-0 place-items-center overflow-hidden" style={{ background: "#0E7C6E", color: "#fff", fontFamily: "Archivo, system-ui, sans-serif", fontWeight: 800, fontSize: 14, borderRadius: 6 }}>
-                      {profile?.avatar_url ? (
-                        <img src={profile.avatar_url} alt="" className="h-full w-full object-cover" />
-                      ) : (
-                        (storeName || "T").slice(0, 1).toUpperCase()
-                      )}
-                    </span>
-                    <div className="min-w-0">
-                      <div className="truncate" style={{ fontFamily: "Archivo, system-ui, sans-serif", fontWeight: 800, fontSize: 16, color: "#0F1F1D", letterSpacing: "-0.02em" }}>
-                        {storeName || "Nama toko"}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-2 px-3.5 py-3">
-                  {(previewProducts.length > 0
-                    ? previewProducts
-                    : [{ name: "Produk Anda", price: 0, image_url: null }]
-                  ).map((p, i) => (
-                    <div key={p.name + i} style={{ background: "#fff", border: "1px solid #D9E6E3", borderRadius: 6, overflow: "hidden" }}>
-                      {p.image_url ? (
-                        <img src={p.image_url} alt="" className="aspect-square w-full object-cover" />
-                      ) : (
-                        <div className="aspect-square w-full" style={{ background: "#F5F9F8" }} />
-                      )}
-                      <div style={{ padding: 8 }}>
-                        <div className="truncate" style={{ fontSize: 11, fontWeight: 600, color: "#0F1F1D" }}>{p.name}</div>
-                        {p.price > 0 && (
-                          <div className="tnum" style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 13, fontWeight: 600, color: "#0E7C6E", marginTop: 3 }}>
-                            {rupiah(p.price)}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ) : isEngineTheme(themeId) ? (
+            {isEngineTheme(themeId) ? (
               <GenericThemeMini themeId={themeId} storeName={storeName} products={previewProducts} />
             ) : (
             <div className="overflow-hidden rounded-lg bg-white">
