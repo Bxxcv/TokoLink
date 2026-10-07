@@ -20,7 +20,9 @@ create policy "profiles_anon_storefront" on profiles
   for select to anon using (true);
 
 -- View tanpa kolom turunan plan + berjalan sebagai pemanggil.
-create or replace view public_stores as
+-- (CREATE OR REPLACE tidak boleh buang kolom → DROP dulu.)
+drop view if exists public_stores;
+create view public_stores as
   select id, store_name, store_slug, city,
          avatar_url, cover_url, bio, category, is_closed
   from profiles;
