@@ -59,9 +59,11 @@ export function friendlyAuthError(message: string): string {
   if (m.includes("invalid login credentials")) return "Email atau kata sandi salah.";
   if (m.includes("email not confirmed")) return "Email belum diverifikasi. Cek kotak masuk Anda.";
   if (m.includes("user already registered")) return "Email ini tidak bisa dipakai. Coba masuk atau pakai email lain.";
+  if (m.includes("confirmation") && m.includes("email")) return "Email verifikasi gagal dikirim (SMTP bermasalah). Coba lagi atau hubungi admin.";
+  if (m.includes("error sending")) return "Email verifikasi gagal dikirim (SMTP bermasalah). Coba lagi atau hubungi admin.";
+  if (m.includes("rate limit") || m.includes("too many requests") || m.includes("email rate limit"))
+    return "Terlalu banyak percobaan. Tunggu ±1 menit lalu coba lagi.";
   if (m.includes("password should be")) return "Kata sandi terlalu lemah.";
-  if (m.includes("rate limit") || m.includes("too many requests"))
-    return "Terlalu banyak percobaan. Tunggu sebentar lalu coba lagi.";
   return "Terjadi kesalahan. Coba lagi.";
 }
 
