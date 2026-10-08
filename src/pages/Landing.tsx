@@ -1186,14 +1186,15 @@ function Footer() {
               terlihat rapi tanpa repot.
             </p>
             <div className="mt-5 flex gap-2">
-              {["wa", "ig", "send"].map((i) => (
-                <span
-                  key={i}
-                  className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-md border border-white/15 text-white/70 transition-colors duration-150 hover:border-brand-400 hover:text-brand-400"
-                >
-                  <Icon name={i} size={17} />
-                </span>
-              ))}
+              <a
+                href="https://wa.me/6285191245042?text=Halo%20TokoLink,%20saya%20butuh%20bantuan."
+                target="_blank"
+                rel="noreferrer"
+                aria-label="WhatsApp TokoLink"
+                className="flex h-9 w-9 items-center justify-center rounded-md border border-white/15 text-white/70 transition-colors duration-150 hover:border-brand-400 hover:text-brand-400"
+              >
+                <Icon name="wa" size={17} />
+              </a>
             </div>
           </div>
           {cols.map((c) => (
@@ -1202,9 +1203,27 @@ function Footer() {
               <ul className="space-y-2.5">
                 {c.l.map((l) => (
                   <li key={l}>
-                    <button className="text-left text-[14px] text-white/65 transition-colors duration-150 hover:text-white">
-                      {l}
-                    </button>
+                    {l === "Hubungi WhatsApp" ? (
+                      <a
+                        href="https://wa.me/6285191245042?text=Halo%20TokoLink,%20saya%20butuh%20bantuan."
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-left text-[14px] text-white/65 transition-colors duration-150 hover:text-white"
+                      >
+                        {l}
+                      </a>
+                    ) : l === "Syarat layanan" || l === "Kebijakan privasi" ? (
+                      <Link
+                        to="/legal/privacy"
+                        className="text-left text-[14px] text-white/65 transition-colors duration-150 hover:text-white"
+                      >
+                        {l}
+                      </Link>
+                    ) : (
+                      <span className="text-left text-[14px] text-white/35">
+                        {l}
+                      </span>
+                    )}
                   </li>
                 ))}
               </ul>

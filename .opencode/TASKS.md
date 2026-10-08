@@ -306,3 +306,26 @@ referensi itu.
       BUKAN diminta eksplisit user secara detail** — user cuma bilang
       "selesaikan", tidak menjawab 2 pertanyaan sebelumnya. Kalau mau
       angka/mekanisme beda, cukup ganti nilainya, tidak perlu ubah kode.
+
+---
+
+## Rencana Besar Berikutnya (catatan 8 Okt 2026, BELUM dikerjakan)
+
+Aturan khusus plan ini (minta user 8 Okt 2026): setiap item WAJIB tanya +
+kasih saran dulu sebelum dikerjakan; setelah dikerjakan WAJIB centang.
+Kontak support resmi: WA 085191245042, email supporttokolink@gmail.com.
+
+- [ ] **Landing page real (fakta, bukan pajangan)**: rapikan klaim per
+      seksi (hero, fitur, harga, FAQ, footer). Tiap angka/teks dicek:
+      real → pertahankan, tidak real → putuskan JADIKAN REAL atau HAPUS.
+      (Kontak WA/email admin sudah dipasang 8 Okt 2026.)
+- [ ] **Halaman toko seller per-bagian**: foto proporsional, tata letak
+      jelas, footer jelas — berlaku untuk Klasik + 8 tema engine.
+- [ ] **Keranjang top-to-bottom**: ringkasan, promo, CTA jelas di HP.
+- [ ] **Checkout top-to-bottom**: form, ringkasan, tombol bayar jelas di HP.
+- [ ] **Admin panel terpisah**: JANGAN campur alamat/layout dengan dashboard
+      seller. Opsi: (a) path `/admin/*` tetap + layout sendiri total
+      (termurah, tanpa DNS/infra baru — SARAN), (b) subdomain
+      `admin.tokolink.store` (butuh DNS + config Vercel), (c) aplikasi
+      terpisah (termahal). Diskusikan + putuskan BARENG user dulu,
+      kerjakan belakangan.

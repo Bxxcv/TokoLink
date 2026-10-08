@@ -241,7 +241,7 @@ function StoreFooter({ store }: { store?: StoreProfile | null }) {
               Dibuat dengan TokoLink
             </Link>
             <a
-              href={`mailto:support@tokolink.store?subject=${encodeURIComponent(
+              href={`mailto:supporttokolink@gmail.com?subject=${encodeURIComponent(
                 `Laporan toko: ${name}${store?.store_slug ? ` (${storeUrl(store.store_slug).replace("https://", "")})` : ""}`,
               )}`}
               className="hover:text-ink"
@@ -388,8 +388,8 @@ export function LegalPrivacy() {
             <section>
               <h2 className="text-[15px] font-bold text-ink">Kontak</h2>
               <p className="mt-1">
-                Pertanyaan soal privasi atau data kamu, hubungi tim TokoLink lewat halaman
-                bantuan.
+                Pertanyaan soal privasi atau data kamu: WhatsApp 085191245042
+                atau email supporttokolink@gmail.com.
               </p>
             </section>
           </div>

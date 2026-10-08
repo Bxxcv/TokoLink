@@ -507,7 +507,7 @@ export function Forgot() {
             </ButtonLink>
           </div>
           <p className="mt-4 text-[13px] text-faint">
-            Tidak menerima email setelah 5 menit? Cek folder spam atau tulis ke support@tokolink.store.
+            Tidak menerima email setelah 5 menit? Cek folder spam atau hubungi admin (WA 085191245042 / supporttokolink@gmail.com).
           </p>
         </div>
       ) : (
