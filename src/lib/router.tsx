@@ -1,9 +1,15 @@
 import { useCallback, useEffect, useState, type CSSProperties, type ReactNode } from "react";
 
 export function currentPath(): string {
+  // Hash dulu (navigasi dalam aplikasi, tanpa reload).
   const raw = window.location.hash.replace(/^#/, "");
-  if (!raw) return "/";
-  return raw.startsWith("/") ? raw : "/" + raw;
+  if (raw) return raw.startsWith("/") ? raw : "/" + raw;
+  // Tanpa hash (dibuka langsung / dari QR / dibagikan): baca path + query.
+  // Ini yang bikin tautan tokolink.store/s/{slug} bisa dibuka langsung.
+  const p = window.location.pathname;
+  const q = window.location.search;
+  const base = p && p !== "/" ? p : "/";
+  return base + q;
 }
 
 export function navigate(to: string) {
@@ -21,7 +27,6 @@ export function useRoute(): string {
       window.scrollTo(0, 0);
     };
     window.addEventListener("hashchange", onChange);
-    if (!window.location.hash) window.location.hash = "/";
     return () => window.removeEventListener("hashchange", onChange);
   }, []);
   return path;
