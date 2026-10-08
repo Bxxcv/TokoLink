@@ -3,6 +3,7 @@ import {
   useRef,
   useState,
   type ButtonHTMLAttributes,
+  type CSSProperties,
   type InputHTMLAttributes,
   type ReactNode,
   type SelectHTMLAttributes,
@@ -351,6 +352,7 @@ export function ButtonLink({
   size = "md",
   notch = true,
   className,
+  style,
   children,
   onClick,
 }: {
@@ -359,11 +361,12 @@ export function ButtonLink({
   size?: Size;
   notch?: boolean;
   className?: string;
+  style?: CSSProperties;
   children: ReactNode;
   onClick?: () => void;
 }) {
   return (
-    <Link to={to} className={cx(btnCls(variant, size, notch), className)} onClick={onClick}>
+    <Link to={to} className={cx(btnCls(variant, size, notch), className)} style={style} onClick={onClick}>
       {children}
     </Link>
   );
@@ -594,11 +597,13 @@ export function Toggle({
   onChange,
   label,
   id,
+  disabled,
 }: {
   checked: boolean;
   onChange: (v: boolean) => void;
   label?: string;
   id?: string;
+  disabled?: boolean;
 }) {
   return (
     <button
@@ -607,10 +612,12 @@ export function Toggle({
       role="switch"
       aria-checked={checked}
       aria-label={label}
+      disabled={disabled}
       onClick={() => onChange(!checked)}
       className={cx(
         "relative h-6 w-11 shrink-0 rounded-full border transition-colors duration-300 ease-in-out",
         checked ? "border-brand-600 bg-brand-600" : "border-line bg-[#E4EAF3]",
+        disabled && "cursor-not-allowed opacity-45",
       )}
     >
       <span

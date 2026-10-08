@@ -1040,10 +1040,15 @@ export function Theme() {
             </Button>
             <Button
               loading={saving}
-              disabled={saved}
-              onClick={saveTheme}
+              onClick={() => {
+                if (saved) {
+                  toast("Sudah tersimpan, tidak ada perubahan.", "info");
+                  return;
+                }
+                saveTheme();
+              }}
             >
-              Simpan tampilan
+              {saved ? "Tersimpan ✓" : "Simpan tampilan"}
             </Button>
           </>
         }
@@ -1098,7 +1103,7 @@ export function Theme() {
           </Card>
 
           <Card>
-            <CardHead title="Warna aksen" sub="Dipakai untuk tombol, harga, dan tautan" icon="tag" />
+            <CardHead title="Warna aksen" sub="Khusus tampilan Klasik — tema engine punya warna sendiri" icon="tag" />
             <div className="flex flex-wrap gap-2.5">
               {Object.entries(accents).map(([name, hex]) => (
                 <button
@@ -1120,7 +1125,7 @@ export function Theme() {
           </Card>
 
           <Card>
-            <CardHead title="Susunan katalog" sub="Bagaimana produk ditampilkan di halaman utama" icon="grid" />
+            <CardHead title="Susunan katalog" sub="Khusus tampilan Klasik — tema engine punya susunan sendiri" icon="grid" />
             <div className="grid grid-cols-3 gap-3">
               {["Kisi", "Daftar", "Sorotan"].map((l) => (
                 <button
@@ -1153,16 +1158,20 @@ export function Theme() {
               {[
                 ["hours", "Jam buka", "Pembeli tahu kapan Anda melayani."],
                 ["qr", "QR toko", "QR bisa dipindai langsung dari halaman."],
-                ["reviews", "Ulasan pembeli", "Tampilkan rating dan komentar terakhir."],
+                ["reviews", "Ulasan pembeli", "Segera hadir — butuh fitur ulasan dulu."],
                 ["cart", "Keranjang belanja", "Wajib bila Anda ingin pembelian lewat halaman."],
               ].map(([k, t, d]) => (
                 <li key={k} className="flex items-center justify-between gap-4 py-3.5">
                   <div>
-                    <div className="text-[14.5px] font-bold text-ink">{t}</div>
+                    <div className="flex items-center gap-2 text-[14.5px] font-bold text-ink">
+                      {t}
+                      {k === "reviews" && <Badge tone="gray">Segera hadir</Badge>}
+                    </div>
                     <div className="text-[13px] text-muted">{d}</div>
                   </div>
                   <Toggle
                     checked={sections[k as keyof typeof sections]}
+                    disabled={k === "reviews"}
                     onChange={(v) => {
                       setSections((s) => ({ ...s, [k]: v }));
                       setSaved(false);

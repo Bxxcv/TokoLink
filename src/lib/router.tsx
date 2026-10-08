@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useState, type CSSProperties, type ReactNode } from "react";
 
 export function currentPath(): string {
   const raw = window.location.hash.replace(/^#/, "");
@@ -39,18 +39,20 @@ type LinkProps = {
   to: string;
   children: ReactNode;
   className?: string;
+  style?: CSSProperties;
   title?: string;
   onClick?: () => void;
   ariaLabel?: string;
 };
 
-export function Link({ to, children, className = "", title, onClick, ariaLabel }: LinkProps) {
+export function Link({ to, children, className = "", style, title, onClick, ariaLabel }: LinkProps) {
   return (
     <a
       href={`#${to}`}
       title={title}
       aria-label={ariaLabel}
       className={className}
+      style={style}
       onClick={onClick}
     >
       {children}

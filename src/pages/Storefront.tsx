@@ -901,7 +901,7 @@ export function StoreHome({ slug }: { slug: string }) {
                 </span>
               )}
               <span className="flex items-center gap-2">
-                <Icon name="truck" size={15} className="text-brand-500" /> GoSend · JNE · kirim sendiri
+                <Icon name="truck" size={15} className="text-brand-500" /> Pengiriman diatur via chat
               </span>
             </div>
           </div>
@@ -1427,6 +1427,30 @@ function useVisitBeacon(sellerId: string | null | undefined, path: string) {
   }, [sellerId, path]);
 }
 
+/** Warna aksen toko seller (dari store_theme) agar keranjang & checkout
+ *  terasa bagian dari tokonya. Hanya warna — logic & validasi tidak berubah. */
+function useStoreAccent(sellerId: string | null | undefined) {
+  const [hex, setHex] = useState("#0A69C4");
+  useEffect(() => {
+    if (!sellerId) return;
+    let alive = true;
+    (async () => {
+      const { data } = await supabase
+        .from("store_theme")
+        .select("accent")
+        .eq("seller_id", sellerId)
+        .maybeSingle();
+      if (!alive) return;
+      const a = (data as { accent?: string } | null)?.accent;
+      if (a) setHex(accentHex(a));
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [sellerId]);
+  return hex;
+}
+
 function useCartStore(items: { sellerId: string }[]) {
   const [store, setStore] = useState<StoreProfile | null>(null);
   const sellerId = items.length > 0 ? items[0].sellerId : null;
@@ -1453,6 +1477,7 @@ export function Cart() {
   const { setQty, promo, setPromo, toast, clear } = useApp();
   const { items, subtotal, discount, total, promoNote, promoValid, loading } = useTotals(promo);
   const store = useCartStore(items);
+  const payAccent = useStoreAccent(store?.id);
   const storeSlug = store?.store_slug || "";
   const [code, setCode] = useState("");
   const [remove, setRemove] = useState<{ id: string; name: string } | null>(null);
@@ -1611,14 +1636,14 @@ export function Cart() {
                 </dl>
                 <div className="mt-4 flex items-end justify-between border-t border-linesoft pt-4">
                   <span className="text-[14px] font-bold text-ink">Total bayar</span>
-                  <span className="tnum text-[24px] font-bold leading-none text-brand-700">{rupiah(total)}</span>
+                  <span className="tnum text-[24px] font-bold leading-none" style={{ color: payAccent }}>{rupiah(total)}</span>
                 </div>
                 {mixed ? (
                   <Button size="lg" className="mt-5 w-full" disabled>
                     Selesaikan satu toko dulu
                   </Button>
                 ) : (
-                  <ButtonLink to="/checkout" size="lg" className="mt-5 w-full">
+                  <ButtonLink to="/checkout" size="lg" className="mt-5 w-full" style={{ backgroundColor: payAccent, borderColor: payAccent }}>
                     Lanjut ke pembayaran <Icon name="arrowRight" size={17} />
                   </ButtonLink>
                 )}
@@ -1724,19 +1749,7 @@ export function Checkout() {
   const store = useCartStore(items);
   // Aksen toko (dari store_theme) dipakai tombol bayar + total supaya
   // checkout terasa bagian dari tokonya. Logic & validasi tidak berubah.
-  const [payAccent, setPayAccent] = useState("#0A69C4");
-  useEffect(() => {
-    if (!store) return;
-    (async () => {
-      const { data } = await supabase
-        .from("store_theme")
-        .select("accent")
-        .eq("seller_id", store.id)
-        .maybeSingle();
-      const a = (data as { accent?: string } | null)?.accent;
-      if (a) setPayAccent(accentHex(a));
-    })();
-  }, [store]);
+  const payAccent = useStoreAccent(store?.id);
   const [err, setErr] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   // Kunci idempotensi per upaya checkout: klik ganda / retry = 1 order.
