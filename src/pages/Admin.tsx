@@ -4,8 +4,8 @@ import { supabase } from "../lib/supabase";
 import {
   rupiah,
   rupiahShort,
-  useApp,
-} from "../lib/data";
+} from "../lib/format";
+import { useApp } from "../lib/store";
 import { AppShell } from "../components/layout";
 import {
   Badge,

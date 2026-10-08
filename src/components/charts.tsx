@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import clsx from "clsx";
-import { angka } from "../lib/data";
+import { angka } from "../lib/format";
 
 const cx = clsx;
 

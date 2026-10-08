@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, navigate } from "../lib/router";
-import { FAQ, SALES_30, DAY_LABELS } from "../lib/data";
+import { FAQ, SALES_30, DAY_LABELS } from "../dev/mock";
 import { Logo, LogoMark, TagGlyph } from "../components/Logo";
 import { Badge, ButtonLink, Icon, PageShell, TagChip, cx } from "../components/ui";
 import { ChartFrame, Legend, LineChart } from "../components/charts";

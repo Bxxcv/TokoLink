@@ -9,7 +9,7 @@
  * - Alur beli tetap satu: onAdd() → keranjang global → /cart →
  *   checkout → QRIS. Tema tidak boleh mengalihkan order ke WhatsApp.
  */
-import type { Product } from "../lib/data";
+import type { Product } from "../lib/shop";
 
 export interface ThemeBioLink {
   id: string;

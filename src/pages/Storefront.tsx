@@ -1,7 +1,9 @@
 import QRCode from "qrcode";
 import { useEffect, useMemo, useState } from "react";
 import { Link, navigate } from "../lib/router";
-import { rupiah, useApp, type Product } from "../lib/data";
+import { rupiah } from "../lib/format";
+import { useApp } from "../lib/store";
+import type { Product } from "../lib/shop";
 import { supabase } from "../lib/supabase";
 import { mapProduct, type DbProduct } from "../lib/products";
 import { normalizeWA } from "../lib/format";

@@ -3,7 +3,8 @@
  * Utilitarian: daftar, kode, angka. SEMUA data dari props.
  */
 import { useState } from "react";
-import { rupiah, type Product } from "../../lib/data";
+import { rupiah } from "../../lib/format";
+import type { Product } from "../../lib/shop";
 import { Icon } from "../../components/ui";
 import { iconForLink } from "../../lib/links";
 import type { ThemeStorefrontProps } from "../types";

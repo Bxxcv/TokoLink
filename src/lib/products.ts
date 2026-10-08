@@ -1,4 +1,4 @@
-import type { Product } from "./data";
+import type { Product } from "./shop";
 
 /** Bentuk baris mentah tabel `products` Supabase (kolom sesuai database/schema.sql). */
 export type DbProduct = {

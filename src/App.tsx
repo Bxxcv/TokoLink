@@ -1,4 +1,4 @@
-import { AppProvider } from "./lib/data";
+import { AppProvider } from "./lib/store";
 import { AuthProvider, RequireAdmin, RequireAuth } from "./lib/auth";
 import { useRoute, Link } from "./lib/router";
 import { ToastHost, ButtonLink } from "./components/ui";

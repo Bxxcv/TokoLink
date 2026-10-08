@@ -1,5 +1,5 @@
 import { supabase } from "./supabase";
-import { rupiah } from "./data";
+import { rupiah } from "./format";
 
 export type NotifItem = {
   id: string;

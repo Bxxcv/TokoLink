@@ -3,15 +3,16 @@ import { Link, navigate } from "../lib/router";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
 import {
-  DAY_LABELS,
   STATUS_LABEL,
+  type Order,
+  type OrderStatus,
+} from "../lib/shop";
+import {
   angka,
   rupiah,
   rupiahShort,
-  useApp,
-  type Order,
-  type OrderStatus,
-} from "../lib/data";
+} from "../lib/format";
+import { useApp } from "../lib/store";
 import { AppShell } from "../components/layout";
 import {
   Badge,
@@ -52,7 +53,7 @@ import {
   LineChart,
   Sparkline,
 } from "../components/charts";
-import { CATEGORIES, type Product } from "../lib/data";
+import { CATEGORIES, type Product } from "../lib/shop";
 import { digitsOnly, formatRibuan } from "../lib/format";
 import { mapProduct, type DbProduct } from "../lib/products";
 

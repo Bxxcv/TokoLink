@@ -10,8 +10,8 @@ import { uploadImage } from "../lib/storage";
 import { buildNotifications, getReadIds, markRead as markReadLib, type NotifItem } from "../lib/notifications";
 import {
   rupiah,
-  useApp,
-} from "../lib/data";
+} from "../lib/format";
+import { useApp } from "../lib/store";
 import { AppShell } from "../components/layout";
 import { LogoMark } from "../components/Logo";
 import {

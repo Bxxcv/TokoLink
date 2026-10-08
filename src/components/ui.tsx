@@ -11,7 +11,7 @@ import {
 } from "react";
 import clsx from "clsx";
 import { Link, navigate } from "../lib/router";
-import { useApp } from "../lib/data";
+import { useApp } from "../lib/store";
 
 export const cx = clsx;
 

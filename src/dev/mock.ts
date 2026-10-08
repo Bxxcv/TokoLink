@@ -1,41 +1,11 @@
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useMemo,
-  useState,
-  type ReactNode,
-} from "react";
-
-/* ------------------------------- formatting ------------------------------ */
-export const rupiah = (n: number) =>
-  "Rp" + Math.round(n).toLocaleString("id-ID").replace(/,/g, ".");
-export const rupiahShort = (n: number) => {
-  if (n >= 1_000_000_000) return "Rp" + (n / 1_000_000_000).toFixed(1).replace(".", ",") + " M";
-  if (n >= 1_000_000) return "Rp" + (n / 1_000_000).toFixed(1).replace(".", ",") + " jt";
-  if (n >= 1_000) return "Rp" + Math.round(n / 1_000) + "rb";
-  return rupiah(n);
-};
-export const angka = (n: number) => n.toLocaleString("id-ID");
+/**
+ * DATA CONTOH — JANGAN dipakai di halaman production.
+ * Dipakai hanya untuk: pratinjau landing page + fallback demo.
+ * Data asli SELALU dari Supabase. Lihat AGENTS.md aturan #9.
+ */
+import type { Order, Product } from "../lib/shop";
 
 /* ------------------------------- mock data -------------------------------- */
-export type Product = {
-  id: string;
-  name: string;
-  cat: string;
-  price: number;
-  unit: string;
-  img: string;
-  stock: number;
-  sku: string;
-  sold: number;
-  status: "aktif" | "nonaktif";
-  weight: number;
-  desc: string;
-};
-
-export const CATEGORIES = ["Semua", "Kue & Snack", "Sambal & Bumbu", "Kopi & Minuman", "Panen & Herbal"];
-
 export const PRODUCTS: Product[] = [
   {
     id: "p1",
@@ -108,30 +78,6 @@ export const PRODUCTS: Product[] = [
     desc: "Singkong potong tipis, digoreng harian, balado merah yang gurih. Kemasan aluminium foil supaya tetap renyah.",
   },
 ];
-
-export type OrderStatus = "menunggu" | "dikemas" | "dikirim" | "selesai" | "batal";
-export type Order = {
-  id: string;
-  customer: string;
-  city: string;
-  items: string;
-  qty: number;
-  total: number;
-  status: OrderStatus;
-  date: string;
-  channel: string;
-  phone?: string;
-  address?: string;
-  note?: string;
-};
-
-export const STATUS_LABEL: Record<OrderStatus, string> = {
-  menunggu: "Menunggu bayar",
-  dikemas: "Sedang dikemas",
-  dikirim: "Dalam pengiriman",
-  selesai: "Selesai",
-  batal: "Dibatalkan",
-};
 
 export const ORDERS: Order[] = [
   { id: "TL-2502-0192", customer: "Rizky Maulana", city: "Bandung", items: "Kue Lapis Legit 380g", qty: 2, total: 170000, status: "menunggu", date: "12 Feb 2025, 09:41", channel: "QRIS" },
@@ -303,72 +249,3 @@ export const FAQ = [
     a: "Toko tetap bisa dibuka di paket Gratis. Fitur Premium nonaktif, tetapi data produk dan pesanan Anda tidak dihapus.",
   },
 ];
-
-/* ------------------------------ cart + toasts ----------------------------- */
-export type CartItem = { id: string; qty: number };
-type Toast = { id: number; msg: string; tone: "ok" | "info" | "warn" | "bad" };
-
-type AppCtx = {
-  cart: CartItem[];
-  add: (id: string, qty?: number) => void;
-  setQty: (id: string, qty: number) => void;
-  clear: () => void;
-  count: number;
-  toast: (msg: string, tone?: Toast["tone"]) => void;
-  toasts: Toast[];
-  dismiss: (id: number) => void;
-  promo: string | null;
-  setPromo: (p: string | null) => void;
-};
-
-const Ctx = createContext<AppCtx | null>(null);
-
-export function AppProvider({ children }: { children: ReactNode }) {
-  const [cart, setCart] = useState<CartItem[]>([]);
-  const [toasts, setToasts] = useState<Toast[]>([]);
-  const [promo, setPromo] = useState<string | null>(null);
-
-  const dismiss = useCallback((id: number) => {
-    setToasts((t) => t.filter((x) => x.id !== id));
-  }, []);
-
-  const toast = useCallback(
-    (msg: string, tone: Toast["tone"] = "ok") => {
-      const id = Date.now() + Math.random();
-      setToasts((t) => [...t, { id, msg, tone }]);
-      window.setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 4200);
-    },
-    [],
-  );
-
-  const add = useCallback((id: string, qty = 1) => {
-    setCart((c) => {
-      const found = c.find((x) => x.id === id);
-      if (found) return c.map((x) => (x.id === id ? { ...x, qty: x.qty + qty } : x));
-      return [...c, { id, qty }];
-    });
-  }, []);
-
-  const setQty = useCallback((id: string, qty: number) => {
-    setCart((c) =>
-      qty <= 0 ? c.filter((x) => x.id !== id) : c.map((x) => (x.id === id ? { ...x, qty } : x)),
-    );
-  }, []);
-
-  const clear = useCallback(() => setCart([]), []);
-
-  const count = useMemo(() => cart.reduce((s, i) => s + i.qty, 0), [cart]);
-
-  const value = useMemo(
-    () => ({ cart, add, setQty, clear, count, toast, toasts, dismiss, promo, setPromo }),
-    [cart, add, setQty, clear, count, toast, toasts, dismiss, promo],
-  );
-
-  return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
-}
-
-export function useApp() {
-  const c = useContext(Ctx);
-  if (!c) throw new Error("useApp harus dipakai di dalam AppProvider");
-  return c;
-}

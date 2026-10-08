@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import clsx from "clsx";
 import { Link, navigate, useRoute } from "../lib/router";
 import { signOut, useAuth } from "../lib/auth";
-import { useApp } from "../lib/data";
+import { useApp } from "../lib/store";
 import { supabase } from "../lib/supabase";
 import { countUnread } from "../lib/notifications";
 import { Logo, LogoMark } from "./Logo";
