@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { Link, navigate } from "../lib/router";
+import { Link, isReservedSlug, navigate } from "../lib/router";
 import { supabase, prepareSessionPersistence, purgePersistedSessions } from "../lib/supabase";
 import { ensureProfile, friendlyAuthError, useAuth } from "../lib/auth";
 import { Logo, LogoMark, TagGlyph } from "../components/Logo";
@@ -263,13 +263,15 @@ export function Register() {
     if (!authLoading && session) navigate(role === "admin" ? "/admin" : "/app");
   }, [authLoading, session, role]);
 
-  const slug =
+  const rawSlug =
     store
       .toLowerCase()
       .replace(/[^a-z0-9\s-]/g, "")
       .trim()
       .replace(/\s+/g, "-")
       .slice(0, 28) || "nama-toko";
+  // Jangan pakai kata rute aplikasi (login/cart/...) — tambah akhiran.
+  const slug = isReservedSlug(rawSlug) ? `${rawSlug}-toko` : rawSlug;
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -370,7 +372,7 @@ export function Register() {
           label="Nama toko"
           error={err.store}
           required
-          hint={`Alamat toko Anda: tokolink.store/s/${slug}`}
+          hint={`Alamat toko Anda: tokolink.store/${slug}`}
         >
           <Input
             value={store}
@@ -385,7 +387,7 @@ export function Register() {
 
         <div className="notch-sm flex items-center justify-between gap-3 bg-brand-50 px-3.5 py-2.5">
           <span className="micro text-brand-700">Alamat tautan</span>
-          <span className="tnum truncate text-[13px] font-semibold text-navy-800">tokolink.store/s/{slug}</span>
+          <span className="tnum truncate text-[13px] font-semibold text-navy-800">tokolink.store/{slug}</span>
         </div>
 
         <Field label="Email atau nomor WhatsApp" error={err.contact} required>

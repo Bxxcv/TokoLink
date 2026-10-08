@@ -1,6 +1,6 @@
 import { AppProvider } from "./lib/store";
 import { AuthProvider, RequireAdmin, RequireAuth } from "./lib/auth";
-import { useRoute, Link } from "./lib/router";
+import { useRoute, Link, isReservedSlug } from "./lib/router";
 import { ToastHost, ButtonLink } from "./components/ui";
 
 import Landing from "./pages/Landing";
@@ -100,6 +100,15 @@ function RouteView({ path }: { path: string }) {
   if (seg[0] === "s" && seg[1]) {
     if (seg[2] === "p" && seg[3]) return <ProductDetail id={seg[3]} slug={seg[1]} />;
     return <StoreHome slug={seg[1]} />;
+  }
+  // URL pendek ala linktree: tokolink.store/{slug} (tanpa /s/).
+  // Kata khusus aplikasi diprioritaskan (rute di atas), jadi slug
+  // "cart"/"login"/dll tidak akan menutupi halaman aplikasi.
+  if (seg.length === 1 && seg[0] && !isReservedSlug(seg[0])) {
+    return <StoreHome slug={seg[0]} />;
+  }
+  if (seg.length === 3 && seg[1] === "p" && seg[2] && !isReservedSlug(seg[0])) {
+    return <ProductDetail id={seg[2]} slug={seg[0]} />;
   }
   if (path === "/cart") return <Cart />;
   if (path === "/checkout") return <Checkout />;

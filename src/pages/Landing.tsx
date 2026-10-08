@@ -390,7 +390,7 @@ function Produk() {
       n: "01",
       icon: "store",
       t: "Halaman toko yang siap pakai",
-      d: "tokolink.store/s/nama-toko kamu langsung bisa dibuka di HP. Ringan, cepat, dan tidak perlu dirawat.",
+      d: "tokolink.store/nama-toko kamu langsung bisa dibuka di HP. Ringan, cepat, dan tidak perlu dirawat.",
     },
     {
       n: "02",

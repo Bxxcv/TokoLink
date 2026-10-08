@@ -142,7 +142,7 @@ function NavList({ groups, path, onNavigate }: { groups: NavGroup[]; path: strin
 function StoreSwitcher({ admin = false }: { admin?: boolean }) {
   const { profile } = useAuth();
   const storeName = admin ? "TokoLink Indonesia" : profile?.store_name || "";
-  const storeSub = admin ? "Admin Master" : `tokolink.store/s/${profile?.store_slug || ""}`;
+  const storeSub = admin ? "Admin Master" : `tokolink.store/${profile?.store_slug || ""}`;
   return (
     <div className="flex items-center gap-2.5">
       <span className="flex h-9 w-9 items-center justify-center rounded-md bg-navy-800 text-brand-300">

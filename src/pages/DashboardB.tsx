@@ -1,6 +1,6 @@
 import QRCode from "qrcode";
 import { useEffect, useRef, useState } from "react";
-import { navigate } from "../lib/router";
+import { isReservedSlug, navigate, storeUrl } from "../lib/router";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
 import { digitsOnly, formatRibuan, isValidWA, normalizeWA } from "../lib/format";
@@ -651,7 +651,7 @@ export function BioLinks() {
       .insert({
         seller_id: user.id,
         label: "Tautan baru",
-        url: `tokolink.store/s/${storeSlug}/baru`,
+        url: `tokolink.store/${storeSlug}/baru`,
         icon: "link",
         sort_order: maxOrder + 1,
       })
@@ -689,7 +689,7 @@ export function BioLinks() {
         actions={
           <>
             <Button variant="secondary" onClick={async () => {
-              const url = `https://tokolink.store/s/${storeSlug}`;
+              const url = storeUrl(storeSlug);
               try {
                 await navigator.clipboard.writeText(url);
                 toast("Tautan toko disalin.");
@@ -1899,7 +1899,7 @@ export function StoreQR() {
   useEffect(() => {
     let alive = true;
     setQrData("");
-    QRCode.toDataURL(`https://tokolink.store/s/${storeSlug}`, { width: 456, margin: 2 })
+    QRCode.toDataURL(storeUrl(storeSlug), { width: 456, margin: 2 })
       .then((url) => {
         if (alive) setQrData(url);
       })
@@ -1930,7 +1930,7 @@ export function StoreQR() {
         actions={
           <>
             <Button variant="secondary" onClick={() => {
-              const url = `https://tokolink.store/s/${storeSlug}`;
+              const url = storeUrl(storeSlug);
               if (navigator.clipboard) navigator.clipboard.writeText(url).catch(() => {});
               toast("Tautan QR disalin.");
             }}>
@@ -1992,7 +1992,7 @@ export function StoreQR() {
               <dl className="mt-5 space-y-3 border-t border-linesoft pt-4 text-[13.5px]">
                 <div className="flex justify-between">
                   <dt className="text-muted">Alamat</dt>
-                  <dd className="tnum font-semibold text-ink">tokolink.store/s/{storeSlug}</dd>
+                  <dd className="tnum font-semibold text-ink">tokolink.store/{storeSlug}</dd>
                 </div>
                 <div className="flex justify-between">
                   <dt className="text-muted">Ukuran cetak</dt>
@@ -2005,7 +2005,7 @@ export function StoreQR() {
                   <Icon name="image" size={16} /> Cetak stiker
                 </Button>
               <Button variant="secondary" onClick={() => {
-                const url = `https://tokolink.store/s/${storeSlug}`;
+                const url = storeUrl(storeSlug);
                 const text = `Kunjungi toko ${storeName}: ${url}`;
                 if (navigator.share) {
                   navigator.share({ title: storeName, text, url }).catch(() => {});
@@ -2103,6 +2103,10 @@ export function StoreSettings() {
       toast("Alamat tautan tidak valid.", "bad");
       return;
     }
+    if (isReservedSlug(slugNorm)) {
+      toast(`“${slugNorm}” dipakai aplikasi. Pilih alamat lain.`, "bad");
+      return;
+    }
     if (f.phone && !isValidWA(f.phone)) {
       toast("Nomor WhatsApp tidak valid. Contoh: 0812xxxxxxx.", "bad");
       return;
@@ -2175,10 +2179,10 @@ export function StoreSettings() {
                 <Field label="Nama toko" required>
                   <Input value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} />
                 </Field>
-                <Field label="Alamat tautan" hint="Ubah dengan hati-hati, tautan lama bisa mati.">
+                <Field label="Alamat tautan" hint="Pendek, tanpa /s/. Ubah dengan hati-hati, tautan lama bisa mati.">
                   <div className="flex items-stretch">
                     <span className="flex items-center rounded-l-md border border-r-0 border-line bg-canvas px-3 text-[13.5px] text-faint">
-                      tokolink.store/s/
+                      tokolink.store/
                     </span>
                     <Input value={f.slug} onChange={(e) => setF({ ...f, slug: e.target.value })} className="rounded-l-none" />
                   </div>

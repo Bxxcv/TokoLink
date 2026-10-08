@@ -5,7 +5,7 @@ export function currentPath(): string {
   const raw = window.location.hash.replace(/^#/, "");
   if (raw) return raw.startsWith("/") ? raw : "/" + raw;
   // Tanpa hash (dibuka langsung / dari QR / dibagikan): baca path + query.
-  // Ini yang bikin tautan tokolink.store/s/{slug} bisa dibuka langsung.
+  // Ini yang bikin tautan /s/{slug} lama + /{slug} pendek bisa dibuka langsung.
   const p = window.location.pathname;
   const q = window.location.search;
   const base = p && p !== "/" ? p : "/";
@@ -30,6 +30,21 @@ export function useRoute(): string {
     return () => window.removeEventListener("hashchange", onChange);
   }, []);
   return path;
+}
+
+/** Kata yang TIDAK boleh jadi slug toko (dipakai rute aplikasi). */
+export const RESERVED_SLUGS = [
+  "s", "login", "register", "forgot", "cart", "checkout", "order",
+  "app", "admin", "legal", "system", "api",
+];
+
+export function isReservedSlug(slug: string): boolean {
+  return RESERVED_SLUGS.includes(slug.trim().toLowerCase());
+}
+
+/** URL publik pendek toko (canonical, tanpa /s/). Link /s/ lama tetap jalan. */
+export function storeUrl(slug: string): string {
+  return `https://tokolink.store/${slug}`;
 }
 
 export function useIsActive(path: string) {
