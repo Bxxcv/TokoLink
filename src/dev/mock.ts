@@ -226,15 +226,15 @@ export const ADMIN_USERS = [
 export const FAQ = [
   {
     q: "Saya tidak bisa bikin website. Apa ini sulit?",
-    a: "Tidak. Anda cukup isi nama toko, unggah foto produk, dan TokoLink membuat halaman toko jadi. Rata-rata penjual selesai dalam 10 menit, langsung dari HP.",
+    a: "Tidak. Anda cukup isi nama toko, unggah foto produk, dan TokoLink membuat halaman toko jadi. Banyak penjual selesai dalam hitungan menit, langsung dari HP.",
   },
   {
     q: "Bagaimana pembeli membayar?",
-    a: "Pembeli memindai QRIS di halaman toko Anda, atau memakai transfer bank yang tercantum. Uang masuk ke saldo TokoLink dan bisa Anda tarik ke rekening mana pun.",
+    a: "Pembeli memindai QRIS di halaman toko Anda. Uang masuk ke saldo TokoLink dan bisa Anda tarik ke rekening mana pun.",
   },
   {
     q: "Apakah ada biaya per transaksi?",
-    a: "Paket Gratis tidak ada biaya bulanan, hanya biaya layanan QRIS 0,7% dari nilai transaksi. Paket Premium memangkas biaya layanan menjadi 0,5%.",
+    a: "Paket Gratis tidak ada biaya bulanan, hanya biaya layanan QRIS mengikuti ketentuan BuatQris. Detail paket Premium menyusul — hubungi WhatsApp admin untuk info terbaru.",
   },
   {
     q: "Kalau saya sudah punya toko di marketplace?",

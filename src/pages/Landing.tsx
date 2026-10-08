@@ -274,12 +274,6 @@ function Hero() {
               <ButtonLink to="/register" size="lg" className="sm:px-7">
                 Buka toko sekarang <Icon name="arrowRight" size={17} />
               </ButtonLink>
-              <button
-                onClick={() => navigate("/s/demo-account")}
-                className="inline-flex h-12 items-center justify-center gap-2 rounded-md border border-white/30 px-6 text-[15px] font-semibold text-white transition-colors duration-150 hover:border-white/60 hover:bg-white/10"
-              >
-                <Icon name="eye" size={17} /> Lihat contoh toko
-              </button>
             </div>
 
             <dl className="mt-10 flex flex-wrap gap-x-8 gap-y-4 border-t border-white/15 pt-6">
@@ -300,11 +294,7 @@ function Hero() {
           <div className="hidden lg:col-span-5 lg:block">
             <div className="notch ml-auto max-w-[330px] border border-white/15 bg-white/10 p-5 backdrop-blur-md">
               <div className="micro flex items-center justify-between text-brand-300">
-                <span>Pesanan masuk</span>
-                <span className="flex items-center gap-1.5">
-                  <span className="pulse-dot relative h-1.5 w-1.5 rounded-full bg-brand-400 text-brand-400" />
-                  langsung
-                </span>
+                <span>Contoh tampilan pesanan</span>
               </div>
               <div className="mt-3 rounded-md bg-white p-3.5">
                 <div className="flex items-start justify-between gap-3">
@@ -322,7 +312,7 @@ function Hero() {
                 </div>
               </div>
               <ul className="mt-3 space-y-2 text-[13px] text-white/80">
-                {["Pembayaran QRIS diterima otomatis", "Nota dikirim ke WhatsApp pembeli"].map((t) => (
+                {["Pembayaran QRIS diterima otomatis", "Status pesanan terpantau penjual"].map((t) => (
                   <li key={t} className="flex items-start gap-2">
                     <Icon name="check" size={15} className="mt-0.5 shrink-0 text-brand-400" strokeWidth={2.4} />
                     {t}
@@ -401,7 +391,7 @@ function Produk() {
     {
       n: "03",
       icon: "qr",
-      t: "Bayar lewat QRIS atau transfer",
+      t: "Bayar lewat QRIS",
       d: "QR bisa dipindai dari layar HP atau dicetak untuk ditaruh di meja kasir.",
     },
     {
@@ -429,9 +419,6 @@ function Produk() {
                 lead="Selama ini pesanan masuk lewat chat, dibayar lewat transfer, dan dicatat manual. TokoLink merapikan semuanya jadi satu alur yang bisa diikuti siapa pun."
               />
               <div className="mt-7 flex flex-wrap gap-2">
-                <ButtonLink to="/s/demo-account" variant="secondary">
-                  <Icon name="eye" size={16} /> Buka contoh toko
-                </ButtonLink>
                 <ButtonLink to="/register">Coba gratis</ButtonLink>
               </div>
             </div>
@@ -463,7 +450,7 @@ function Produk() {
 function CaraKerja() {
   const steps = [
     { n: "01", t: "Daftar toko", d: "Isi nama toko, kota, dan nomor WhatsApp. Selesai dalam satu menit.", time: "1 menit" },
-    { n: "02", t: "Unggah produk", d: "Foto, harga, stok, dan ongkir. Bisa satu per satu atau banyak sekaligus.", time: "5 menit" },
+    { n: "02", t: "Unggah produk", d: "Foto, harga, dan stok. Bisa satu per satu atau banyak sekaligus.", time: "5 menit" },
     { n: "03", t: "Bagikan tautan", d: "Taruh di bio Instagram, status WhatsApp, dan cetak QR untuk toko fisik.", time: "2 menit" },
     { n: "04", t: "Terima pesanan", d: "Notifikasi masuk, pembayaran tercatat, barang dikirim, dana bisa ditarik.", time: "harian" },
   ];
@@ -510,7 +497,7 @@ function Fitur() {
       span: "lg:col-span-7",
       icon: "image",
       t: "Tampilan toko yang bisa diubah sendiri",
-      d: "Pilih warna tema, susunan kategori, sampai foto sampul. Perubahan langsung terlihat oleh pembeli.",
+      d: "Pilih dari 8 tema etalase. Tampilan Klasik bisa atur warna aksen. Perubahan langsung terlihat oleh pembeli.",
       extra: "mock",
     },
     {
@@ -535,9 +522,9 @@ function Fitur() {
             title="Yang benar-benar dipakai setiap hari."
             lead="Bukan daftar panjang fitur yang jarang dibuka. Ini yang dipakai penjual setiap pagi."
           />
-          <ButtonLink to="/register" variant="secondary" className="hidden sm:inline-flex">
-            Lihat semua fitur <Icon name="arrowRight" size={16} />
-          </ButtonLink>
+          <button onClick={() => goTo("cara-kerja")} className="hidden items-center gap-1 text-[14px] font-semibold text-muted transition-colors hover:text-ink sm:inline-flex">
+            Lihat cara kerja <Icon name="arrowRight" size={16} />
+          </button>
         </div>
 
         <div className="mt-10 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-12">
@@ -816,9 +803,7 @@ function StorePreview() {
               ))}
             </div>
             <div className="mt-7">
-              <ButtonLink to="/s/demo-account" variant="secondary">
-                Buka contoh toko <Icon name="arrowRight" size={16} />
-              </ButtonLink>
+              <ButtonLink to="/register">Coba gratis</ButtonLink>
             </div>
           </div>
 
@@ -1065,9 +1050,14 @@ function Faq() {
                   <p className="text-[14px] leading-relaxed text-muted">
                     Masih bingung? Tim kami balas di WhatsApp pada jam kerja, 08.00–20.00 WIB.
                   </p>
-                  <button className="mt-2 text-[13.5px] font-bold text-brand-700 underline underline-offset-4">
+                  <a
+                    href="https://wa.me/6285191245042?text=Halo%20TokoLink,%20saya%20butuh%20bantuan."
+                    target="_blank"
+                    rel="noreferrer"
+                    className="mt-2 inline-block text-[13.5px] font-bold text-brand-700 underline underline-offset-4"
+                  >
                     Chat tim TokoLink
-                  </button>
+                  </a>
                 </div>
               </div>
             </div>
@@ -1150,14 +1140,6 @@ function CtaBand() {
           <div className="flex shrink-0 flex-col gap-3">
             <ButtonLink to="/register" size="lg" className="bg-brand-500! text-navy-900! hover:bg-brand-400!">
               Buka toko gratis <Icon name="arrowRight" size={17} />
-            </ButtonLink>
-            <ButtonLink
-              to="/s/demo-account"
-              variant="secondary"
-              size="lg"
-              className="border-white/30! bg-transparent! text-white! hover:border-white/60 hover:bg-white/10 hover:text-white"
-            >
-              Lihat contoh toko
             </ButtonLink>
             <span className="micro text-center text-white/60">Tanpa kartu kredit</span>
           </div>
