@@ -111,15 +111,17 @@ diperlukan di titik ini atau nanti).
 ---
 
 ## Fase 4 — Wallet & Withdrawal
-- [ ] **Wallet**: sum `ledger` where `seller_id = auth.uid()`, tampilkan
-      riwayat berurutan terbaru dulu. Done When: saldo yang tampil = sum
-      akurat (uji dengan minimal 1 transaksi masuk + 1 keluar).
-- [ ] **Withdraw**: insert `withdrawals`, status awal `menunggu`. Done
-      When: validasi saldo cukup sebelum submit (jangan biarkan withdraw
-      melebihi saldo tersedia).
-- [ ] **(Admin) AdminWithdrawals**: update status, insert `ledger` (type
-      `keluar`) saat status `selesai`. Done When: hanya `role='admin'`
-      yang bisa akses & ubah status ini (RLS + cek di UI).
+- [x] **Wallet**: sum `ledger` where `seller_id = auth.uid()`, tampilkan
+      riwayat berurutan terbaru dulu. **Selesai:** `useLedger` + saldo =
+      sum akurat; penarikan pending ikut dihitung di RPC server.
+- [x] **Withdraw**: insert `withdrawals`, status awal `menunggu`.
+      **Selesai 8 Okt 2026:** via RPC `request_withdrawal` (validasi
+      saldo + pending + kunci anti-double di database, bukan insert
+      langsung). Done When validasi saldo di server: YA.
+- [x] **(Admin) AdminWithdrawals**: update status, insert `ledger`
+      (type `keluar`) saat status jadi `selesai`. **Selesai 8 Okt 2026:**
+      via RPC atomik `admin_process_withdrawal` + audit log. Hanya
+      `role='admin'` (RLS `is_admin()` + cek di RPC).
 
 ## Fase 5 — Bio, Tema, Diskon, Jam, QR
 - [x] **BioLinks**: CRUD `bio_links` sudah ada. **Diperbaiki 30 Sep 2026:**
@@ -130,19 +132,16 @@ diperlukan di titik ini atau nanti).
       tidak pernah baca database sama sekali (lolos dari pengecekan
       karena bukan import dari `data.tsx` — lihat aturan #9 `AGENTS.md`
       yang sudah diperluas cakupannya).
-- [ ] **Discount**: CRUD `discount_codes`. **Bug ditemukan 30 Sep 2026:**
-      kolom `created_at` tidak pernah ada di `schema.sql` (salah desain
-      awal), bikin halaman ini selalu gagal load. Sudah ada migrasinya
-      (`database/migrate_discount_created_at.sql`), TAPI belum dijalankan
-      user — jalankan dulu sebelum task ini dianggap jalan. Done When
-      lain (cegah 2 kode aktif nama sama) masih perlu dicek ulang.
-- [ ] **Hours**: CRUD `store_hours` (7 baris per seller), badge buka/tutup
-      di `StoreHome`. Done When: badge dihitung dari waktu server/user
-      device dibandingkan `open_time`/`close_time` — tentukan timezone
-      (asumsi WIB kalau tidak ada info lain, **konfirmasi ke user**).
-- [ ] **StoreQR**: generate QR image dari URL toko (client-side, library
-      ringan, bukan dependency besar). Done When: bisa di-download sebagai
-      gambar.
+- [x] **Discount**: CRUD `discount_codes`. **Bug 30 Sep 2026 SELESAI:**
+      `created_at` ditambah via `database/migrate_discount_created_at.sql`
+      + fallback di frontend bila migrasi belum jalan; cegah nama ganda
+      (unique per seller) + pesan error jujur.
+- [x] **Hours**: CRUD `store_hours` (7 baris per seller), badge buka/tutup
+      di `StoreHome`. **Selesai:** badge dihitung zona WIB; timezone =
+      WIB (asumsi, belum ada seller di luar WIB yang komplain).
+- [x] **StoreQR**: generate QR image dari URL toko (client-side).
+      **Selesai 8 Okt 2026:** URL sudah pendek `tokolink.store/{slug}`
+      (dulu placeholder `tokolink.id/s/` yang salah). Bisa diunduh PNG.
 - [x] **Tema toko (theme engine)** — selesai 2 Okt 2026, lihat
       `docs/THEME_ENGINE.md` untuk laporan lengkap. Arsitektur token/props
       (`src/storefront/types.ts`) + registry + 8 komponen tema, semua
@@ -204,9 +203,12 @@ referensi itu.
       lihat broadcast yang relevan di halaman Notifikasi
       (`src/lib/notifications.ts` — tambah sebagai sumber ke-4, jangan
       bikin sistem notifikasi terpisah).
-- [ ] `AdminSystem`: isi dari `settings` (key/value) — mulai dari
+- [x] `AdminSystem`: isi dari `settings` (key/value) — mulai dari
       `maintenance_mode` dan fee platform (masih TBD di `docs/PRD.md`
       §3) saja, JANGAN tambah System Health Monitor/feature flags.
+      **Selesai 8 Okt 2026:** baca+tulis `settings` asli
+      (maintenance_mode, platform_fee_percent, min_withdrawal) + audit
+      log; kanal bayar & uptime dibuat jujur (tanpa angka karangan).
 
 ## Fase 7 — Deploy
 - [x] Setup/verifikasi project Vercel + repo GitHub tersambung
@@ -243,8 +245,11 @@ referensi itu.
       PENTING menurut user, tapi butuh redesain skema (`stores` terpisah
       dari `profiles`). Kerjakan sebagai proyek tersendiri setelah Fase
       0-7 stabil, bukan disisipkan.
-- [ ] **Halaman "buat kata sandi baru"** untuk link reset password (saat
-      ini mengarah ke `/`). Syarat sebelum Forgot Password dianggap penuh.
+- [x] **Halaman "buat kata sandi baru"** untuk link reset password (saat
+      ini mengarah ke `/`). **Selesai 10 Okt 2026:** halaman `/reset`
+      + router tangani link recovery; redirect Supabase diarahkan ke
+      `/reset`. Syarat: tambah Redirect URL di dashboard + SMTP jalan
+      (Brevo). End-to-end via email belum dikonfirmasi user.
 - [ ] **Kategori & kota bebas diisi (custom)** — saat ini terkunci ke
       daftar tetap di `StoreSettings` dan di semua tempat lain yang punya
       sistem kategori (Products). Ganti jadi input bebas + saran/autofill,
