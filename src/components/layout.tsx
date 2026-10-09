@@ -90,12 +90,12 @@ function navActive(path: string, to: string) {
   return path === to || path.startsWith(to + "/");
 }
 
-function NavList({ groups, path, onNavigate }: { groups: NavGroup[]; path: string; onNavigate?: () => void }) {
+function NavList({ groups, path, onNavigate, dark }: { groups: NavGroup[]; path: string; onNavigate?: () => void; dark?: boolean }) {
   return (
     <nav className="space-y-5 px-3 py-4">
       {groups.map((g) => (
         <div key={g.title ?? g.items[0].to}>
-          {g.title && <div className="micro mb-2 px-3 text-faint">{g.title}</div>}
+          {g.title && <div className={cx("micro mb-2 px-3", dark ? "text-white/45" : "text-faint")}>{g.title}</div>}
           <ul className="space-y-0.5">
             {g.items.map((it) => {
               const active = navActive(path, it.to);
@@ -107,8 +107,12 @@ function NavList({ groups, path, onNavigate }: { groups: NavGroup[]; path: strin
                     className={cx(
                       "notch-sm group relative flex items-center gap-3 rounded-md px-3 py-2.5 text-[14px] transition-colors duration-150",
                       active
-                        ? "bg-brand-50 font-bold text-navy-800"
-                        : "font-medium text-muted hover:bg-canvas hover:text-ink",
+                        ? dark
+                          ? "bg-white/10 font-bold text-white"
+                          : "bg-brand-50 font-bold text-navy-800"
+                        : dark
+                          ? "font-medium text-white/60 hover:bg-white/5 hover:text-white"
+                          : "font-medium text-muted hover:bg-canvas hover:text-ink",
                     )}
                   >
                     <span
@@ -120,7 +124,7 @@ function NavList({ groups, path, onNavigate }: { groups: NavGroup[]; path: strin
                     <Icon
                       name={it.icon}
                       size={18}
-                      className={active ? "text-brand-600" : "text-faint group-hover:text-brand-500"}
+                      className={active ? (dark ? "text-brand-300" : "text-brand-600") : dark ? "text-white/40 group-hover:text-brand-300" : "text-faint group-hover:text-brand-500"}
                     />
                     <span className="flex-1">{it.label}</span>
                     {it.badge ? (
@@ -271,10 +275,11 @@ export function AppShell({
   return (
     <div className="min-h-screen bg-canvas">
       {/* ---------------- sidebar (desktop) ---------------- */}
-      <aside className="fixed inset-y-0 left-0 z-40 hidden w-[248px] flex-col border-r border-line bg-white lg:flex">
-        <div className={cx("flex h-16 items-center border-b border-line px-5", admin && "border-b-0")}>
+      {/* Admin punya chrome sendiri (gelap) — beda jelas dari dasbor seller. */}
+      <aside className={cx("fixed inset-y-0 left-0 z-40 hidden w-[248px] flex-col border-r lg:flex", admin ? "border-navy-900 bg-navy-900" : "border-line bg-white")}>
+        <div className={cx("flex h-16 items-center border-b px-5", admin ? "border-white/10" : "border-line")}>
           <Link to={admin ? "/admin" : "/"} aria-label="Beranda TokoLink">
-            <Logo size={30} />
+            <Logo size={30} tone={admin ? "dark" : "light"} wordClass={admin ? "text-white" : undefined} />
           </Link>
         </div>
         {admin && (
@@ -284,14 +289,14 @@ export function AppShell({
           </div>
         )}
         <div className="tl-scroll flex-1 overflow-y-auto">
-          <NavList groups={groups} path={path} />
+          <NavList groups={groups} path={path} dark={admin} />
         </div>
-        <div className="border-t border-line p-3">
-          {!admin && (
+        <div className={cx("border-t p-3", admin ? "border-white/10" : "border-line")}>
+          {!admin && (profile?.plan ?? "gratis") !== "premium" && (
             <div className="notch mb-3 bg-navy-800 p-3.5">
               <div className="micro text-brand-300">Paket Premium</div>
               <p className="mt-1 text-[13px] font-semibold leading-snug text-white">
-                Biaya QRIS tinggal 0,5% dan laporan bisa diunduh.
+                8 tema, analitik, dan badge Premium untuk tokomu.
               </p>
               <button
                 onClick={() => {
@@ -307,16 +312,16 @@ export function AppShell({
           <div className="flex items-center gap-2.5 px-1.5">
             <Avatar name={displayName} src={avatarSrc} size={34} />
             <div className="min-w-0 flex-1 leading-tight">
-              <div className="truncate text-[13.5px] font-bold text-ink">
+              <div className={cx("truncate text-[13.5px] font-bold", admin ? "text-white" : "text-ink")}>
                 {displayName}
               </div>
-              <div className="truncate text-[11.5px] text-faint">{admin ? "Super admin" : "Pemilik toko"}</div>
+              <div className={cx("truncate text-[11.5px]", admin ? "text-white/55" : "text-faint")}>{admin ? "Super admin" : "Pemilik toko"}</div>
             </div>
             <button
               type="button"
               onClick={() => signOut()}
               aria-label="Keluar"
-              className="rounded-md p-1.5 text-faint hover:bg-canvas hover:text-bad"
+              className={cx("rounded-md p-1.5", admin ? "text-white/55 hover:bg-white/10 hover:text-white" : "text-faint hover:bg-canvas hover:text-bad")}
             >
               <Icon name="logout" size={17} />
             </button>
@@ -362,6 +367,11 @@ export function AppShell({
           <div className="hidden lg:block">
             <StoreSwitcher admin={admin} />
           </div>
+          {admin && (
+            <span className="micro hidden rounded-sm bg-navy-900 px-2 py-1 font-bold text-brand-300 sm:inline-block">
+              Admin
+            </span>
+          )}
 
           <div className="ml-auto flex items-center gap-2 sm:gap-3">
             {!admin && (
@@ -474,22 +484,29 @@ export function AppShell({
         />
         <aside
           className={cx(
-            "absolute inset-y-0 left-0 flex w-[300px] max-w-[85vw] flex-col bg-white shadow-lift transition-transform duration-300 ease-out",
+            "absolute inset-y-0 left-0 flex w-[300px] max-w-[85vw] flex-col shadow-lift transition-transform duration-300 ease-out",
+            admin ? "bg-navy-900" : "bg-white",
             sheet ? "translate-x-0" : "-translate-x-full",
           )}
         >
-          <div className="flex h-16 shrink-0 items-center justify-between border-b border-line px-5">
+          <div className={cx("flex h-16 shrink-0 items-center justify-between border-b px-5", admin ? "border-white/10" : "border-line")}>
             <Link to={admin ? "/admin" : "/app"} aria-label="TokoLink" onClick={() => setSheet(false)}>
-              <Logo size={28} />
+              <Logo size={28} tone={admin ? "dark" : "light"} wordClass={admin ? "text-white" : undefined} />
             </Link>
             <button
               onClick={() => setSheet(false)}
               aria-label="Tutup menu"
-              className="rounded-md p-1.5 text-faint hover:bg-canvas hover:text-ink"
+              className={cx("rounded-md p-1.5", admin ? "text-white/55 hover:bg-white/10 hover:text-white" : "text-faint hover:bg-canvas hover:text-ink")}
             >
               <Icon name="x" size={18} />
             </button>
           </div>
+          {admin && (
+            <div className="micro flex items-center gap-2 bg-navy-900 px-5 py-2 text-brand-300">
+              <span className="h-1.5 w-1.5 rounded-full bg-brand-500" />
+              Admin Master
+            </div>
+          )}
           <div
             ref={drawerRef}
             className="tl-scroll flex-1 overflow-y-auto"
@@ -497,19 +514,19 @@ export function AppShell({
               drawerTop = (e.target as HTMLDivElement).scrollTop;
             }}
           >
-            <NavList groups={groups} path={path} onNavigate={() => setSheet(false)} />
+            <NavList groups={groups} path={path} onNavigate={() => setSheet(false)} dark={admin} />
           </div>
-          <div className="shrink-0 border-t border-line p-4">
+          <div className={cx("shrink-0 border-t p-4", admin ? "border-white/10" : "border-line")}>
             <div className="flex items-center gap-2.5 px-1">
               <Avatar name={displayName} src={avatarSrc} size={36} />
               <div className="min-w-0 flex-1 leading-tight">
-                <div className="truncate text-[14px] font-bold text-ink">
+                <div className={cx("truncate text-[14px] font-bold", admin ? "text-white" : "text-ink")}>
                   {displayName}
                 </div>
-                <div className="truncate text-[12px] text-faint">{admin ? "Super admin" : "Pemilik toko"}</div>
+                <div className={cx("truncate text-[12px]", admin ? "text-white/55" : "text-faint")}>{admin ? "Super admin" : "Pemilik toko"}</div>
               </div>
-              <Badge tone="blue" dot>
-                {admin ? "Admin" : "Premium"}
+              <Badge tone={admin || (profile?.plan ?? "gratis") === "premium" ? "blue" : "gray"} dot>
+                {admin ? "Admin" : (profile?.plan ?? "gratis") === "premium" ? "Premium" : "Gratis"}
               </Badge>
             </div>
             <button

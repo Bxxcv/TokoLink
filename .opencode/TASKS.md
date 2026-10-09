@@ -329,13 +329,26 @@ Kontak support resmi: WA 085191245042, email supporttokolink@gmail.com.
       (`database/migrate_freemium_caps.sql`: trigger cap produk/tema/bio,
       grandfathering yang sudah lewat) + UI (picker tema, RequirePremium,
       pesan error jujur). Diskon & QRIS TIDAK dikunci (adopsi).
-- [ ] **Halaman toko seller per-bagian**: foto proporsional, tata letak
+- [x] **Halaman toko seller per-bagian**: foto proporsional, tata letak
       jelas, footer jelas — berlaku untuk Klasik + 8 tema engine.
-- [ ] **Keranjang top-to-bottom**: ringkasan, promo, CTA jelas di HP.
-- [ ] **Checkout top-to-bottom**: form, ringkasan, tombol bayar jelas di HP.
-- [ ] **Admin panel terpisah**: JANGAN campur alamat/layout dengan dashboard
+      **SELESAI 8 Okt 2026:** banner "Toko tutup" Klasik, URL pendek di
+      footer Klasik, strip tutup ikut `is_closed` (bug: sebelumnya cuma
+      ikut jam). Tema engine sudah lolos audit foto/layout/footer.
+- [x] **Keranjang top-to-bottom**: ringkasan, promo, CTA jelas di HP.
+      **SELESAI 8 Okt 2026:** barang stok habis diblokir sejak keranjang
+      (banner + tombol mati + pesan per item), tautan toko aman saat
+      kosong, catatan pengiriman-via-chat.
+- [x] **Checkout top-to-bottom**: form, ringkasan, tombol bayar jelas di HP.
+      **SELESAI 8 Okt 2026:** sudah bernomor 01-03 + ringkasan + CTA
+      aksen toko; tidak ada perubahan struktur (diputuskan 8 Okt:
+      ongkir dihapus, kirim via chat).
+- [x] **Admin panel terpisah**: JANGAN campur alamat/layout dengan dashboard
       seller. Opsi: (a) path `/admin/*` tetap + layout sendiri total
       (termurah, tanpa DNS/infra baru — SARAN), (b) subdomain
       `admin.tokolink.store` (butuh DNS + config Vercel), (c) aplikasi
       terpisah (termahal). Diskusikan + putuskan BARENG user dulu,
       kerjakan belakangan.
+      **SELESAI 8 Okt 2026 (opsi a, disetujui user):** sidebar + drawer
+      admin gelap (navy) + label "Admin Master" + chip ADMIN di header,
+      beda jelas dari seller. Badge drawer jujur (Gratis/Premium/Admin),
+      upsell sidebar jujur (tanpa klaim biaya 0,5%).

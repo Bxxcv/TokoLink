@@ -233,7 +233,11 @@ function StoreFooter({ store }: { store?: StoreProfile | null }) {
             </span>
             <div className="leading-tight">
               <div className="text-[14px] font-bold text-ink">{name}</div>
-              {city && <div className="text-[12.5px] text-faint">{city}</div>}
+              {store?.store_slug ? (
+                <div className="tnum text-[12.5px] text-faint">tokolink.store/{store.store_slug}</div>
+              ) : city ? (
+                <div className="text-[12.5px] text-faint">{city}</div>
+              ) : null}
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-4 text-[13px] text-muted">
@@ -753,18 +757,23 @@ export function StoreHome({ slug }: { slug: string }) {
             <span
               className={cx(
                 "inline-flex items-center gap-2 rounded-sm px-2.5 py-1 text-[12.5px] font-bold",
-                openNow === false ? "bg-badsoft text-bad" : "bg-oksoft text-[#0a7a55]",
+                openNow === false || closed ? "bg-badsoft text-bad" : "bg-oksoft text-[#0a7a55]",
               )}
             >
               <span className="relative flex h-2 w-2">
-                <span className={cx("h-2 w-2 rounded-full", openNow === false ? "bg-bad" : "bg-ok")} />
+                <span className={cx("h-2 w-2 rounded-full", openNow === false || closed ? "bg-bad" : "bg-ok")} />
               </span>
-              {openNow === false ? "Tutup" : `Buka${todayHours ? ` · ${todayHours}` : ""}`}
+              {openNow === false || closed ? "Tutup" : `Buka${todayHours ? ` · ${todayHours}` : ""}`}
             </span>
-            {todayHours && openNow !== false && (
+            {todayHours && openNow !== false && !closed && (
               <span className="text-[13px] text-muted">Pesanan di jam operasional diproses hari yang sama.</span>
             )}
           </div>
+          {(openNow === false || closed) && (
+            <div className="mt-3 rounded-lg border border-bad/30 bg-badsoft px-4 py-3 text-[13.5px] leading-relaxed text-ink">
+              <span className="font-bold">Toko sedang tutup.</span> Kamu tetap bisa lihat-lihat, tombol beli aktif lagi setelah buka.
+            </div>
+          )}
 
           {/* bio links */}
           {bioLinks.length > 0 && (
@@ -1485,6 +1494,9 @@ export function Cart() {
   const [remove, setRemove] = useState<{ id: string; name: string } | null>(null);
   // Satu checkout = satu toko. Beri tahu di awal (bukan setelah isi formulir).
   const mixed = [...new Set(items.map((i) => i.sellerId))].length > 1;
+  // Barang yang stoknya kurang/habis tidak bisa dibayar — cegah sejak sini.
+  const shortItems = items.filter((i) => i.p.stock < i.qty);
+  const canCheckout = !mixed && shortItems.length === 0 && items.length > 0;
 
   return (
     <div className="min-h-screen bg-canvas pb-28">
@@ -1497,12 +1509,18 @@ export function Cart() {
             belanja lagi.
           </div>
         )}
+        {shortItems.length > 0 && (
+          <div className="mb-5 rounded-xl border border-bad/30 bg-badsoft p-4 text-[13.5px] leading-relaxed text-ink">
+            <span className="font-bold">Ada barang yang stoknya habis:</span>{" "}
+            {shortItems.map((i) => i.p.name).join(", ")}. Kurangi jumlahnya atau hapus biar bisa lanjut bayar.
+          </div>
+        )}
         <div className="mb-5 flex items-end justify-between gap-3">
           <div>
             <div className="micro mb-2 text-brand-600">02 / Keranjang</div>
             <h1 className="text-[26px] font-extrabold tracking-[-0.03em] text-ink">Keranjang belanja</h1>
           </div>
-          <Link to={`/s/${storeSlug}`} className="text-[13.5px] font-semibold text-brand-700 hover:underline">
+          <Link to={storeSlug ? `/s/${storeSlug}` : "/"} className="text-[13.5px] font-semibold text-brand-700 hover:underline">
             Tambah produk lain
           </Link>
         </div>
@@ -1518,7 +1536,7 @@ export function Cart() {
             title="Keranjang masih kosong"
             desc="Pilih produk dulu dari katalog toko. Barang yang dipilih akan tersimpan di sini sampai Anda selesai belanja."
             action={
-              <ButtonLink to={`/s/${storeSlug}`}>
+              <ButtonLink to={storeSlug ? `/s/${storeSlug}` : "/"}>
                 Lihat produk <Icon name="arrowRight" size={16} />
               </ButtonLink>
             }
@@ -1559,15 +1577,20 @@ export function Cart() {
                         <Icon name="trash" size={17} />
                       </button>
                     </div>
-                    <div className="mt-auto flex flex-wrap items-end justify-between gap-3 pt-3">
-                      <div className="flex items-center gap-3">
-                        <Stepper value={qty} onChange={(v) => setQty(p.id, v)} small max={p.stock || 1} />
-                        <span className="text-[12.5px] text-faint">
-                          @<span className="tnum">{rupiah(p.price)}</span>
-                        </span>
+                      <div className="mt-auto flex flex-wrap items-end justify-between gap-3 pt-3">
+                        <div className="flex items-center gap-3">
+                          <Stepper value={qty} onChange={(v) => setQty(p.id, v)} small max={Math.max(1, p.stock)} />
+                          <span className="text-[12.5px] text-faint">
+                            @<span className="tnum">{rupiah(p.price)}</span>
+                          </span>
+                        </div>
+                        <div className="tnum text-[17px] font-bold text-ink">{rupiah(p.price * qty)}</div>
                       </div>
-                      <div className="tnum text-[17px] font-bold text-ink">{rupiah(p.price * qty)}</div>
-                    </div>
+                      {p.stock < qty && (
+                        <div className="mt-2 text-[12.5px] font-semibold text-bad">
+                          {p.stock === 0 ? "Stok habis — hapus barang ini." : `Sisa ${p.stock} — kurangi jumlahnya.`}
+                        </div>
+                      )}
                   </div>
                 </div>
               ))}
@@ -1640,9 +1663,9 @@ export function Cart() {
                   <span className="text-[14px] font-bold text-ink">Total bayar</span>
                   <span className="tnum text-[24px] font-bold leading-none" style={{ color: payAccent }}>{rupiah(total)}</span>
                 </div>
-                {mixed ? (
+                {mixed || shortItems.length > 0 ? (
                   <Button size="lg" className="mt-5 w-full" disabled>
-                    Selesaikan satu toko dulu
+                    {shortItems.length > 0 ? "Ada stok habis" : "Selesaikan satu toko dulu"}
                   </Button>
                 ) : (
                   <ButtonLink to="/checkout" size="lg" className="mt-5 w-full" style={{ backgroundColor: payAccent, borderColor: payAccent }}>
@@ -1650,7 +1673,7 @@ export function Cart() {
                   </ButtonLink>
                 )}
                 <p className="mt-3 text-center text-[12.5px] leading-snug text-faint">
-                  Pembayaran diproses lewat QRIS. Barang dikirim setelah pembayaran terkonfirmasi.
+                  Pembayaran diproses lewat QRIS. Pengiriman (diantar/ambil/kurir) diatur via chat dengan penjual.
                 </p>
               </div>
             </aside>
