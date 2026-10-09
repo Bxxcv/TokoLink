@@ -4,7 +4,7 @@ import { useRoute, Link, isReservedSlug } from "./lib/router";
 import { ToastHost, ButtonLink } from "./components/ui";
 
 import Landing from "./pages/Landing";
-import { Login, Register, Forgot } from "./pages/Auth";
+import { Login, Register, Forgot, ResetPassword } from "./pages/Auth";
 import { SystemPage } from "./pages/System";
 import { StoreHome, ProductDetail, Cart, Checkout, Qris, PaymentStatus, OrderSuccess, OrderTracking, LegalPrivacy } from "./pages/Storefront";
 import {
@@ -93,6 +93,7 @@ function RouteView({ path }: { path: string }) {
   if (path === "/login") return <Login />;
   if (path === "/register") return <Register />;
   if (path === "/forgot") return <Forgot />;
+  if (path === "/reset") return <ResetPassword />;
   if (path === "/system") return <RequireAuth><SystemPage /></RequireAuth>;
   if (path === "/legal/privacy") return <LegalPrivacy />;
 

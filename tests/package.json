@@ -1,15 +1,12 @@
 {
   "name": "tokolink-security-tests",
   "private": true,
-  "version": "1.0.0",
+  "version": "2.0.0",
   "type": "commonjs",
   "scripts": {
-    "test": "playwright test",
-    "test:ui": "playwright test responsive.spec.ts",
-    "test:api": "playwright test rls-attacks.spec.ts auth-rbac.spec.ts"
+    "test": "node --test"
   },
-  "devDependencies": {
-    "@supabase/supabase-js": "^2.117.2",
-    "@playwright/test": "^1.49.0"
+  "dependencies": {
+    "@supabase/supabase-js": "^2.117.2"
   }
 }

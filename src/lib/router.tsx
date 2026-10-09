@@ -1,8 +1,13 @@
 import { useCallback, useEffect, useState, type CSSProperties, type ReactNode } from "react";
 
 export function currentPath(): string {
+  const hash = window.location.hash;
+  // Link recovery Supabase (reset sandi) mendarat sebagai
+  // /reset#access_token=...&type=recovery — arahkan ke halaman reset,
+  // dan biarkan supabase-js membaca sesi dari URL otomatis.
+  if (/(^|#|&)type=recovery(&|$)/.test(hash)) return "/reset";
   // Hash dulu (navigasi dalam aplikasi, tanpa reload).
-  const raw = window.location.hash.replace(/^#/, "");
+  const raw = hash.replace(/^#/, "");
   if (raw) return raw.startsWith("/") ? raw : "/" + raw;
   // Tanpa hash (dibuka langsung / dari QR / dibagikan): baca path + query.
   // Ini yang bikin tautan /s/{slug} lama + /{slug} pendek bisa dibuka langsung.

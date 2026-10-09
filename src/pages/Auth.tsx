@@ -461,7 +461,7 @@ export function Forgot() {
     setLoading(true);
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-        redirectTo: window.location.origin + "/",
+        redirectTo: window.location.origin + "/reset",
       });
       if (error) return setErr(friendlyAuthError(error.message));
       setSent(true);
@@ -536,6 +536,116 @@ export function Forgot() {
               </p>
             </div>
           </div>
+        </form>
+      )}
+    </AuthLayout>
+  );
+}
+
+/* --------------------------- buat sandi baru ---------------------------- */
+export function ResetPassword() {
+  const [pw, setPw] = useState({ baru: "", ulang: "" });
+  const [err, setErr] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [done, setDone] = useState(false);
+  const [ready, setReady] = useState(false);
+
+  // Tautan email valid → Supabase membuat sesi recovery otomatis.
+  useEffect(() => {
+    let alive = true;
+    const check = async () => {
+      const { data } = await supabase.auth.getSession();
+      if (alive && data.session) setReady(true);
+    };
+    check();
+    const t1 = window.setTimeout(check, 1500);
+    const t2 = window.setTimeout(check, 4000);
+    return () => {
+      alive = false;
+      window.clearTimeout(t1);
+      window.clearTimeout(t2);
+    };
+  }, []);
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (pw.baru.length < 8) return setErr("Kata sandi minimal 8 karakter.");
+    if (pw.baru !== pw.ulang) return setErr("Ulangi kata sandi tidak sama.");
+    setErr("");
+    setLoading(true);
+    try {
+      const { error } = await supabase.auth.updateUser({ password: pw.baru });
+      if (error) {
+        setErr("Tautan sudah kedaluwarsa atau tidak valid. Minta tautan baru di halaman lupa sandi.");
+        return;
+      }
+      setDone(true);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <AuthLayout
+      index="04"
+      kicker="Sandi baru"
+      title={done ? "Sandi berhasil diganti." : "Buat kata sandi baru."}
+      lead={
+        done
+          ? "Silakan masuk dengan kata sandi baru Anda."
+          : "Tautan dari email hanya berlaku 30 menit. Jangan tutup halaman ini."
+      }
+      footer={
+        <>
+          Batal?{" "}
+          <Link to="/login" className="font-bold text-brand-700 underline underline-offset-4">
+            Kembali masuk
+          </Link>
+        </>
+      }
+    >
+      {done ? (
+        <ButtonLink to="/login" size="lg" className="w-full">
+          Masuk sekarang
+        </ButtonLink>
+      ) : !ready ? (
+        <div className="space-y-3">
+          <p className="text-[14px] leading-relaxed text-muted">
+            Memeriksa tautan… buka halaman ini dari link di email (jangan ketik manual).
+          </p>
+          <ButtonLink to="/forgot" variant="secondary" className="w-full">
+            Minta tautan baru
+          </ButtonLink>
+        </div>
+      ) : (
+        <form onSubmit={submit} className="space-y-4" noValidate>
+          <Field label="Kata sandi baru" required error={err}>
+            <Input
+              type="password"
+              value={pw.baru}
+              autoComplete="new-password"
+              onChange={(e) => {
+                setPw((x) => ({ ...x, baru: e.target.value }));
+                setErr("");
+              }}
+              placeholder="••••••••"
+            />
+          </Field>
+          <Field label="Ulangi kata sandi baru" required>
+            <Input
+              type="password"
+              value={pw.ulang}
+              autoComplete="new-password"
+              onChange={(e) => {
+                setPw((x) => ({ ...x, ulang: e.target.value }));
+                setErr("");
+              }}
+              placeholder="••••••••"
+            />
+          </Field>
+          <Button type="submit" size="lg" loading={loading} className="w-full">
+            {loading ? "Menyimpan…" : "Simpan sandi baru"}
+          </Button>
         </form>
       )}
     </AuthLayout>
