@@ -14,12 +14,17 @@ function json(res: any, data: unknown, status = 200) {
 export default async function handler(req: any, res: any) {
   if (req.method !== "POST") return json(res, { error: "Method tidak didukung." }, 405);
 
-  const body = (typeof req.body === "string" ? JSON.parse(req.body) : req.body) as {
+  let body: {
     seller_id?: string;
     code?: string;
     subtotal?: number;
     shipping_method?: string;
-  } | null;
+  } | null = null;
+  try {
+    body = (typeof req.body === "string" ? JSON.parse(req.body) : req.body) as typeof body;
+  } catch {
+    return json(res, { ok: false, message: "Data tidak valid." });
+  }
 
   const sellerId = String(body?.seller_id ?? "");
   const code = String(body?.code ?? "").trim().slice(0, 40);

@@ -123,11 +123,11 @@ export function ButikRapi(p: ThemeStorefrontProps) {
           {coverUrl && (
             <img src={coverUrl} alt="" style={{ width: "100%", aspectRatio: "4 / 3", maxHeight: 240, objectFit: "cover", display: "block", marginTop: 14 }} />
           )}
-          <h1 style={{ fontFamily: DISPLAY, fontSize: 30, fontWeight: 500, margin: coverUrl ? "18px 0 0" : "26px 0 0", lineHeight: 1.15, overflowWrap: "break-word" }}>
+          <h1 style={{ fontFamily: DISPLAY, fontSize: 30, fontWeight: 500, margin: coverUrl ? "18px 0 0" : "26px 0 0", lineHeight: 1.15, overflowWrap: "break-word" }} className="lg:pr-[180px]">
             {storeName}
           </h1>
           {bio ? (
-            <p style={{ fontSize: 14, lineHeight: 1.6, color: INK, margin: "10px 0 0", display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical", overflow: "hidden", maxWidth: 560 }}>{bio}</p>
+            <p style={{ fontSize: 14, lineHeight: 1.6, color: INK, margin: "10px 0 0", display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical", overflow: "hidden", maxWidth: 560 }} className="lg:max-w-[560px]">{bio}</p>
           ) : null}
           <div className="tnum" style={{ fontSize: 12.5, color: MUTED, marginTop: 8 }}>
             {todayHours || (openNow === false ? "Tutup hari ini" : city || "")}

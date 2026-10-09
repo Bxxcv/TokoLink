@@ -120,13 +120,18 @@ export default async function handler(req: any, res: any) {
       Math.max(0, Number(payload.credit_amount ?? Number(payment.amount) - fee)),
       Number(payment.amount),
     );
-    await db.from("ledger").insert({
+    const { error: ledgerErr } = await db.from("ledger").insert({
       seller_id: payment.seller_id,
       label: `Penjualan ${payment.order_id}`,
       amount: credit,
       type: "masuk",
       ref_order_id: payment.order_id,
     });
+    if (ledgerErr) {
+      // Uang JANGAN hilang diam-diam: tandai agar admin rekonsiliasi manual.
+      await db.from("payments").update({ status: "perlu_cek" }).eq("id", payment.id);
+      return res.status(200).json({ ok: true, flagged: true });
+    }
 
     // Komisi platform -- baris ledger TERPISAH (bukan dikurangi diam-diam
     // dari baris di atas) supaya seller bisa lihat jelas di riwayat saldo
@@ -173,8 +178,10 @@ export default async function handler(req: any, res: any) {
     return res.status(200).json({ ok: true });
   }
 
-  if (evt === "payment.expired") {
+  if (evt === "payment.expired" || evt === "payment.failed") {
     // Expired yang datang SETELAH sukses tidak boleh membatalkan order lunas.
+    // payment.failed = terminal juga: order yang tak akan dibayar jangan
+    // menggantung 'menunggu' selamanya (tidak ada retry di UI).
     if (payment.status !== "menunggu") return res.status(200).json({ ok: true, deduped: true });
     await db.from("payments").update({ status: "gagal", fee }).eq("id", payment.id).eq("status", "menunggu");
     await db.from("orders").update({ status: "batal" }).eq("id", payment.order_id).eq("status", "menunggu");

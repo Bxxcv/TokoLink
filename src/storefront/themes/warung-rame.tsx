@@ -203,8 +203,8 @@ export function WarungRame(p: ThemeStorefrontProps) {
         </div>
       )}
 
-      {/* filter */}
-      <div className="sticky z-30 px-4 pt-3" style={{ top: 56, background: BG, paddingBottom: 10 }}>
+      {/* filter (sticky hanya ≥md: tinggi header beda di HP, sticky bakal ketutup) */}
+      <div className="px-4 pt-3 md:sticky md:z-30" style={{ top: 56, background: BG, paddingBottom: 10 }}>
         <div className="relative">
           <Icon name="search" size={16} className="absolute left-3 top-1/2 -translate-y-1/2" />
           <input
@@ -273,13 +273,13 @@ export function WarungRame(p: ThemeStorefrontProps) {
 
       {/* footer + QR desktop */}
       <footer style={{ borderTop: "1px solid rgba(33,23,15,.1)", padding: "20px 16px 40px", textAlign: "center" }}>
-        <div className="hidden lg:block" style={{ marginBottom: 14 }}>
-          {showQR && qrData && (
+        {showQR && qrData && (
+          <div className="hidden lg:block" style={{ marginBottom: 14 }}>
             <span style={{ display: "inline-block", background: SURFACE, border: "1px solid rgba(33,23,15,.1)", borderRadius: 12, padding: 10 }}>
               <img src={qrData} alt={`QR ${storeName}`} width={128} height={128} style={{ width: 128, height: 128, display: "block" }} />
             </span>
-          )}
-        </div>
+          </div>
+        )}
         <div style={{ fontSize: 14, fontWeight: 700 }}>{storeName}{city ? ` · ${city}` : ""}</div>
         <div style={{ fontSize: 12, color: MUTED, marginTop: 4 }}>Dibuat dengan TokoLink</div>
       </footer>

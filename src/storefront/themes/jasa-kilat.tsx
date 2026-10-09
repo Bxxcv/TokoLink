@@ -135,8 +135,8 @@ export function JasaKilat(p: ThemeStorefrontProps) {
         </div>
       )}
 
-      {/* toolbar */}
-      <div className="sticky z-30 px-4" style={{ top: 52, background: BG, paddingTop: 12, paddingBottom: 8 }}>
+      {/* toolbar (sticky hanya ≥md: header lebih tinggi di HP) */}
+      <div className="px-4 md:sticky md:z-30" style={{ top: 52, background: BG, paddingTop: 12, paddingBottom: 8 }}>
         <div className="flex gap-2">
           <div className="relative min-w-0 flex-1">
             <input

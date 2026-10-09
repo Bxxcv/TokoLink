@@ -667,10 +667,10 @@ export function StoreHome({ slug }: { slug: string }) {
               </Button>
               <Button
                 className="flex-1"
-                onClick={() => {
+                onClick={async () => {
                   const url = storeUrl(slug);
-                  if (navigator.clipboard) navigator.clipboard.writeText(url).catch(() => {});
-                  toast("Tautan QR disalin.");
+                  const ok = await copyText(url);
+                  toast(ok ? "Tautan QR disalin." : "Gagal menyalin: " + url, ok ? "ok" : "bad");
                 }}
               >
                 <Icon name="copy" size={16} /> Salin tautan
@@ -2735,12 +2735,11 @@ export function OrderTracking({ id }: { id: string }) {
               <Button
                 variant="secondary"
                 className="mt-3 w-full"
-                onClick={() => {
-                  setCopied(true);
-                  const url = window.location.href;
-                  if (navigator.clipboard) navigator.clipboard.writeText(url).catch(() => {});
-                  toast("Link lacak disalin.");
-                  setTimeout(() => setCopied(false), 1500);
+                onClick={async () => {
+                  const ok = await copyText(window.location.href);
+                  setCopied(ok);
+                  toast(ok ? "Link lacak disalin." : "Gagal menyalin, salin manual dari address bar.", ok ? "ok" : "bad");
+                  if (ok) window.setTimeout(() => setCopied(false), 1500);
                 }}
               >
                 <Icon name={copied ? "check" : "copy"} size={16} /> {copied ? "Tersalin" : "Salin link lacak"}

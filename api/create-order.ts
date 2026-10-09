@@ -1,8 +1,8 @@
-// POST /api/create-order — FULL REPAIR (BUG-010/011/014/015/016/020).
+// POST /api/create-order — FULL REPAIR.
+// Total = subtotal - diskon (ongkir dihapus Okt 2026, kirim via chat).
 //
 // - Harga SELALU dari DB. seller_id DITURUNKAN dari produk (bukan dipercaya
 //   mentah), seller harus aktif & toko tidak tutup.
-// - Ongkir dihitung SERVER dari shipping_method (reguler/gosend/ambil).
 // - Stok divalidasi (tolak bila kurang). Pengurangan stok atomik di webhook.
 // - Kuota promo via RPC atomik consume_promo (anti-race).
 // - Idempotensi via idempotency_key (unique). Klik ganda = 1 order.
@@ -54,7 +54,7 @@ export default async function handler(req: any, res: any) {
     if (cur.n > 30) return json(res, { error: "Terlalu banyak percobaan." }, 429);
   }
 
-  const body = (typeof req.body === "string" ? JSON.parse(req.body) : req.body) as {
+  let body: {
     seller_id?: string;
     buyer_name?: string;
     buyer_phone?: string;
@@ -66,7 +66,12 @@ export default async function handler(req: any, res: any) {
     promo_code?: string;
     shipping_method?: string;
     idempotency_key?: string;
-  } | null;
+  } | null = null;
+  try {
+    body = (typeof req.body === "string" ? JSON.parse(req.body) : req.body) as typeof body;
+  } catch {
+    return json(res, { error: "Data pesanan tidak valid." }, 400);
+  }
 
   const cart = Array.isArray(body?.cart) ? body!.cart!.slice(0, 50) : [];
   if (!body?.buyer_name || cart.length === 0) {

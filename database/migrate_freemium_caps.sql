@@ -32,6 +32,8 @@ begin
   if v_plan = 'premium' then
     return NEW;
   end if;
+  -- Kunci per-seller: dua insert bersamaan tidak bisa lolos bareng.
+  perform pg_advisory_xact_lock(hashtext('gratis_cap:' || NEW.seller_id::text));
   select count(*) into v_count from products where seller_id = NEW.seller_id;
   if v_count >= 20 then
     raise exception 'BATAS_PRODUK_GRATIS';
@@ -108,6 +110,7 @@ begin
   if v_plan = 'premium' then
     return NEW;
   end if;
+  perform pg_advisory_xact_lock(hashtext('gratis_cap:' || NEW.seller_id::text));
   select count(*) into v_count from bio_links where seller_id = NEW.seller_id;
   if v_count >= 3 then
     raise exception 'BATAS_TAUTAN_GRATIS';
