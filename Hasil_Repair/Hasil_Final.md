@@ -126,7 +126,6 @@ sudah final atau mau geser.
 6. Putuskan 4 hal di E (Redis, refund, kolom shipping, batas freemium).
 
 ## H. Keputusan production
-
 **READY WITH CONDITIONS**
 
 1. 4 Critical + 9 High tertutup di kode + SQL.
@@ -139,3 +138,27 @@ sudah final atau mau geser.
 8. Syarat: Tes 1–7 simulasi di project TEST.
 9. Batas sadar: rate-limit per-instance (butuh Redis untuk skala).
 10. Batas sadar: refund manual, tanpa retry QR, tanpa halaman sandi baru.
+
+## I. Test browser (9 Okt 2026, sesi lanjutan)
+
+**Hambatan jujur:** sandbox ini tak bisa menjalankan browser — sistemnya
+pakai musl libc (tanpa loader glibc), Chromium yang terunduh tidak bisa
+dieksekusi, dan tidak ada Playwright/Firefox. Klaim "sudah tes live dari
+sini" akan bohong, jadi tidak diklaim.
+
+**Yang disiapkan sebagai gantinya** (`tests/` di repo, tinggal jalan di
+laptop kamu — butuh browser beneran + project TEST):
+
+| ID | Tujuan | Status di sini |
+|---|---|---|
+| T1–T5 | Serangan RLS (admin, saldo, withdraw, PII, payment) | NOT TESTABLE — suite siap, butuh ENV test |
+| T6–T8 | Login UI, /admin ditolak, lacak jujur | NOT TESTABLE — butuh APP_URL + akun |
+| T9–T10 | Race withdrawal + checkout ganda | NOT TESTABLE — butuh saldo test + sandbox QRIS |
+| T11 | Overflow 360–1440 + screenshot | NOT TESTABLE — butuh browser |
+
+**Cara jalan (laptop kamu):** `cd tests && npm install && npx playwright
+install chromium`, isi ENV sesuai `tests/README.md`, `npx playwright test`.
+Tanpa ENV semua test API otomatis SKIP (bukan FAIL). Kirim output +
+screenshot gagal ke engineer untuk diperbaiki.
+
+Catatan keamanan: JANGAN arahkan suite ke production. Hanya project TEST.
