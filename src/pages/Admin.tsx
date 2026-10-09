@@ -211,7 +211,24 @@ export function AdminHome() {
         title="Ringkasan platform"
         desc={`Kondisi TokoLink hari ini, ${today} WIB. Data dimuat ulang setiap membuka halaman.`}
         actions={
-          <Button variant="secondary" onClick={() => toast("Ekspor ringkasan platform diunduh.", "info")}>
+          <Button variant="secondary" onClick={() => {
+            downloadCSV(
+              "ringkasan-platform.csv",
+              ["metrik", "nilai"],
+              [
+                ["Penjual terdaftar", stats.sellers],
+                ["Penjual baru 7 hari", stats.sellersNew],
+                ["GMV bulan ini (Rp)", stats.gmvMonth],
+                ["Transaksi hari ini", stats.txToday],
+                ["Tingkat berhasil (%)", stats.successRate],
+                ["Biaya QRIS bulan ini (Rp)", stats.feeMonth],
+                ["Premium menunggu", stats.premiumWait],
+                ["Penarikan menunggu", stats.wdWait],
+                ["Pembayaran gagal", stats.payFailed],
+              ],
+            );
+            toast("Ringkasan platform diunduh (CSV).");
+          }}>
             <Icon name="download" size={16} /> Ekspor
           </Button>
         }
@@ -641,7 +658,7 @@ export function AdminSellers() {
         body={
           suspend?.status === "ditangguhkan"
             ? "Toko akan kembali bisa menerima pesanan dan penarikan dana diaktifkan kembali."
-            : "Toko akan berhenti menerima pesanan dan penarikan dana ditahan sampai tinjauan selesai. Pemilik menerima notifikasi."
+            : "Akun tidak bisa masuk dasbor sampai diaktifkan lagi. Beri tahu pemilik via chat manual — tidak ada notifikasi otomatis."
         }
         confirmLabel={suspend?.status === "ditangguhkan" ? "Aktifkan" : "Tangguhkan toko"}
         tone={suspend?.status === "ditangguhkan" ? "primary" : "danger"}

@@ -184,12 +184,20 @@ referensi itu.
       `AdminAnalytics` "Kanal pembayaran" sekarang agregat real per
       `payments.channel` bulan berjalan (sebelumnya 4 angka hardcode).
       Akses dibatasi `RequireAdmin` (`src/App.tsx`) + RLS `is_admin()`.
-- [ ] `AdminPremium`: CRUD `premium_requests`, approve → update
-      `profiles.plan` + catat `log_admin_action('approve_premium', ...)`.
-- [ ] `AdminWithdrawals`: update status withdrawal + catat
-      `log_admin_action('withdrawal_selesai', ...)` (lihat Fase 4).
-- [ ] `AdminPayments`: list `payments` semua seller.
-- [ ] `AdminUsers`: list `profiles` + email dari `auth.users`.
+- [x] `AdminPremium`: CRUD `premium_requests`, approve → update
+      `profiles.plan` + catat `log_admin_action(...)`.
+      **Selesai 8 Okt 2026:** approve/tolak jalan + tercatat di audit_log;
+      teks "penjual diberi tahu" dibetulkan (tidak ada notifikasi otomatis).
+- [x] `AdminWithdrawals`: update status withdrawal + catat
+      `log_admin_action('withdrawal_...', ...)` (lihat Fase 4).
+      **Selesai 8 Okt 2026:** via RPC atomik + nomor rekening tersamarkan
+      (full hanya saat transfer + diaudit) + unduh CSV asli.
+- [x] `AdminPayments`: list `payments` semua seller.
+      **Selesai 8 Okt 2026:** list real 200 terbaru + modal detail (tombol
+      "Periksa" yang dulu salah alamat) + unduh CSV + label jujur.
+- [x] `AdminUsers`: list `profiles` + email dari `auth.users`.
+      **Selesai:** via `/api/admin-users` (service_role, gate admin).
+      Tombol "Undang" jadi salin tautan daftar (jujur: peran diatur via DB).
 - [ ] `AdminAudit`: halaman baca `audit_log` (read-only, filter by aksi/
       tanggal). Tabel & RPC `log_admin_action` sudah ada di migrasi.
 - [ ] `AdminBroadcast`: kelola `broadcasts` (judul+pesan+segmen), seller
