@@ -883,7 +883,7 @@ function Pricing() {
       m: 0,
       y: 0,
       desc: "Untuk mulai jualan hari ini.",
-      feats: ["1 halaman toko", "Sampai 10 produk", "Biaya QRIS 0,7%", "Catatan pesanan & nota", "Bantuan lewat WhatsApp"],
+      feats: ["1 halaman toko", "Maks 20 produk", "Tema Klasik", "3 tautan bio", "Bayar QRIS", "Catatan pesanan", "Bantuan lewat WhatsApp"],
       cta: "Buka toko gratis",
     },
     {
@@ -894,22 +894,12 @@ function Pricing() {
       desc: "Untuk toko yang sudah ramai.",
       feats: [
         "Produk tanpa batas",
-        "Biaya QRIS 0,5%",
-        "Kode promo & diskon",
-        "Ganti tema & warna toko",
-        "Laporan bisa diunduh (Excel)",
+        "8 tema etalase + badge Premium",
+        "Tautan bio tanpa batas",
+        "Analitik + traffic + unduh Excel",
         "Bantuan prioritas",
       ],
       cta: "Pilih Premium",
-    },
-    {
-      name: "Bisnis",
-      pop: false,
-      m: 199000,
-      y: 1990000,
-      desc: "Untuk beberapa toko & tim.",
-      feats: ["Sampai 5 halaman toko", "5 akun karyawan", "Biaya QRIS 0,45%", "Rekap siap laporan pajak", "Kirim otomatis ke kurir"],
-      cta: "Hubungi kami",
     },
   ];
 
@@ -933,7 +923,7 @@ function Pricing() {
           </div>
         </div>
 
-        <div className="mt-10 grid gap-4 lg:grid-cols-3">
+        <div className="mt-10 grid gap-4 lg:grid-cols-2">
           {plans.map((p) => (
             <div
               key={p.name}

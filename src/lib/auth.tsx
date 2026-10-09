@@ -192,6 +192,42 @@ export function RequireAuth({ children }: { children: ReactNode }) {
   return <>{children}</>;
 }
 
+/** Bungkus halaman khusus Premium: gratis → ajakan upgrade (bukan data). */
+export function RequirePremium({ children }: { children: ReactNode }) {
+  const { profile, loading, refresh } = useAuth();
+  const [upgradeDone, setUpgradeDone] = useState(false);
+  if (loading) return null;
+  if ((profile?.plan ?? "gratis") === "premium" || upgradeDone) return <>{children}</>;
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-canvas px-6 py-10">
+      <div className="w-full max-w-md rounded-xl border border-line bg-white p-8 text-center shadow-card">
+        <div className="micro text-brand-600">Fitur Premium</div>
+        <h1 className="mt-2 text-[22px] font-extrabold text-ink">Naik ke Premium dulu</h1>
+        <p className="mt-2 text-[14px] leading-relaxed text-muted">
+          Halaman ini (analitik, traffic, unduh laporan) khusus paket Premium.
+          Ringkasan harian tetap gratis di Beranda.
+        </p>
+        <div className="mt-5 flex flex-col gap-2.5">
+          <button
+            onClick={() => navigate("/app/settings")}
+            className="h-12 rounded-md bg-navy-800 text-[15px] font-bold text-white"
+          >
+            Lihat paket Premium
+          </button>
+          <button
+            onClick={async () => {
+              await refresh();
+              setUpgradeDone(true);
+            }}
+            className="text-[13px] font-semibold text-muted underline underline-offset-4"
+          >
+            Saya sudah Premium, muat ulang
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 /** Bungkus halaman `/admin/*`: belum login → `/login`, bukan admin → `/app`. */
 export function RequireAdmin({ children }: { children: ReactNode }) {
   const { session, loading, role } = useAuth();

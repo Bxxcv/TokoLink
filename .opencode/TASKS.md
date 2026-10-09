@@ -315,10 +315,20 @@ Aturan khusus plan ini (minta user 8 Okt 2026): setiap item WAJIB tanya +
 kasih saran dulu sebelum dikerjakan; setelah dikerjakan WAJIB centang.
 Kontak support resmi: WA 085191245042, email supporttokolink@gmail.com.
 
-- [ ] **Landing page real (fakta, bukan pajangan)**: rapikan klaim per
+- [x] **Landing page real (fakta, bukan pajangan)**: rapikan klaim per
       seksi (hero, fitur, harga, FAQ, footer). Tiap angka/teks dicek:
       real → pertahankan, tidak real → putuskan JADIKAN REAL atau HAPUS.
       (Kontak WA/email admin sudah dipasang 8 Okt 2026.)
+      **SELESAI 8 Okt 2026:** demo mati dibuang, klaim transfer/nota-WA/
+      ongkir/biaya-0,5% dihapus, harga jadi 2 tier jujur (tier Bisnis
+      fiktif dihapus), footer + FAQ tersambung WA admin asli.
+- [x] **Model freemium real (Gratis vs Premium)** — diputuskan user
+      8 Okt 2026. Gratis: 20 produk, Klasik, 3 bio, ringkasan.
+      Premium (59rb/bln, 590rb/thn): tanpa batas, 8 tema + badge,
+      analitik/traffic/unduh. Enforcement di database
+      (`database/migrate_freemium_caps.sql`: trigger cap produk/tema/bio,
+      grandfathering yang sudah lewat) + UI (picker tema, RequirePremium,
+      pesan error jujur). Diskon & QRIS TIDAK dikunci (adopsi).
 - [ ] **Halaman toko seller per-bagian**: foto proporsional, tata letak
       jelas, footer jelas — berlaku untuk Klasik + 8 tema engine.
 - [ ] **Keranjang top-to-bottom**: ringkasan, promo, CTA jelas di HP.

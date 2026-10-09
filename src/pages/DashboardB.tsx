@@ -658,7 +658,13 @@ export function BioLinks() {
       .select("*")
       .single();
     if (error || !data) {
-      toast("Gagal menambah tautan.", "bad");
+      const msg = ((error as { message?: string } | null)?.message ?? "").toUpperCase();
+      toast(
+        msg.includes("BATAS_TAUTAN_GRATIS")
+          ? "Paket Gratis maks 3 tautan. Hapus yang lama atau naik ke Premium."
+          : "Gagal menambah tautan.",
+        "bad",
+      );
       return;
     }
     setLinks((l) => [...l, data as BRow]);
@@ -994,8 +1000,11 @@ export function Theme() {
       if (error) {
         // Kolom theme_id belum ada = migrasi database/migrate_fase5_theme_id.sql
         // belum dijalankan di Supabase. Beritahu jelas, jangan gagal diam-diam.
-        if (/theme_id/i.test(error.message)) {
+        const msg = (error.message ?? "").toUpperCase();
+        if (/THEME_ID/i.test(error.message)) {
           toast("Kolom tema belum ada di database. Jalankan dulu file database/migrate_fase5_theme_id.sql di Supabase SQL Editor, lalu simpan lagi.", "bad");
+        } else if (msg.includes("TEMA_PREMIUM")) {
+          toast("Tema ini khusus Premium. Tetap di tema sekarang atau naik ke Premium.", "bad");
         } else {
           toast("Gagal menyimpan tampilan.", "bad");
         }
@@ -1061,7 +1070,12 @@ export function Theme() {
             <div className="grid gap-2.5 sm:grid-cols-2">
               {THEMES.map((t) => {
                 const active = themeId === t.id;
-                const disabled = !t.available;
+                const isEngine = isEngineTheme(t.id);
+                const isPremium = (profile?.plan ?? "gratis") === "premium";
+                // Gratis: tetap boleh PAKAI tema engine yang sudah terpasang,
+                // tapi tidak bisa PINDAH ke tema engine lain.
+                const locked = isEngine && !isPremium && snapshot.current.themeId !== t.id;
+                const disabled = !t.available || locked;
                 return (
                   <button
                     key={t.id}
@@ -1083,7 +1097,9 @@ export function Theme() {
                       <span className="tnum micro text-faint">{t.no}</span>
                       {active ? (
                         <span className="micro rounded-sm bg-brand-600 px-1.5 py-0.5 font-bold text-white">Dipakai</span>
-                      ) : disabled ? (
+                      ) : locked ? (
+                        <span className="micro rounded-sm bg-navy-800 px-1.5 py-0.5 font-bold text-white">Premium</span>
+                      ) : !t.available ? (
                         <span className="micro rounded-sm bg-canvas px-1.5 py-0.5 font-bold text-faint">Segera hadir</span>
                       ) : null}
                     </span>

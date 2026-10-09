@@ -740,7 +740,13 @@ export function Products() {
       }
       const { error } = await supabase.from("products").insert(valid);
       if (error) {
-        toast("Gagal mengimpor.", "bad");
+        const msg = (error.message ?? "").toUpperCase();
+        toast(
+          msg.includes("BATAS_PRODUK_GRATIS")
+            ? "Paket Gratis maks 20 produk. Kurangi isi file atau naik ke Premium."
+            : "Gagal mengimpor.",
+          "bad",
+        );
         return;
       }
       toast(`${valid.length} produk diimpor sebagai draf.`);
@@ -1149,7 +1155,13 @@ export function ProductForm({ id }: { id?: string }) {
         ? await supabase.from("products").update(payload).eq("id", id)
         : await supabase.from("products").insert(payload);
       if (error) {
-        toast("Gagal menyimpan produk.", "bad");
+        const msg = (error.message ?? "").toUpperCase();
+        toast(
+          msg.includes("BATAS_PRODUK_GRATIS")
+            ? "Paket Gratis maks 20 produk. Hapus yang lama atau naik ke Premium."
+            : "Gagal menyimpan produk.",
+          "bad",
+        );
         return;
       }
       toast(editing ? "Perubahan produk disimpan." : "Produk baru berhasil ditambahkan.");

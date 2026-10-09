@@ -1,5 +1,5 @@
 import { AppProvider } from "./lib/store";
-import { AuthProvider, RequireAdmin, RequireAuth } from "./lib/auth";
+import { AuthProvider, RequireAdmin, RequireAuth, RequirePremium } from "./lib/auth";
 import { useRoute, Link, isReservedSlug } from "./lib/router";
 import { ToastHost, ButtonLink } from "./components/ui";
 
@@ -136,9 +136,9 @@ function RouteView({ path }: { path: string }) {
       case "":
         return <DashboardHome />;
       case "analytics":
-        return <Analytics />;
+        return <RequirePremium><Analytics /></RequirePremium>;
       case "traffic":
-        return <Traffic />;
+        return <RequirePremium><Traffic /></RequirePremium>;
       case "products":
         return <Products />;
       case "products/new":

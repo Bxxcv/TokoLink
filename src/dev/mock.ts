@@ -234,7 +234,7 @@ export const FAQ = [
   },
   {
     q: "Apakah ada biaya per transaksi?",
-    a: "Paket Gratis tidak ada biaya bulanan, hanya biaya layanan QRIS mengikuti ketentuan BuatQris. Detail paket Premium menyusul — hubungi WhatsApp admin untuk info terbaru.",
+    a: "Paket Gratis tidak ada biaya bulanan, hanya biaya layanan QRIS mengikuti ketentuan BuatQris. Rincian paket Premium ada di halaman harga.",
   },
   {
     q: "Kalau saya sudah punya toko di marketplace?",
