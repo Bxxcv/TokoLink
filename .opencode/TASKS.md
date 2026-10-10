@@ -289,12 +289,11 @@ referensi itu.
       - Rating di `ProductDetail` (sebelumnya hardcode "4,9 (86 ulasan)",
         SUDAH DIHAPUS 30 Sep 2026) baru boleh muncul lagi setelah fitur
         ini beneran jalan dengan data asli
-- [x] **Twitter Card / OG per-toko untuk seller Premium** — **Selesai
-      10 Okt 2026 via opsi (a):** `middleware.js` (Edge, tanpa
-      dependency) deteksi crawler + path pendek, suntik meta dari
-      Supabase REST hanya untuk `plan='premium'`; selain itu passthrough
-      (situs tak bisa rusak oleh file ini). Perlu: env anon key
-      terbaca di edge (sudah, fallback `VITE_*`).
+- [ ] **Twitter Card / OG per-toko untuk seller Premium** — **DITUNDA
+      10 Okt 2026:** `middleware.js` sempat dibuat tapi MENYEBABKAN
+      `/reset` loop 508 di production → file dihapus. Butuh riset
+      ulang (matcher/edge config) di project TEST sebelum coba lagi.
+      Jangan pasang ke production tanpa tes.
 - [x] **Konten statis yang perlu diverifikasi**: blok "Pengiriman
       GoSend/JNE", "Estimasi tiba", "Garansi toko" — **Selesai (keputusan
       user: ongkir DIHAPUS total):** kurir & ongkir dibuang dari checkout/
