@@ -12,6 +12,8 @@ import {
 import clsx from "clsx";
 import { Link, navigate } from "../lib/router";
 import { useApp } from "../lib/store";
+import { searchCities } from "../lib/cities";
+import { CATEGORIES } from "../lib/shop";
 
 export const cx = clsx;
 
@@ -1165,5 +1167,96 @@ export function QuickLink({ to, icon, label }: { to: string; icon: string; label
       {label}
       <Icon name="right" size={13} className="transition-transform duration-150 group-hover:translate-x-0.5" />
     </button>
+  );
+}
+
+/* ------------------------- combobox bebas + saran ------------------------ */
+/** Ketik bebas, saran dari daftar — dipakai kota & kategori (tidak dikunci). */
+function SuggestBox({ value, onChange, placeholder, label, suggests }: {
+  value: string;
+  onChange: (v: string) => void;
+  placeholder: string;
+  label: string;
+  suggests: (q: string) => string[];
+}) {
+  const [open, setOpen] = useState(false);
+  const [q, setQ] = useState(value);
+  const results = suggests(q);
+  const pick = (c: string) => {
+    onChange(c);
+    setQ(c);
+    setOpen(false);
+  };
+  return (
+    <div className="relative">
+      <Input
+        value={q}
+        onChange={(e) => {
+          setQ(e.target.value);
+          onChange(e.target.value);
+          setOpen(true);
+        }}
+        onFocus={() => setOpen(true)}
+        onBlur={() => window.setTimeout(() => setOpen(false), 150)}
+        placeholder={placeholder}
+        autoComplete="off"
+        className="pr-9"
+        aria-label={label}
+      />
+      <Icon
+        name="search"
+        size={15}
+        className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-faint"
+      />
+      {open &&
+        (results.length > 0 ? (
+          <ul className="absolute inset-x-0 top-full z-30 mt-1 max-h-52 overflow-y-auto rounded-md border border-line bg-white py-1 shadow-lift">
+            {results.map((c) => (
+              <li key={c}>
+                <button
+                  type="button"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => pick(c)}
+                  className="flex w-full items-center px-3 py-2 text-left text-[13.5px] text-ink hover:bg-brand-50"
+                >
+                  {c}
+                </button>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          q.trim() && (
+            <div className="absolute inset-x-0 top-full z-30 mt-1 rounded-md border border-line bg-white px-3 py-2 text-[12.5px] text-muted shadow-lift">
+              Tidak ketemu — ketikanmu tetap dipakai.
+            </div>
+          )
+        ))}
+    </div>
+  );
+}
+
+export function CityCombobox({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  return (
+    <SuggestBox
+      value={value}
+      onChange={onChange}
+      placeholder="Ketik kota…"
+      label="Kota atau kabupaten"
+      suggests={(q) => searchCities(q)}
+    />
+  );
+}
+
+export function CategoryCombobox({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  return (
+    <SuggestBox
+      value={value}
+      onChange={onChange}
+      placeholder="Ketik kategori…"
+      label="Kategori"
+      suggests={(q) =>
+        CATEGORIES.filter((c) => c !== "Semua" && c.toLowerCase().includes(q.trim().toLowerCase())).slice(0, 8)
+      }
+    />
   );
 }

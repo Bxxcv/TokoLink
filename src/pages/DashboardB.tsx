@@ -4,7 +4,6 @@ import { isReservedSlug, navigate, storeUrl } from "../lib/router";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
 import { digitsOnly, formatRibuan, isValidWA, normalizeWA } from "../lib/format";
-import { CITIES } from "../lib/cities";
 import { detectLinkIcon, iconForLink } from "../lib/links";
 import { uploadImage } from "../lib/storage";
 import { buildNotifications, getReadIds, markRead as markReadLib, type NotifItem } from "../lib/notifications";
@@ -20,6 +19,8 @@ import {
   ButtonLink,
   Card,
   CardHead,
+  CategoryCombobox,
+  CityCombobox,
   ConfirmDialog,
   EmptyState,
   ErrorState,
@@ -348,11 +349,35 @@ export function Withdraw() {
   const [loading, setLoading] = useState(false);
   const [confirm, setConfirm] = useState(false);
   const [history, setHistory] = useState<{ amount: number | string; status: string; created_at: string; bank: string }[]>([]);
+  type SavedAcct = { id: string; bank: string; account_number: string; account_name: string; is_default: boolean };
+  const [accounts, setAccounts] = useState<SavedAcct[]>([]);
+  const [picked, setPicked] = useState<string | "new">("new");
+  const [saveNew, setSaveNew] = useState(true);
   const fee = 6500;
   const value = Number(amount || 0);
 
+  const loadAccounts = async () => {
+    if (!user) return;
+    const { data } = await supabase
+      .from("seller_bank_accounts")
+      .select("id,bank,account_number,account_name,is_default")
+      .eq("seller_id", user.id)
+      .order("is_default", { ascending: false })
+      .order("created_at", { ascending: true });
+    const list = (data ?? []) as SavedAcct[];
+    setAccounts(list);
+    const def = list.find((a) => a.is_default) ?? list[0];
+    if (def) {
+      setPicked(def.id);
+      setBankName(def.bank);
+      setAcctNum(def.account_number);
+      setAcctName(def.account_name);
+    }
+  };
+
   useEffect(() => {
     if (!user) return;
+    loadAccounts();
     (async () => {
       const { data } = await supabase
         .from("withdrawals")
@@ -379,6 +404,16 @@ export function Withdraw() {
     setConfirm(false);
     setLoading(true);
     try {
+      // Rekening baru + dicentang simpan → simpan dulu (duplikat diabaikan).
+      if (picked === "new" && saveNew) {
+        await supabase.from("seller_bank_accounts").insert({
+          seller_id: user.id,
+          bank: bankName,
+          account_number: digitsOnly(acctNum),
+          account_name: acctName.trim(),
+          is_default: accounts.length === 0,
+        });
+      }
       // SECURITY HOTFIX BUG-003: penarikan WAJIB via RPC server-authoritative
       // (validasi saldo + pending + anti-race di database). Insert langsung
       // dari browser sudah dicabut (REVOKE) dan akan ditolak RLS.
@@ -453,6 +488,69 @@ export function Withdraw() {
             </div>
 
             <Field label="Rekening tujuan" required error={fieldErr}>
+              {accounts.length > 0 && (
+                <div className="mb-3 space-y-2">
+                  {accounts.map((a) => (
+                    <label
+                      key={a.id}
+                      className={cx(
+                        "flex cursor-pointer items-center gap-3 rounded-lg border p-3 transition-colors duration-150",
+                        picked === a.id ? "border-brand-500 bg-brand-50" : "border-line hover:border-brand-200",
+                      )}
+                    >
+                      <input
+                        type="radio"
+                        name="acct"
+                        checked={picked === a.id}
+                        onChange={() => {
+                          setPicked(a.id);
+                          setBankName(a.bank);
+                          setAcctNum(a.account_number);
+                          setAcctName(a.account_name);
+                          setFieldErr("");
+                        }}
+                        className="h-4 w-4 accent-[#0A69C4]"
+                      />
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-[14px] font-bold text-ink">
+                          {a.bank} ···· {a.account_number.slice(-4)}
+                          {a.is_default && <span className="micro ml-2 text-brand-600">utama</span>}
+                        </span>
+                        <span className="block truncate text-[12.5px] text-faint">{a.account_name}</span>
+                      </span>
+                      <button
+                        type="button"
+                        aria-label={`Hapus ${a.bank}`}
+                        onClick={async (e) => {
+                          e.preventDefault();
+                          const { error } = await supabase.from("seller_bank_accounts").delete().eq("id", a.id);
+                          if (error) {
+                            toast("Gagal menghapus rekening.", "bad");
+                            return;
+                          }
+                          if (picked === a.id) setPicked("new");
+                          loadAccounts();
+                        }}
+                        className="rounded-md p-1.5 text-faint hover:bg-badsoft hover:text-bad"
+                      >
+                        <Icon name="trash" size={15} />
+                      </button>
+                    </label>
+                  ))}
+                  <label className="flex cursor-pointer items-center gap-3 rounded-lg border border-dashed border-line p-3">
+                    <input
+                      type="radio"
+                      name="acct"
+                      checked={picked === "new"}
+                      onChange={() => setPicked("new")}
+                      className="h-4 w-4 accent-[#0A69C4]"
+                    />
+                    <span className="text-[13.5px] font-semibold text-muted">Pakai rekening lain</span>
+                  </label>
+                </div>
+              )}
+              {picked === "new" && (
+              <>
               <div className="grid gap-3">
                 <div className="grid grid-cols-2 gap-3">
                   <Select value={bankName} onChange={(e) => setBankName(e.target.value)} aria-label="Nama bank">
@@ -476,6 +574,12 @@ export function Withdraw() {
                   aria-label="Nama pemilik rekening"
                 />
               </div>
+              <label className="mt-3 flex cursor-pointer items-center gap-2.5 text-[13px] text-muted">
+                <Toggle checked={saveNew} onChange={setSaveNew} label="Simpan rekening" />
+                Simpan rekening ini untuk penarikan berikutnya
+              </label>
+              </>
+              )}
             </Field>
 
             <Field label="Catatan (opsional)">
@@ -2206,20 +2310,10 @@ export function StoreSettings() {
               </FieldRow>
               <FieldRow cols={2}>
                 <Field label="Kategori utama" required>
-                  <Select value={f.cat} onChange={(e) => setF({ ...f, cat: e.target.value })}>
-                    {["Kue & Snack", "Sambal & Bumbu", "Kopi & Minuman", "Panen & Herbal", "Fashion", "Kerajinan"].map((c) => (
-                      <option key={c}>{c}</option>
-                    ))}
-                  </Select>
+                  <CategoryCombobox value={f.cat} onChange={(v) => setF({ ...f, cat: v })} />
                 </Field>
                 <Field label="Kota asal" required>
-                  <Select value={f.city} onChange={(e) => setF({ ...f, city: e.target.value })}>
-                    <option value="">Pilih kota…</option>
-                    {f.city && !CITIES.includes(f.city) && <option value={f.city}>{f.city}</option>}
-                    {CITIES.map((c) => (
-                      <option key={c}>{c}</option>
-                    ))}
-                  </Select>
+                  <CityCombobox value={f.city} onChange={(v) => setF({ ...f, city: v })} />
                 </Field>
               </FieldRow>
               <Field label="Deskripsi singkat" hint="Maksimal 200 karakter.">

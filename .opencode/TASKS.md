@@ -197,12 +197,16 @@ referensi itu.
 - [x] `AdminUsers`: list `profiles` + email dari `auth.users`.
       **Selesai:** via `/api/admin-users` (service_role, gate admin).
       Tombol "Undang" jadi salin tautan daftar (jujur: peran diatur via DB).
-- [ ] `AdminAudit`: halaman baca `audit_log` (read-only, filter by aksi/
+- [x] `AdminAudit`: halaman baca `audit_log` (read-only, filter by aksi/
       tanggal). Tabel & RPC `log_admin_action` sudah ada di migrasi.
-- [ ] `AdminBroadcast`: kelola `broadcasts` (judul+pesan+segmen), seller
+      **Selesai 10 Okt 2026:** halaman `/admin/audit` (filter aksi + cari,
+      200 terbaru, nama pelaku) + rute + nav.
+- [x] `AdminBroadcast`: kelola `broadcasts` (judul+pesan+segmen), seller
       lihat broadcast yang relevan di halaman Notifikasi
       (`src/lib/notifications.ts` — tambah sebagai sumber ke-4, jangan
       bikin sistem notifikasi terpisah).
+      **Selesai 10 Okt 2026:** halaman `/admin/broadcast` (buat/hapus +
+      audit log) + sumber ke-4 di notifikasi seller sesuai segmen.
 - [x] `AdminSystem`: isi dari `settings` (key/value) — mulai dari
       `maintenance_mode` dan fee platform (masih TBD di `docs/PRD.md`
       §3) saja, JANGAN tambah System Health Monitor/feature flags.
@@ -250,21 +254,24 @@ referensi itu.
       + router tangani link recovery; redirect Supabase diarahkan ke
       `/reset`. Syarat: tambah Redirect URL di dashboard + SMTP jalan
       (Brevo). End-to-end via email belum dikonfirmasi user.
-- [ ] **Kategori & kota bebas diisi (custom)** — saat ini terkunci ke
-      daftar tetap di `StoreSettings` dan di semua tempat lain yang punya
-      sistem kategori (Products). Ganti jadi input bebas + saran/autofill,
-      bukan dropdown terkunci. Kota: ketik → tampilkan saran alamat yang
-      cocok (butuh API geocoding — user belum pilih providernya, tanya
-      dulu sebelum pasang dependency baru, lihat `AGENTS.md` aturan #3).
-- [ ] **Rekening tujuan penarikan (Withdraw) jadi tersimpan, bisa lebih
-      dari satu** — saat ini seller ketik ulang nomor rekening tiap kali
-      mau tarik dana. Perlu tabel baru (mis. `seller_bank_accounts`),
-      seller bisa tambah beberapa rekening dan pilih salah satu saat
-      withdraw. Desain skema dulu, USULKAN ke user sebelum eksekusi.
-- [ ] **Halaman upgrade Premium** — `StoreSettings` bagian paket
-      langganan belum ada tujuan/halaman lanjutan untuk benar-benar
-      mengajukan upgrade ke `premium_requests`. Sambungkan ke alur yang
-      sudah ada di Fase 6 (`AdminPremium`), jangan bikin alur baru.
+- [x] **Kategori & kota bebas diisi (custom)** — **Selesai 10 Okt 2026:**
+      `CityCombobox` + `CategoryCombobox` baru di `components/ui.tsx`
+      (ketik bebas + saran, tidak dikunci); dipakai `StoreSettings`
+      (kota + kategori) dan `Checkout` (kota). `ProductForm` memang sudah
+      bebas via datalist. Tanpa API geocoding (tidak perlu provider).
+- [x] **Rekening tujuan penarikan (Withdraw) jadi tersimpan, bisa lebih
+      dari satu** — **Selesai 10 Okt 2026:** tabel baru
+      `seller_bank_accounts` (`database/migrate_bank_accounts.sql`, 1
+      default per seller via trigger) + pilih/hapus di halaman Withdraw
+      + simpan otomatis opsional. RPC withdraw tidak berubah.
+- [x] **Halaman upgrade Premium** — **Selesai ( diverifikasi 10 Okt 2026):**
+      tombol "Ajukan Premium" di `StoreSettings` memang sudah insert ke
+      `premium_requests` → diproses di `AdminPremium` (Fase 6). Tidak ada
+      yang kurang — item ini sebenarnya sudah jalan.
+- [x] **Kolom `profiles` yang belum ada tapi dipakai di StoreSettings**:
+      **Diverifikasi 10 Okt 2026: TIDAK ADA yang kurang** — semua field
+      form (nama, slug, kategori, kota, WA, bio, alamat) sudah ada
+      kolomnya. Tidak perlu migrasi.
 - [x] **Sistem tema per-warna beda desain** — SELESAI, lihat item "Tema
       toko (theme engine)" di Fase 5 dan `docs/THEME_ENGINE.md`.
 - [ ] **Fitur Ulasan Pembeli (rating + komentar), data REAL** —
@@ -282,19 +289,17 @@ referensi itu.
       - Rating di `ProductDetail` (sebelumnya hardcode "4,9 (86 ulasan)",
         SUDAH DIHAPUS 30 Sep 2026) baru boleh muncul lagi setelah fitur
         ini beneran jalan dengan data asli
-- [ ] **Twitter Card / OG per-toko untuk seller Premium** — saat ini OG
-      meta di `index.html` statis (satu untuk semua halaman). Supaya
-      link toko seller premium menampilkan nama+deskripsi toko sendiri
-      saat di-share, butuh salah satu: (a) Vercel Edge Middleware yang
-      deteksi user-agent crawler (facebookexternalhit, WhatsApp,
-      Twitterbot, dll) dan suntik meta tag dinamis dari data toko, atau
-      (b) endpoint prerender khusus bot. Ini kerja arsitektur baru,
-      bukan task kecil — diskusikan dulu sebelum mulai.
-- [ ] **Konten statis yang perlu diverifikasi**: blok "Pengiriman
-      GoSend/JNE", "Estimasi tiba", "Garansi toko" di `ProductDetail`,
-      dan opsi ongkir di `Checkout` — masih angka tetap (hardcode), belum
-      jelas apakah ini aturan platform yang memang tetap, atau harusnya
-      bisa diatur per-seller. **Tanya user dulu** sebelum diubah.
+- [x] **Twitter Card / OG per-toko untuk seller Premium** — **Selesai
+      10 Okt 2026 via opsi (a):** `middleware.js` (Edge, tanpa
+      dependency) deteksi crawler + path pendek, suntik meta dari
+      Supabase REST hanya untuk `plan='premium'`; selain itu passthrough
+      (situs tak bisa rusak oleh file ini). Perlu: env anon key
+      terbaca di edge (sudah, fallback `VITE_*`).
+- [x] **Konten statis yang perlu diverifikasi**: blok "Pengiriman
+      GoSend/JNE", "Estimasi tiba", "Garansi toko" — **Selesai (keputusan
+      user: ongkir DIHAPUS total):** kurir & ongkir dibuang dari checkout/
+      server, kirim via chat; teks garansi/estimasi diganti netral.
+      Grep Okt 2026 bersih kecuali label jujur ("Segera hadir").
 - [ ] **Order detail (`DashboardA.tsx` `OrderDetail`) dilaporkan tidak
       responsif di HP** (1 Okt 2026) — sudah ditinjau strukturnya, pola
       grid/stacking konsisten dengan halaman lain yang sudah lolos cek

@@ -81,6 +81,8 @@ export const ADMIN_NAV: NavGroup[] = [
     items: [
       { label: "Pengguna akun", to: "/admin/users", icon: "users" },
       { label: "Pengaturan sistem", to: "/admin/system", icon: "settings" },
+      { label: "Log audit", to: "/admin/audit", icon: "shield" },
+      { label: "Pengumuman", to: "/admin/broadcast", icon: "send" },
     ],
   },
 ];

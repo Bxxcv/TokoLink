@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { navigate } from "../lib/router";
 import { supabase } from "../lib/supabase";
+import { useAuth } from "../lib/auth";
 import {
   rupiah,
   rupiahShort,
@@ -27,6 +28,7 @@ import {
   TableWrap,
   Tabs,
   Td,
+  Textarea,
   Th,
   Toggle,
   cx,
@@ -1788,6 +1790,258 @@ export function AdminSystem() {
         onConfirm={() => {
           setMaintenance((m) => !m);
           toast("Pilihan diubah. Tekan “Simpan pengaturan” agar berlaku.", "warn");
+        }}
+      />
+    </AppShell>
+  );
+}
+
+/* ============================== AUDIT LOG =============================== */
+export function AdminAudit() {
+  const [rows, setRows] = useState<{ id: string; action: string; detail: string; amount: number | string | null; created_at: string; actor_id: string; actor?: string }[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [act, setAct] = useState("semua");
+  const [q, setQ] = useState("");
+
+  const load = async () => {
+    setLoading(true);
+    const { data } = await supabase
+      .from("audit_log")
+      .select("id,action,detail,amount,created_at,actor_id")
+      .order("created_at", { ascending: false })
+      .limit(200);
+    const list = (data ?? []) as { id: string; action: string; detail: string; amount: number | string | null; created_at: string; actor_id: string }[];
+    const ids = [...new Set(list.map((r) => r.actor_id))];
+    let names = new Map<string, string>();
+    if (ids.length > 0) {
+      const { data: profs } = await supabase.from("profiles").select("id,owner_name,store_name").in("id", ids);
+      names = new Map(((profs ?? []) as { id: string; owner_name: string | null; store_name: string | null }[]).map((p) => [p.id, p.owner_name || p.store_name || "Admin"]));
+    }
+    setRows(list.map((r) => ({ ...r, actor: names.get(r.actor_id) ?? "—" })));
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    load();
+  }, []);
+
+  const actions = ["semua", ...Array.from(new Set(rows.map((r) => r.action)))];
+  const filtered = rows.filter(
+    (r) =>
+      (act === "semua" || r.action === act) &&
+      (r.action + " " + (r.detail ?? "") + " " + (r.actor ?? "")).toLowerCase().includes(q.toLowerCase()),
+  );
+
+  return (
+    <AppShell group="admin">
+      <PageHeader
+        index="A09"
+        kicker="Sistem"
+        title="Log audit"
+        desc="Jejak aksi admin yang menyentuh uang & akun. Read-only, 200 terbaru."
+        actions={
+          <Button variant="secondary" onClick={load}>
+            <Icon name="refresh" size={15} /> Muat ulang
+          </Button>
+        }
+      />
+      <Card pad={false}>
+        <div className="flex flex-col gap-3 border-b border-line p-4 sm:flex-row sm:items-center sm:px-5">
+          <Select value={act} onChange={(e) => setAct(e.target.value)} className="h-10 sm:w-56" aria-label="Filter aksi">
+            {actions.map((a) => (
+              <option key={a} value={a}>{a === "semua" ? "Semua aksi" : a}</option>
+            ))}
+          </Select>
+          <div className="relative flex-1">
+            <Icon name="search" size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-faint" />
+            <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cari detail / pelaku…" className="h-10 pl-9" />
+          </div>
+        </div>
+        {loading ? (
+          <div className="space-y-2 p-4 sm:p-5">
+            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-10 w-full" />
+          </div>
+        ) : filtered.length === 0 ? (
+          <div className="p-4 sm:p-5">
+            <EmptyState icon="shield" title="Tidak ada catatan" desc="Belum ada aksi tercatat, atau filter tidak cocok." />
+          </div>
+        ) : (
+          <TableWrap>
+            <thead>
+              <tr>
+                <Th>Waktu</Th>
+                <Th>Aksi</Th>
+                <Th>Detail</Th>
+                <Th className="text-right">Nominal</Th>
+                <Th>Pelaku</Th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((r) => (
+                <tr key={r.id} className="transition-colors hover:bg-canvas/70">
+                  <Td className="tnum whitespace-nowrap text-[13px] text-muted">
+                    {new Date(r.created_at).toLocaleString("id-ID", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+                  </Td>
+                  <Td><Badge tone="gray">{r.action}</Badge></Td>
+                  <Td className="max-w-[280px] truncate text-[13.5px]">{r.detail || "—"}</Td>
+                  <Td className="tnum text-right font-semibold">{r.amount != null ? rupiah(Number(r.amount)) : "—"}</Td>
+                  <Td className="text-[13px]">{r.actor}</Td>
+                </tr>
+              ))}
+            </tbody>
+          </TableWrap>
+        )}
+        <div className="px-4 py-3.5 text-[13px] text-muted sm:px-5">
+          Menampilkan {filtered.length} dari {rows.length} catatan (maks 200 terbaru)
+        </div>
+      </Card>
+    </AppShell>
+  );
+}
+
+/* ============================== BROADCAST =============================== */
+export function AdminBroadcast() {
+  const { toast } = useApp();
+  const { user } = useAuth();
+  type BRow = { id: string; title: string; message: string; segment: string; created_at: string };
+  const [list, setList] = useState<BRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [open, setOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState({ title: "", message: "", segment: "all" });
+  const [del, setDel] = useState<BRow | null>(null);
+
+  const load = async () => {
+    setLoading(true);
+    const { data } = await supabase
+      .from("broadcasts")
+      .select("id,title,message,segment,created_at")
+      .order("created_at", { ascending: false })
+      .limit(100);
+    setList((data ?? []) as BRow[]);
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    load();
+  }, []);
+
+  const create = async () => {
+    if (!user) return;
+    if (form.title.trim().length < 4) {
+      toast("Judul minimal 4 karakter.", "bad");
+      return;
+    }
+    if (form.message.trim().length < 10) {
+      toast("Pesan minimal 10 karakter.", "bad");
+      return;
+    }
+    setSaving(true);
+    try {
+      const { error } = await supabase.from("broadcasts").insert({
+        title: form.title.trim().slice(0, 80),
+        message: form.message.trim().slice(0, 500),
+        segment: form.segment,
+        created_by: user.id,
+      });
+      if (error) {
+        toast("Gagal menyimpan pengumuman.", "bad");
+        return;
+      }
+      await logAdmin("buat_broadcast", "broadcasts", null, `${form.title.trim()} [${form.segment}]`);
+      setForm({ title: "", message: "", segment: "all" });
+      setOpen(false);
+      load();
+      toast("Pengumuman tampil di halaman Notifikasi seller.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <AppShell group="admin">
+      <PageHeader
+        index="A10"
+        kicker="Sistem"
+        title="Pengumuman seller"
+        desc="Tampil di halaman Notifikasi seller sesuai segmen."
+        actions={
+          <Button onClick={() => setOpen(true)}>
+            <Icon name="plus" size={16} /> Buat pengumuman
+          </Button>
+        }
+      />
+      <Card pad={false}>
+        {loading ? (
+          <div className="space-y-2 p-4 sm:p-5">
+            <Skeleton className="h-14 w-full" />
+            <Skeleton className="h-14 w-full" />
+          </div>
+        ) : list.length === 0 ? (
+          <div className="p-4 sm:p-5">
+            <EmptyState icon="send" title="Belum ada pengumuman" desc="Buat yang pertama — mis. info maintenance atau promo platform." />
+          </div>
+        ) : (
+          <ul className="divide-y divide-linesoft">
+            {list.map((b) => (
+              <li key={b.id} className="flex items-start justify-between gap-3 px-4 py-4 sm:px-5">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-[14px] font-bold text-ink">{b.title}</span>
+                    <Badge tone={b.segment === "all" ? "blue" : "gray"}>{b.segment === "all" ? "Semua" : b.segment}</Badge>
+                  </div>
+                  <p className="mt-1 line-clamp-2 text-[13.5px] text-muted">{b.message}</p>
+                  <div className="mt-1 text-[12px] text-faint">
+                    {new Date(b.created_at).toLocaleString("id-ID", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+                  </div>
+                </div>
+                <Button size="sm" variant="ghost" onClick={() => setDel(b)}>
+                  Hapus
+                </Button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Card>
+
+      <Modal open={open} onClose={() => setOpen(false)} title="Pengumuman baru" width="max-w-lg">
+        <div className="space-y-4">
+          <Field label="Judul" required>
+            <Input value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} placeholder="Contoh: Maintenance Minggu malam" />
+          </Field>
+          <Field label="Pesan" required>
+            <Textarea value={form.message} onChange={(e) => setForm((f) => ({ ...f, message: e.target.value }))} rows={4} placeholder="Tulis yang perlu seller tahu…" />
+          </Field>
+          <Field label="Untuk siapa">
+            <Select value={form.segment} onChange={(e) => setForm((f) => ({ ...f, segment: e.target.value }))}>
+              <option value="all">Semua seller</option>
+              <option value="premium">Premium saja</option>
+              <option value="gratis">Gratis saja</option>
+            </Select>
+          </Field>
+          <Button loading={saving} onClick={create} className="w-full">
+            Terbitkan pengumuman
+          </Button>
+        </div>
+      </Modal>
+
+      <ConfirmDialog
+        open={!!del}
+        onClose={() => setDel(null)}
+        title="Hapus pengumuman?"
+        body={`“${del?.title ?? ""}” hilang dari Notifikasi seller.`}
+        confirmLabel="Ya, hapus"
+        onConfirm={async () => {
+          if (!del) return;
+          setDel(null);
+          const { error } = await supabase.from("broadcasts").delete().eq("id", del.id);
+          if (error) {
+            toast("Gagal menghapus.", "bad");
+            return;
+          }
+          await logAdmin("hapus_broadcast", "broadcasts", del.id, del.title);
+          load();
         }}
       />
     </AppShell>

@@ -41,7 +41,7 @@ export function markRead(ids: string[]): string[] {
  * import dari sini.
  */
 export async function buildNotifications(userId: string): Promise<NotifItem[]> {
-  const [{ data: orders }, { data: wds }, { data: prods }] = await Promise.all([
+  const [{ data: orders }, { data: wds }, { data: prods }, { data: prof }] = await Promise.all([
     supabase
       .from("orders")
       .select("id,buyer_name,total,status,created_at")
@@ -55,6 +55,7 @@ export async function buildNotifications(userId: string): Promise<NotifItem[]> {
       .order("created_at", { ascending: false })
       .limit(5),
     supabase.from("products").select("id,name,stock").eq("seller_id", userId).eq("status", "aktif"),
+    supabase.from("profiles").select("plan").eq("id", userId).maybeSingle(),
   ]);
   const fmt = (iso: string) =>
     new Date(iso).toLocaleString("id-ID", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
@@ -137,6 +138,28 @@ export async function buildNotifications(userId: string): Promise<NotifItem[]> {
         linkLabel: "Perbarui stok",
       });
     });
+  // Sumber ke-4: pengumuman admin sesuai segmen (all/premium/gratis).
+  try {
+    const plan = ((prof ?? {}) as { plan?: string }).plan ?? "gratis";
+    const { data: casts } = await supabase
+      .from("broadcasts")
+      .select("id,title,message,segment,created_at")
+      .in("segment", ["all", plan])
+      .order("created_at", { ascending: false })
+      .limit(5);
+    ((casts ?? []) as { id: string; title: string; message: string; created_at: string }[]).forEach((b) => {
+      list.push({
+        id: `b-${b.id}`,
+        title: b.title,
+        body: b.message,
+        time: fmt(b.created_at),
+        tone: "info",
+        kind: "system",
+      });
+    });
+  } catch {
+    /* tabel broadcasts belum ada (migrasi belum jalan) — lewati diam-diam */
+  }
   return list;
 }
 

@@ -37,6 +37,8 @@ import {
   AdminPayments,
   AdminUsers,
   AdminSystem,
+  AdminAudit,
+  AdminBroadcast,
 } from "./pages/Admin";
 
 function NotFound({ path }: { path: string }) {
@@ -197,6 +199,10 @@ function RouteView({ path }: { path: string }) {
         return <AdminUsers />;
       case "system":
         return <AdminSystem />;
+      case "audit":
+        return <AdminAudit />;
+      case "broadcast":
+        return <AdminBroadcast />;
       default:
         return <NotFound path={path} />;
     }

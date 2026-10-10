@@ -9,12 +9,12 @@ import { mapProduct, type DbProduct } from "../lib/products";
 import { normalizeWA } from "../lib/format";
 import { accentHex } from "../lib/theme-accent";
 import { iconForLink } from "../lib/links";
-import { searchCities } from "../lib/cities";
 import { Logo, LogoMark } from "../components/Logo";
 import {
   Badge,
   Button,
   ButtonLink,
+  CityCombobox,
   ConfirmDialog,
   EmptyState,
   ErrorState,
@@ -1007,6 +1007,70 @@ export function StoreHome({ slug }: { slug: string }) {
   );
 }
 
+/* ------------------------------ ulasan produk ---------------------------- */
+/** Ringkas + daftar ulasan ASLI via RPC (tanpa data karangan). */
+function ProductRatingBadge({ productId }: { productId: string }) {
+  const [info, setInfo] = useState<{ count: number; avg: number | string } | null>(null);
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      const { data } = await supabase.rpc("product_reviews", { p_product_id: productId });
+      if (!alive) return;
+      const r = data as { count?: number; avg?: number | string } | null;
+      if (r && Number(r.count) > 0) setInfo({ count: Number(r.count), avg: r.avg ?? 0 });
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [productId]);
+  if (!info) return null;
+  return (
+    <span className="flex items-center gap-1.5">
+      <span aria-hidden style={{ color: "#B45309" }}>★</span>
+      <span className="tnum font-semibold text-ink">{Number(info.avg).toLocaleString("id-ID")}</span>
+      <span>({info.count} ulasan)</span>
+    </span>
+  );
+}
+
+function ProductReviews({ productId }: { productId: string }) {
+  const [list, setList] = useState<{ rating: number; comment: string; buyer: string; at: string }[]>([]);
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      const { data } = await supabase.rpc("product_reviews", { p_product_id: productId });
+      if (!alive) return;
+      const r = data as { items?: { rating: number; comment: string; buyer: string; at: string }[] } | null;
+      setList(r?.items ?? []);
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [productId]);
+  if (list.length === 0) return null;
+  return (
+    <div className="mt-6">
+      <div className="micro mb-3 text-faint">Ulasan pembeli ({list.length})</div>
+      <ul className="space-y-3">
+        {list.map((r, i) => (
+          <li key={`${r.at}-${i}`} className="rounded-lg border border-line bg-white p-4">
+            <div className="flex items-center justify-between gap-2">
+              <span className="tnum text-[13px] font-bold text-ink" aria-label={`${r.rating} dari 5`}>
+                {"★".repeat(r.rating)}{"☆".repeat(5 - r.rating)}
+              </span>
+              <span className="text-[12px] text-faint">
+                {r.buyer} · {new Date(r.at).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" })}
+              </span>
+            </div>
+            <p className="mt-1.5 text-[13.5px] leading-relaxed text-ink">{r.comment}</p>
+          </li>
+        ))}
+      </ul>
+      <p className="mt-2.5 text-[12.5px] text-faint">Hanya pembeli yang pesanannya selesai yang bisa mengulas.</p>
+    </div>
+  );
+}
+
 /* ----------------------------- product detail ----------------------------- */
 export function ProductDetail({ id, slug }: { id: string; slug: string }) {
   const { add, toast } = useApp();
@@ -1125,10 +1189,7 @@ export function ProductDetail({ id, slug }: { id: string; slug: string }) {
             </h1>
 
             <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-[13.5px] text-muted">
-              {/* Rating asli menyusul bareng fitur Ulasan Pembeli (lihat backlog
-                  TASKS.md) -- sebelumnya di sini ada angka "4,9 (86 ulasan)"
-                  yang di-hardcode, bukan data asli. Jangan dikembalikan sebelum
-                  fitur ulasannya benar ada. */}
+              <ProductRatingBadge productId={p.id} />
               <span className="flex items-center gap-1.5">
                 <Icon name="box" size={15} className="text-faint" />{" "}
                 <span className="tnum">{p.sold}</span> terjual
@@ -1180,6 +1241,8 @@ export function ProductDetail({ id, slug }: { id: string; slug: string }) {
               <div className="micro mb-2 text-faint">Deskripsi</div>
               <p className="text-[14.5px] leading-relaxed text-muted">{p.desc}</p>
             </div>
+
+            <ProductReviews productId={p.id} />
 
             <div className="mt-6 hidden gap-2.5 lg:flex">
               <Button
@@ -1699,66 +1762,6 @@ export function Cart() {
 }
 
 /* -------------------------------- checkout -------------------------------- */
-/* ------------------------- combobox kota/kabupaten ------------------------ */
-/** Ketik untuk mencari (daftar instan + tetap boleh ketik manual). */
-function CityCombobox({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-  const [open, setOpen] = useState(false);
-  const [q, setQ] = useState(value);
-  const results = searchCities(q);
-  const pick = (c: string) => {
-    onChange(c);
-    setQ(c);
-    setOpen(false);
-  };
-  return (
-    <div className="relative">
-      <Input
-        value={q}
-        onChange={(e) => {
-          setQ(e.target.value);
-          onChange(e.target.value);
-          setOpen(true);
-        }}
-        onFocus={() => setOpen(true)}
-        onBlur={() => window.setTimeout(() => setOpen(false), 150)}
-        placeholder="Ketik kota…"
-        autoComplete="off"
-        className="pr-9"
-        aria-label="Kota atau kabupaten"
-      />
-      <Icon
-        name="search"
-        size={15}
-        className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-faint"
-      />
-      {open &&
-        (results.length > 0 ? (
-          <ul className="absolute inset-x-0 top-full z-30 mt-1 max-h-52 overflow-y-auto rounded-md border border-line bg-white py-1 shadow-lift">
-            {results.map((c) => (
-              <li key={c}>
-                <button
-                  type="button"
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => pick(c)}
-                  className="flex w-full items-center px-3 py-2 text-left text-[13.5px] text-ink hover:bg-brand-50"
-                >
-                  <Icon name="pin" size={14} className="mr-2 shrink-0 text-faint" />
-                  {c}
-                </button>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          q.trim() && (
-            <div className="absolute inset-x-0 top-full z-30 mt-1 rounded-md border border-line bg-white px-3 py-2 text-[12.5px] text-muted shadow-lift">
-              Tidak ketemu — ketikanmu tetap dipakai.
-            </div>
-          )
-        ))}
-    </div>
-  );
-}
-
 export function Checkout() {
   const { cart, toast, promo, clear } = useApp();
   const [form, setForm] = useState({
@@ -2568,6 +2571,126 @@ export function OrderSuccess({ orderId, token }: { orderId: string; token: strin
   );
 }
 
+/* --------------------------- form ulasan order --------------------------- */
+/** Kirim ulasan per barang (hanya order selesai + token valid, 1x per order). */
+function OrderReviewForm({ orderId, token, items }: {
+  orderId: string; token: string;
+  items: { id?: string | null; name: string }[];
+}) {
+  const { toast } = useApp();
+  const [picked, setPicked] = useState("");
+  const [stars, setStars] = useState(5);
+  const [text, setText] = useState("");
+  const [sending, setSending] = useState(false);
+  const [sent, setSent] = useState<string[]>([]);
+  const [mine, setMine] = useState<{ rating: number; comment: string } | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      const { data } = await supabase.rpc("order_review", { p_order_id: orderId, p_token: token });
+      if (!alive) return;
+      setMine((data as { rating: number; comment: string } | null) ?? null);
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [orderId, token]);
+
+  const submit = async () => {
+    if (!picked) {
+      toast("Pilih dulu barang yang mau diulas.", "bad");
+      return;
+    }
+    if (text.trim().length < 3) {
+      toast("Tulis komentar minimal 3 karakter.", "bad");
+      return;
+    }
+    setSending(true);
+    try {
+      const { error } = await supabase.rpc("submit_review", {
+        p_order_id: orderId,
+        p_token: token,
+        p_product_id: picked,
+        p_rating: stars,
+        p_comment: text.trim().slice(0, 500),
+      });
+      if (error) {
+        const msg = (error.message ?? "").toUpperCase();
+        if (msg.includes("SUDAH_ULAS")) toast("Order ini sudah pernah diulas.", "warn");
+        else if (msg.includes("BELUM_SELESAI")) toast("Ulasan bisa dikirim setelah pesanan selesai.", "bad");
+        else toast("Gagal mengirim ulasan.", "bad");
+        return;
+      }
+      setSent((s) => [...s, picked]);
+      setPicked("");
+      setText("");
+      setStars(5);
+      toast("Terima kasih atas ulasannya!");
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const rest = items.filter((it) => it.id && !sent.includes(it.id));
+  return (
+    <div className="rounded-xl border border-line bg-white p-5">
+      <div className="micro mb-1 text-faint">Ulasan pembeli</div>
+      {mine ? (
+        <p className="text-[13.5px] leading-relaxed text-muted">
+          Ulasanmu: <span className="tnum font-bold text-ink">{"★".repeat(mine.rating)}{"☆".repeat(5 - mine.rating)}</span>
+          {" — "}{mine.comment}
+        </p>
+      ) : rest.length === 0 ? (
+        <p className="text-[13.5px] leading-relaxed text-muted">
+          {sent.length > 0 ? "Semua barang di order ini sudah diulas. Terima kasih!" : "Pilih barang di bawah untuk memberi ulasan."}
+        </p>
+      ) : (
+        <div className="space-y-3">
+          <div className="flex flex-wrap gap-2">
+            {rest.map((it) => (
+              <button
+                key={it.id ?? it.name}
+                onClick={() => setPicked(it.id ?? "")}
+                className={cx(
+                  "rounded-md border px-3 py-2 text-[13px] font-semibold transition-colors",
+                  picked === it.id ? "border-brand-500 bg-brand-50 text-brand-700" : "border-line text-muted hover:border-brand-300",
+                )}
+              >
+                {it.name}
+              </button>
+            ))}
+          </div>
+          <div className="flex items-center gap-1.5" role="radiogroup" aria-label="Rating">
+            {[1, 2, 3, 4, 5].map((s) => (
+              <button
+                key={s}
+                role="radio"
+                aria-checked={stars === s}
+                aria-label={`${s} bintang`}
+                onClick={() => setStars(s)}
+                style={{ background: "none", border: "none", cursor: "pointer", fontSize: 26, color: s <= stars ? "#B45309" : "#CBD5E1", padding: 2 }}
+              >
+                ★
+              </button>
+            ))}
+          </div>
+          <Textarea
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            placeholder="Ceritakan barangnya… (maks 500 karakter)"
+            rows={3}
+            maxLength={500}
+          />
+          <Button size="sm" loading={sending} onClick={submit} disabled={!picked}>
+            Kirim ulasan
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* -------------------------------- tracking -------------------------------- */
 export function OrderTracking({ id }: { id: string }) {
   const { toast } = useApp();
@@ -2580,7 +2703,7 @@ export function OrderTracking({ id }: { id: string }) {
     channel: string | null; wa_url?: string | null;
     created_at: string; buyer: string; city: string | null;
     store: string | null; slug: string | null;
-    items: { name: string; qty: number; price: number | string }[];
+    items: { id?: string | null; name: string; qty: number; price: number | string }[];
   };
   const [order, setOrder] = useState<Tracked | null>(null);
   const [loading, setLoading] = useState(true);
@@ -2704,6 +2827,10 @@ export function OrderTracking({ id }: { id: string }) {
                 ))}
               </ol>
             </div>
+
+            {order.status === "selesai" && (
+              <OrderReviewForm orderId={orderId} token={token} items={order.items} />
+            )}
 
             <div className="rounded-xl border border-line bg-white p-5">
               <div className="micro mb-3 text-faint">Isi pesanan</div>
