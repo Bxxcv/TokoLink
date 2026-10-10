@@ -97,9 +97,11 @@ export default async function handler(req: any, res: any) {
     if (r.ok) {
       sent = true;
     } else {
+      console.error("[request-reset] Brevo", r.status, (await r.text()).slice(0, 300));
       await db.from("password_resets").update({ used: true }).eq("email", email).eq("used", false);
     }
-  } catch {
+  } catch (e) {
+    console.error("[request-reset] fetch gagal", String(e).slice(0, 200));
     await db.from("password_resets").update({ used: true }).eq("email", email).eq("used", false);
   }
   return json(res, { ok: true, sent });
