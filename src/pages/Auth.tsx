@@ -474,8 +474,13 @@ export function Forgot() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ email: email.trim() }),
       });
-      if (!res.ok) {
+      const out = (await res.json().catch(() => ({}))) as { ok?: boolean; sent?: boolean };
+      if (!res.ok || !out.ok) {
         setErr("Tidak bisa mengirim kode. Coba lagi.");
+        return;
+      }
+      if (!out.sent) {
+        setErr("Email gagal dikirim dari server. Coba lagi 1 menit.");
         return;
       }
       setSent(true);

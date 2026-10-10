@@ -82,6 +82,7 @@ export default async function handler(req: any, res: any) {
     `</div><p style="text-align:center;font-size:12px;color:#8A94A0;">Butuh bantuan? WA 085191245042 · supporttokolink@gmail.com</p>` +
     `</div></div>`;
 
+  let sent = false;
   try {
     const r = await fetch("https://api.brevo.com/v3/smtp/email", {
       method: "POST",
@@ -93,11 +94,13 @@ export default async function handler(req: any, res: any) {
         htmlContent: html,
       }),
     });
-    if (!r.ok) {
+    if (r.ok) {
+      sent = true;
+    } else {
       await db.from("password_resets").update({ used: true }).eq("email", email).eq("used", false);
     }
   } catch {
     await db.from("password_resets").update({ used: true }).eq("email", email).eq("used", false);
   }
-  return json(res, { ok: true });
+  return json(res, { ok: true, sent });
 }
