@@ -241,10 +241,10 @@ referensi itu.
 ---
 
 ## Backlog (di luar urutan fase, jangan dikerjakan sampai diminta eksplisit)
-- [ ] **Kolom `profiles` yang belum ada tapi dipakai di StoreSettings**:
-      kategori, bio, alamat, email tampilan publik. Butuh migrasi baru
-      (`database/migrate_faseX.sql`) — **usulkan struktur kolomnya ke
-      user dulu**, jangan langsung eksekusi.
+- [x] **Kolom `profiles` yang belum ada tapi dipakai di StoreSettings**:
+      **Diverifikasi 10 Okt 2026: TIDAK ADA yang kurang** — semua field
+      form (nama, slug, kategori, kota, WA, bio, alamat) sudah ada
+      kolomnya. Tidak perlu migrasi.
 - [ ] **Multi-toko dalam 1 akun** (1 user kelola beberapa store) —
       PENTING menurut user, tapi butuh redesain skema (`stores` terpisah
       dari `profiles`). Kerjakan sebagai proyek tersendiri setelah Fase
