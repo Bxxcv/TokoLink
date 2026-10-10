@@ -453,6 +453,15 @@ export function Forgot() {
   const [err, setErr] = useState("");
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
+  const [code, setCode] = useState("");
+  const [pw, setPw] = useState({ baru: "", ulang: "" });
+  const [cool, setCool] = useState(0);
+
+  useEffect(() => {
+    if (cool <= 0) return;
+    const t = window.setTimeout(() => setCool((c) => c - 1), 1000);
+    return () => window.clearTimeout(t);
+  }, [cool]);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -460,11 +469,45 @@ export function Forgot() {
     setErr("");
     setLoading(true);
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-        redirectTo: window.location.origin + "/reset",
+      const res = await fetch("/api/request-reset", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ email: email.trim() }),
       });
-      if (error) return setErr(friendlyAuthError(error.message));
+      if (!res.ok) {
+        setErr("Tidak bisa mengirim kode. Coba lagi.");
+        return;
+      }
       setSent(true);
+      setCool(60);
+    } catch {
+      setErr("Tidak bisa menghubungi server.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const confirm = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (code.replace(/\D/g, "").length !== 6) return setErr("Kode 6 digit dari email.");
+    if (pw.baru.length < 8) return setErr("Kata sandi minimal 8 karakter.");
+    if (pw.baru !== pw.ulang) return setErr("Ulangi kata sandi tidak sama.");
+    setErr("");
+    setLoading(true);
+    try {
+      const res = await fetch("/api/confirm-reset", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ email: email.trim(), code, newPassword: pw.baru }),
+      });
+      const out = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
+      if (!res.ok || !out.ok) {
+        setErr(out.error ?? "Gagal mengganti. Coba lagi.");
+        return;
+      }
+      navigate("/login");
+    } catch {
+      setErr("Tidak bisa menghubungi server.");
     } finally {
       setLoading(false);
     }
@@ -474,11 +517,11 @@ export function Forgot() {
     <AuthLayout
       index="03"
       kicker="Lupa kata sandi"
-      title={sent ? "Tautan sudah dikirim." : "Atur ulang kata sandi."}
+      title={sent ? "Cek email Anda." : "Atur ulang kata sandi."}
       lead={
         sent
-          ? "Kami sudah mengirim tautan pengganti. Tautan berlaku 30 menit."
-          : "Masukkan email yang terdaftar. Kami kirim tautan untuk mengganti kata sandi."
+          ? "Masukkan kode 6 digit + kata sandi baru di bawah."
+          : "Masukkan email yang terdaftar. Kami kirim kode untuk mengganti kata sandi."
       }
       footer={
         <>
@@ -490,26 +533,70 @@ export function Forgot() {
       }
     >
       {sent ? (
-        <div className="text-center">
-          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-lg bg-oksoft text-ok">
-            <Icon name="mail" size={26} />
-          </div>
-          <p className="mt-5 text-[15px] leading-relaxed text-ink">
-            Cek kotak masuk <span className="font-bold">{email}</span> dan folder spam. Tautan reset dikirim
-            dari alamat email notifikasi TokoLink.
+        <form onSubmit={confirm} className="space-y-4" noValidate>
+          <p className="text-[14px] leading-relaxed text-muted">
+            Kode 6 digit dikirim ke <span className="font-bold text-ink">{email}</span> (berlaku 10 menit).
           </p>
-          <div className="mt-6 space-y-2.5">
-            <Button variant="secondary" className="w-full" onClick={() => setSent(false)}>
-              <Icon name="refresh" size={16} /> Kirim ulang email
-            </Button>
-            <ButtonLink to="/login" className="w-full">
-              Kembali ke halaman masuk
+          <Field label="Kode dari email" error={err} required>
+            <Input
+              value={code}
+              inputMode="numeric"
+              onChange={(e) => {
+                setCode(e.target.value.replace(/\D/g, "").slice(0, 6));
+                setErr("");
+              }}
+              placeholder="123456"
+              className="tnum text-center text-[20px] font-bold tracking-[0.3em]"
+              autoComplete="one-time-code"
+            />
+          </Field>
+          <Field label="Kata sandi baru" required>
+            <Input
+              type="password"
+              value={pw.baru}
+              autoComplete="new-password"
+              onChange={(e) => {
+                setPw((x) => ({ ...x, baru: e.target.value }));
+                setErr("");
+              }}
+              placeholder="••••••••"
+            />
+          </Field>
+          <Field label="Ulangi kata sandi baru" required>
+            <Input
+              type="password"
+              value={pw.ulang}
+              autoComplete="new-password"
+              onChange={(e) => {
+                setPw((x) => ({ ...x, ulang: e.target.value }));
+                setErr("");
+              }}
+              placeholder="••••••••"
+            />
+          </Field>
+          <Button type="submit" size="lg" loading={loading} className="w-full">
+            {loading ? "Menyimpan…" : "Ganti kata sandi"}
+          </Button>
+          <div className="flex items-center justify-between">
+            <button
+              type="button"
+              disabled={cool > 0 || loading}
+              onClick={(e) => {
+                e.preventDefault();
+                setSent(false);
+              }}
+              className="text-[13px] font-semibold text-muted underline underline-offset-4 disabled:opacity-45"
+            >
+              {cool > 0 ? `Kirim ulang (${cool}s)` : "Kirim ulang kode"}
+            </button>
+            <ButtonLink to="/login" variant="link" size="sm">
+              Kembali masuk
             </ButtonLink>
           </div>
           <p className="mt-4 text-[13px] text-faint">
-            Tidak menerima email setelah 5 menit? Cek folder spam atau hubungi admin (WA 085191245042 / supporttokolink@gmail.com).
+            Tidak menerima email? Cek spam atau hubungi admin (WA 085191245042).
           </p>
-        </div>
+        </form>
       ) : (
         <form onSubmit={submit} className="space-y-4" noValidate>
           <Field label="Email terdaftar" error={err} required>
@@ -526,13 +613,13 @@ export function Forgot() {
             />
           </Field>
           <Button type="submit" size="lg" loading={loading} className="w-full">
-            {loading ? "Mengirim…" : "Kirim tautan reset"}
+            {loading ? "Mengirim…" : "Kirim kode reset"}
           </Button>
           <div className="rounded-md border border-line bg-canvas p-3.5">
             <div className="flex items-start gap-2.5">
               <Icon name="info" size={16} className="mt-0.5 shrink-0 text-brand-600" />
               <p className="text-[13px] leading-relaxed text-muted">
-                Kata sandi lama tetap berlaku sampai Anda menggantinya lewat tautan yang kami kirim.
+                Kata sandi lama tetap berlaku sampai Anda menggantinya dengan kode yang kami kirim.
               </p>
             </div>
           </div>
