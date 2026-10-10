@@ -9,20 +9,23 @@ function json(res: any, data: unknown, status = 200) {
   return res.status(status).json(data);
 }
 
+function parseBody(req: any): { order_id?: string; access_token?: string } | null {
+  try {
+    const b = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
+    if (!b || typeof b !== "object") return null;
+    return b as { order_id?: string; access_token?: string };
+  } catch {
+    return null;
+  }
+}
+
 export default async function handler(req: any, res: any) {
   if (req.method !== "POST") return json(res, { error: "Method tidak didukung." }, 405);
 
-  let body: {
-    order_id?: string;
-    access_token?: string;
-  } | null = null;
-  try {
-    body = (typeof req.body === "string" ? JSON.parse(req.body) : req.body) as typeof body;
-  } catch {
-    return json(res, { error: "Data tidak valid." }, 400);
-  }
-  const orderId = String(body?.order_id ?? "").trim().slice(0, 32);
-  const token = String(body?.access_token ?? "").trim().slice(0, 64);
+  const body = parseBody(req);
+  if (!body) return json(res, { error: "Data tidak valid." }, 400);
+  const orderId = String(body.order_id ?? "").trim().slice(0, 32);
+  const token = String(body.access_token ?? "").trim().slice(0, 64);
   if (!orderId || !token) return json(res, { error: "Data tidak lengkap." }, 400);
 
   const url = process.env.SUPABASE_URL;

@@ -14,6 +14,30 @@ import { createClient } from "@supabase/supabase-js";
 
 type CartLine = { product_id: string; qty: number };
 
+type OrderBody = {
+  seller_id?: string;
+  buyer_name?: string;
+  buyer_phone?: string;
+  buyer_city?: string;
+  buyer_address?: string;
+  buyer_note?: string;
+  channel?: string;
+  cart?: CartLine[];
+  promo_code?: string;
+  shipping_method?: string;
+  idempotency_key?: string;
+};
+
+function parseBody(req: any): OrderBody | null {
+  try {
+    const b = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
+    if (!b || typeof b !== "object") return null;
+    return b as OrderBody;
+  } catch {
+    return null;
+  }
+}
+
 function json(res: any, data: unknown, status = 200) {
   return res.status(status).json(data);
 }
@@ -54,27 +78,11 @@ export default async function handler(req: any, res: any) {
     if (cur.n > 30) return json(res, { error: "Terlalu banyak percobaan." }, 429);
   }
 
-  let body: {
-    seller_id?: string;
-    buyer_name?: string;
-    buyer_phone?: string;
-    buyer_city?: string;
-    buyer_address?: string;
-    buyer_note?: string;
-    channel?: string;
-    cart?: CartLine[];
-    promo_code?: string;
-    shipping_method?: string;
-    idempotency_key?: string;
-  } | null = null;
-  try {
-    body = (typeof req.body === "string" ? JSON.parse(req.body) : req.body) as typeof body;
-  } catch {
-    return json(res, { error: "Data pesanan tidak valid." }, 400);
-  }
+  const body = parseBody(req);
+  if (!body) return json(res, { error: "Data pesanan tidak valid." }, 400);
 
-  const cart = Array.isArray(body?.cart) ? body!.cart!.slice(0, 50) : [];
-  if (!body?.buyer_name || cart.length === 0) {
+  const cart = Array.isArray(body.cart) ? body.cart.slice(0, 50) : [];
+  if (!body.buyer_name || cart.length === 0) {
     return json(res, { error: "Data pesanan tidak lengkap." }, 400);
   }
   // Batas field (anti-spam raksasa).
@@ -167,8 +175,6 @@ export default async function handler(req: any, res: any) {
   if (s.is_closed) return json(res, { error: "Toko sedang tutup. Coba lagi nanti." }, 400);
 
   // 3) Tanpa ongkir: total = subtotal - diskon (pengiriman via chat).
-  const shipping = 0;
-  const shipDisc = 0;
 
   // 4) Promo server-side + kuota atomik. Promo ongkir sudah tidak berlaku.
   let discount = 0;

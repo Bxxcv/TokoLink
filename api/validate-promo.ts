@@ -9,26 +9,34 @@ function json(res: any, data: unknown, status = 200) {
   return res.status(status).json(data);
 }
 
+type PromoBody = {
+  seller_id?: string;
+  code?: string;
+  subtotal?: number;
+  shipping_method?: string;
+};
+
+function parsePromoBody(req: any): PromoBody | null {
+  try {
+    const b = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
+    if (!b || typeof b !== "object") return null;
+    return b as PromoBody;
+  } catch {
+    return null;
+  }
+}
+
 /* Ongkir dihapus (keputusan produk Okt 2026). */
 
 export default async function handler(req: any, res: any) {
   if (req.method !== "POST") return json(res, { error: "Method tidak didukung." }, 405);
 
-  let body: {
-    seller_id?: string;
-    code?: string;
-    subtotal?: number;
-    shipping_method?: string;
-  } | null = null;
-  try {
-    body = (typeof req.body === "string" ? JSON.parse(req.body) : req.body) as typeof body;
-  } catch {
-    return json(res, { ok: false, message: "Data tidak valid." });
-  }
+  const body = parsePromoBody(req);
+  if (!body) return json(res, { ok: false, message: "Data tidak valid." });
 
-  const sellerId = String(body?.seller_id ?? "");
-  const code = String(body?.code ?? "").trim().slice(0, 40);
-  const subtotal = Math.max(0, Math.round(Number(body?.subtotal ?? 0)));
+  const sellerId = String(body.seller_id ?? "");
+  const code = String(body.code ?? "").trim().slice(0, 40);
+  const subtotal = Math.max(0, Math.round(Number(body.subtotal ?? 0)));
 
   if (!sellerId || !code) return json(res, { ok: false, message: "Kode belum diisi." });
 
