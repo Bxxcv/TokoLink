@@ -45,6 +45,7 @@ import {
 import { BarRows, ChartFrame, LineChart } from "../components/charts";
 import { THEMES, isEngineTheme, themeName } from "../storefront/registry";
 import { StatCard } from "./DashboardA";
+import { EyeButton } from "./Auth";
 import { QRMark } from "./Landing";
 
 /* ================================== WALLET ================================= */
@@ -2497,6 +2498,7 @@ export function AccountSettings() {
   const [saving, setSaving] = useState(false);
   const [pw, setPw] = useState({ baru: "", ulang: "" });
   const [pwErr, setPwErr] = useState("");
+  const [showPw, setShowPw] = useState(false);
   const [pwLoading, setPwLoading] = useState(false);
   const [avaLoading, setAvaLoading] = useState(false);
   const initialized = useRef(false);
@@ -2616,30 +2618,44 @@ export function AccountSettings() {
           <Card>
             <CardHead title="Kata sandi" sub="Minimal 8 karakter, campur angka dan huruf" icon="lock" />
             <div className="grid gap-4 sm:max-w-md">
-              <Field label="Kata sandi baru" required error={pwErr}>
-                <Input
-                  type="password"
-                  value={pw.baru}
-                  autoComplete="new-password"
-                  onChange={(e) => {
-                    setPw((x) => ({ ...x, baru: e.target.value }));
-                    setPwErr("");
-                  }}
-                  placeholder="••••••••"
-                />
+              <Field label="Kata sandi baru" required>
+                <div className="relative">
+                  <Input
+                    type={showPw ? "text" : "password"}
+                    value={pw.baru}
+                    autoComplete="new-password"
+                    onChange={(e) => {
+                      setPw((x) => ({ ...x, baru: e.target.value }));
+                      setPwErr("");
+                    }}
+                    placeholder="••••••••"
+                    className="pr-11"
+                  />
+                  <EyeButton open={showPw} onToggle={() => setShowPw((s) => !s)} />
+                </div>
               </Field>
               <Field label="Ulangi kata sandi baru" required>
-                <Input
-                  type="password"
-                  value={pw.ulang}
-                  autoComplete="new-password"
-                  onChange={(e) => {
-                    setPw((x) => ({ ...x, ulang: e.target.value }));
-                    setPwErr("");
-                  }}
-                  placeholder="••••••••"
-                />
+                <div className="relative">
+                  <Input
+                    type={showPw ? "text" : "password"}
+                    value={pw.ulang}
+                    autoComplete="new-password"
+                    onChange={(e) => {
+                      setPw((x) => ({ ...x, ulang: e.target.value }));
+                      setPwErr("");
+                    }}
+                    placeholder="••••••••"
+                    className="pr-11"
+                  />
+                  <EyeButton open={showPw} onToggle={() => setShowPw((s) => !s)} />
+                </div>
               </Field>
+              {pwErr && (
+                <div className="flex items-start gap-2.5 rounded-md border border-[#F6CFCF] bg-badsoft px-3.5 py-2.5 text-[13px] text-bad">
+                  <Icon name="alert" size={15} className="mt-0.5 shrink-0" />
+                  {pwErr}
+                </div>
+              )}
               <div>
                 <Button
                   variant="secondary"

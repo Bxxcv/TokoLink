@@ -45,6 +45,9 @@ export default async function handler(req: any, res: any) {
       (req.headers["x-vercel-forwarded-for"] as string | undefined)?.split(",")[0]?.trim() ||
       "unknown");
   if (hit(g.__rrHits, `ip:${ip}`, 20) || hit(g.__rrHits, `em:${email}`, 3)) {
+    // Rate-limit: tetap balas ok (anti-enumerasi), tapi catat di log server
+    // supaya bisa dibedakan dari kegagalan Brevo. Tanpa email/IP (privasi).
+    console.warn("[request-reset] rate-limit tercapai, kode tidak dikirim");
     return json(res, { ok: true });
   }
 
@@ -52,7 +55,12 @@ export default async function handler(req: any, res: any) {
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   const brevoKey = process.env.BREVO_API_KEY;
   const sender = process.env.BREVO_SENDER_EMAIL ?? "supporttokolink@gmail.com";
-  if (!url || !key || !brevoKey) return json(res, { ok: true });
+  if (!url || !key || !brevoKey) {
+    // Env server belum lengkap: tanpa log ini, gejalanya identik dengan
+    // Brevo gagal (frontend sama-sama "gagal dikirim") dan tak terlacak.
+    console.error("[request-reset] env belum lengkap: cek SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, BREVO_API_KEY di Vercel");
+    return json(res, { ok: true });
+  }
 
   const db = createClient(url, key, { auth: { persistSession: false } });
 
@@ -66,7 +74,12 @@ export default async function handler(req: any, res: any) {
     code_hash: codeHash,
     expires_at: expires,
   });
-  if (insErr) return json(res, { ok: true });
+  if (insErr) {
+    // Gagal simpan kode (mis. tabel belum dimigrasi): tanpa log ini,
+    // gejalanya identik dengan Brevo gagal dan tak terlacak.
+    console.error("[request-reset] DB insert gagal", insErr.code ?? "", String(insErr.message).slice(0, 120));
+    return json(res, { ok: true });
+  }
 
   const html =
     `<div style="margin:0;padding:0;background:#F2F5F9;font-family:Arial,Helvetica,sans-serif;">` +

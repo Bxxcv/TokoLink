@@ -67,11 +67,20 @@ export default async function handler(req: any, res: any) {
     return json(res, { error: "Kode salah. Coba lagi." }, 400);
   }
 
-  // Cari user by email (service_role boleh list).
-  const { data: listed } = await db.auth.admin.listUsers();
-  const target = ((listed?.users ?? []) as { id: string; email?: string }[]).find(
-    (u) => (u.email ?? "").toLowerCase() === email,
-  );
+  // Cari user by email (service_role boleh list). listUsers tampil per
+  // halaman, jadi loop sampai ketemu — kalau seller sudah ratusan, user
+  // lama ada di halaman belakang dan pencarian 1 halaman akan gagal terus.
+  let target: { id: string; email?: string } | null = null;
+  for (let page = 1; page <= 50; page++) {
+    const { data: listed, error: listErr } = await db.auth.admin.listUsers({ page, perPage: 100 });
+    const users = ((listed?.users ?? []) as { id: string; email?: string }[]);
+    const hit = users.find((u) => (u.email ?? "").toLowerCase() === email);
+    if (hit) {
+      target = hit;
+      break;
+    }
+    if (listErr || users.length === 0) break;
+  }
   if (!target) {
     await db.from("password_resets").update({ used: true }).eq("id", rec.id);
     return json(res, { error: "Kode salah. Coba lagi." }, 400);

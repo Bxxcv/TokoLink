@@ -97,7 +97,7 @@ function AuthLayout({
 }
 
 /* -------- tombol mata password: mata tercoret ⇄ terbuka, animasi morph -------- */
-function EyeButton({ open, onToggle }: { open: boolean; onToggle: () => void }) {
+export function EyeButton({ open, onToggle }: { open: boolean; onToggle: () => void }) {
   return (
     <button
       type="button"
@@ -136,6 +136,19 @@ export function Login() {
   const [err, setErr] = useState("");
   const [loading, setLoading] = useState(false);
   const [remember, setRemember] = useState(true);
+  const [notice, setNotice] = useState("");
+
+  // Habis ganti sandi via lupa-sandi → tunjukkan konfirmasi sekali saja.
+  useEffect(() => {
+    try {
+      if (sessionStorage.getItem("tl_pw_changed") === "1") {
+        sessionStorage.removeItem("tl_pw_changed");
+        setNotice("Kata sandi baru sudah aktif. Masuk dengan kata sandi baru Anda.");
+      }
+    } catch {
+      /* abaikan */
+    }
+  }, []);
 
   const { session, loading: authLoading, role } = useAuth();
   useEffect(() => {
@@ -179,7 +192,13 @@ export function Login() {
       }
     >
       <form onSubmit={submit} className="space-y-4" noValidate>
-        <Field label="Email atau nomor WhatsApp" error={err}>
+        {notice && !err && (
+          <div className="flex items-start gap-2.5 rounded-md border border-[#BFE6D4] bg-oksoft px-3.5 py-2.5 text-[13px] text-[#0a7a55]">
+            <Icon name="check" size={15} className="mt-0.5 shrink-0" />
+            {notice}
+          </div>
+        )}
+        <Field label="Email terdaftar" error={err}>
           <Input
             type="text"
             value={email}
@@ -390,7 +409,7 @@ export function Register() {
           <span className="tnum truncate text-[13px] font-semibold text-navy-800">tokolink.store/{slug}</span>
         </div>
 
-        <Field label="Email atau nomor WhatsApp" error={err.contact} required>
+        <Field label="Email aktif" error={err.contact} required>
           <Input
             value={contact}
             invalid={!!err.contact}
@@ -398,7 +417,7 @@ export function Register() {
               setContact(e.target.value);
               setErr((x) => ({ ...x, contact: "" }));
             }}
-            placeholder="0812xxxxxxx"
+            placeholder="nama@contoh.com"
           />
         </Field>
 
@@ -455,6 +474,7 @@ export function Forgot() {
   const [sent, setSent] = useState(false);
   const [code, setCode] = useState("");
   const [pw, setPw] = useState({ baru: "", ulang: "" });
+  const [showPw, setShowPw] = useState(false);
   const [cool, setCool] = useState(0);
 
   useEffect(() => {
@@ -510,6 +530,11 @@ export function Forgot() {
         setErr(out.error ?? "Gagal mengganti. Coba lagi.");
         return;
       }
+      try {
+        sessionStorage.setItem("tl_pw_changed", "1");
+      } catch {
+        /* abaikan */
+      }
       navigate("/login");
     } catch {
       setErr("Tidak bisa menghubungi server.");
@@ -542,7 +567,7 @@ export function Forgot() {
           <p className="text-[14px] leading-relaxed text-muted">
             Kode 6 digit dikirim ke <span className="font-bold text-ink">{email}</span> (berlaku 10 menit).
           </p>
-          <Field label="Kode dari email" error={err} required>
+          <Field label="Kode dari email" required>
             <Input
               value={code}
               inputMode="numeric"
@@ -556,29 +581,43 @@ export function Forgot() {
             />
           </Field>
           <Field label="Kata sandi baru" required>
-            <Input
-              type="password"
-              value={pw.baru}
-              autoComplete="new-password"
-              onChange={(e) => {
-                setPw((x) => ({ ...x, baru: e.target.value }));
-                setErr("");
-              }}
-              placeholder="••••••••"
-            />
+            <div className="relative">
+              <Input
+                type={showPw ? "text" : "password"}
+                value={pw.baru}
+                autoComplete="new-password"
+                onChange={(e) => {
+                  setPw((x) => ({ ...x, baru: e.target.value }));
+                  setErr("");
+                }}
+                placeholder="••••••••"
+                className="pr-11"
+              />
+              <EyeButton open={showPw} onToggle={() => setShowPw((s) => !s)} />
+            </div>
           </Field>
           <Field label="Ulangi kata sandi baru" required>
-            <Input
-              type="password"
-              value={pw.ulang}
-              autoComplete="new-password"
-              onChange={(e) => {
-                setPw((x) => ({ ...x, ulang: e.target.value }));
-                setErr("");
-              }}
-              placeholder="••••••••"
-            />
+            <div className="relative">
+              <Input
+                type={showPw ? "text" : "password"}
+                value={pw.ulang}
+                autoComplete="new-password"
+                onChange={(e) => {
+                  setPw((x) => ({ ...x, ulang: e.target.value }));
+                  setErr("");
+                }}
+                placeholder="••••••••"
+                className="pr-11"
+              />
+              <EyeButton open={showPw} onToggle={() => setShowPw((s) => !s)} />
+            </div>
           </Field>
+          {err && (
+            <div className="flex items-start gap-2.5 rounded-md border border-[#F6CFCF] bg-badsoft px-3.5 py-2.5 text-[13px] text-bad">
+              <Icon name="alert" size={15} className="mt-0.5 shrink-0" />
+              {err}
+            </div>
+          )}
           <Button type="submit" size="lg" loading={loading} className="w-full">
             {loading ? "Menyimpan…" : "Ganti kata sandi"}
           </Button>
@@ -638,6 +677,7 @@ export function Forgot() {
 export function ResetPassword() {
   const [pw, setPw] = useState({ baru: "", ulang: "" });
   const [err, setErr] = useState("");
+  const [showPw, setShowPw] = useState(false);
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
   const [ready, setReady] = useState(false);
@@ -706,35 +746,49 @@ export function ResetPassword() {
             Memeriksa tautan… buka halaman ini dari link di email (jangan ketik manual).
           </p>
           <ButtonLink to="/forgot" variant="secondary" className="w-full">
-            Minta tautan baru
+            Minta kode baru
           </ButtonLink>
         </div>
       ) : (
         <form onSubmit={submit} className="space-y-4" noValidate>
-          <Field label="Kata sandi baru" required error={err}>
-            <Input
-              type="password"
-              value={pw.baru}
-              autoComplete="new-password"
-              onChange={(e) => {
-                setPw((x) => ({ ...x, baru: e.target.value }));
-                setErr("");
-              }}
-              placeholder="••••••••"
-            />
+          <Field label="Kata sandi baru" required>
+            <div className="relative">
+              <Input
+                type={showPw ? "text" : "password"}
+                value={pw.baru}
+                autoComplete="new-password"
+                onChange={(e) => {
+                  setPw((x) => ({ ...x, baru: e.target.value }));
+                  setErr("");
+                }}
+                placeholder="••••••••"
+                className="pr-11"
+              />
+              <EyeButton open={showPw} onToggle={() => setShowPw((s) => !s)} />
+            </div>
           </Field>
           <Field label="Ulangi kata sandi baru" required>
-            <Input
-              type="password"
-              value={pw.ulang}
-              autoComplete="new-password"
-              onChange={(e) => {
-                setPw((x) => ({ ...x, ulang: e.target.value }));
-                setErr("");
-              }}
-              placeholder="••••••••"
-            />
+            <div className="relative">
+              <Input
+                type={showPw ? "text" : "password"}
+                value={pw.ulang}
+                autoComplete="new-password"
+                onChange={(e) => {
+                  setPw((x) => ({ ...x, ulang: e.target.value }));
+                  setErr("");
+                }}
+                placeholder="••••••••"
+                className="pr-11"
+              />
+              <EyeButton open={showPw} onToggle={() => setShowPw((s) => !s)} />
+            </div>
           </Field>
+          {err && (
+            <div className="flex items-start gap-2.5 rounded-md border border-[#F6CFCF] bg-badsoft px-3.5 py-2.5 text-[13px] text-bad">
+              <Icon name="alert" size={15} className="mt-0.5 shrink-0" />
+              {err}
+            </div>
+          )}
           <Button type="submit" size="lg" loading={loading} className="w-full">
             {loading ? "Menyimpan…" : "Simpan sandi baru"}
           </Button>
