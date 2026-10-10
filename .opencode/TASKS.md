@@ -288,7 +288,11 @@ referensi itu.
         kepemilikan order, bukan insert langsung ke tabel dari client
       - Rating di `ProductDetail` (sebelumnya hardcode "4,9 (86 ulasan)",
         SUDAH DIHAPUS 30 Sep 2026) baru boleh muncul lagi setelah fitur
-        ini beneran jalan dengan data asli
+        ini beneran jalan dengan data asli.
+      **SELESAI 10 Okt 2026:** tabel `reviews` + RPC `submit_review`
+      (token + selesai + 1/order) + `product_reviews`/`order_review`,
+      badge & daftar di `ProductDetail`, form di `OrderTracking`.
+      Perlu migrasi `database/migrate_reviews.sql`.
 - [ ] **Twitter Card / OG per-toko untuk seller Premium** — **DITUNDA
       10 Okt 2026:** `middleware.js` sempat dibuat tapi MENYEBABKAN
       `/reset` loop 508 di production → file dihapus. Butuh riset
@@ -304,6 +308,13 @@ referensi itu.
       grid/stacking konsisten dengan halaman lain yang sudah lolos cek
       responsif, belum ketemu elemen spesifik yang patah. **Butuh
       screenshot dari user** untuk pinpoint sebelum diperbaiki.
+- [ ] **Email kode OTP tak sampai (Brevo API 10 Okt 2026):** endpoint
+      `/api/request-reset` 200 tapi Brevo tidak kirim. Sudah dipastikan:
+      sender verified, kredensial benar, IP review dimatikan. Butuh isi
+      Runtime Log `[request-reset] Brevo` dari Vercel + pastikan
+      `BREVO_API_KEY` = key tab **API keys** (bukan SMTP) di env
+      Production + redeploy. Alur OTP (kode 6 digit, tabel
+      `password_resets`, halaman Forgot 2-langkah) sudah jadi di kode.
 - [x] **Brief desain Tema & Katalog** — SELESAI, dikerjakan arena.ai
       (mimo-v2.6-flash) bukan Lovable, hasilnya sudah di-port (lihat item
       "Tema toko (theme engine)" di Fase 5).
