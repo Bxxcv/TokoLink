@@ -191,6 +191,9 @@ export function BarChart({
   const max = Math.max(...data.map((d) => d.value), 1);
   const bw = (innerW / data.length) * 0.62;
   const step = innerW / data.length;
+  // Di HP/lebar sempit, 24 label jam saling tumpang tindih — tampilkan
+  // label tiap-N saja (pola sama dengan LineChart).
+  const labelStep = Math.max(1, Math.ceil(data.length / Math.max(2, Math.floor(innerW / 30))));
 
   return (
     <div ref={ref} className="relative w-full" style={{ height }}>
@@ -220,15 +223,17 @@ export function BarChart({
                   opacity={hover === null || hover === i ? 1 : 0.55}
                   className="transition-[fill,opacity] duration-150"
                 />
-                <text
-                  x={padL + i * step + step / 2}
-                  y={height - 6}
-                  textAnchor="middle"
-                  fontSize="10"
-                  className="fill-[#64748F] font-mono"
-                >
-                  {d.label}
-                </text>
+                {(i % labelStep === 0 || i === data.length - 1) && (
+                  <text
+                    x={padL + i * step + step / 2}
+                    y={height - 6}
+                    textAnchor={i === data.length - 1 && i % labelStep !== 0 ? "end" : "middle"}
+                    fontSize="10"
+                    className="fill-[#64748F] font-mono"
+                  >
+                    {d.label}
+                  </text>
+                )}
               </g>
             );
           })}

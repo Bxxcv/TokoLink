@@ -556,22 +556,22 @@ export function Analytics() {
         <div className="flex items-center justify-between gap-3 px-4 py-4 sm:px-5">
           <CardHead title="Rekap mingguan" sub="Siap dilaporkan ke pembukuan" />
         </div>
-        <TableWrap>
+        <TableWrap minW="min-w-[360px]">
           <thead>
             <tr>
               <Th>Minggu</Th>
               <Th className="text-right">Pesanan</Th>
               <Th className="text-right">Omzet</Th>
-              <Th className="text-right">Selesai</Th>
+              <Th className="hidden text-right sm:table-cell">Selesai</Th>
             </tr>
           </thead>
           <tbody>
             {weeks.map((r) => (
               <tr key={r.w} className="transition-colors hover:bg-canvas/70">
-                <Td className="font-semibold text-ink">{r.w}</Td>
+                <Td className="whitespace-nowrap font-semibold text-ink">{r.w}</Td>
                 <Td className="tnum text-right">{r.n}</Td>
                 <Td className="tnum text-right font-semibold">{rupiah(r.omz)}</Td>
-                <Td className="tnum text-right font-semibold text-brand-700">{r.done}</Td>
+                <Td className="tnum hidden text-right font-semibold text-brand-700 sm:table-cell">{r.done}</Td>
               </tr>
             ))}
           </tbody>

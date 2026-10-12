@@ -734,10 +734,10 @@ export function Segmented({
 }
 
 /* --------------------------------- table ---------------------------------- */
-export function TableWrap({ children, className = "" }: { children: ReactNode; className?: string }) {
+export function TableWrap({ children, className = "", minW = "min-w-[560px]" }: { children: ReactNode; className?: string; minW?: string }) {
   return (
     <div className={cx("tl-scroll -mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0", className)}>
-      <table className="w-full min-w-[560px] border-collapse text-left">{children}</table>
+      <table className={cx("w-full border-collapse text-left", minW)}>{children}</table>
     </div>
   );
 }
