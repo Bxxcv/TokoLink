@@ -734,9 +734,13 @@ export function Segmented({
 }
 
 /* --------------------------------- table ---------------------------------- */
-export function TableWrap({ children, className = "", minW = "min-w-[560px]" }: { children: ReactNode; className?: string; minW?: string }) {
+export function TableWrap({ children, className = "", minW = "" }: { children: ReactNode; className?: string; minW?: string }) {
   return (
     <div className={cx("tl-scroll -mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0", className)}>
+      {/* Tanpa min-width paksa: di HP kolom ikut mengecil & teks wrap,
+          jadi tidak ada tulisan kepotong. Tabel yang butuh lebar khusus
+          bisa lewat prop minW. overflow-x-auto tetap jadi jaring
+          pengaman kalau isinya benar-benar tidak muat. */}
       <table className={cx("w-full border-collapse text-left", minW)}>{children}</table>
     </div>
   );
@@ -744,14 +748,14 @@ export function TableWrap({ children, className = "", minW = "min-w-[560px]" }: 
 
 export function Th({ children, className = "" }: { children?: ReactNode; className?: string }) {
   return (
-    <th className={cx("micro border-b border-line pb-2.5 pr-4 text-faint last:pr-0", className)}>
+    <th className={cx("micro whitespace-nowrap border-b border-line pb-2.5 pr-2.5 text-faint last:pr-0 sm:pr-4", className)}>
       {children}
     </th>
   );
 }
 
 export function Td({ children, className = "" }: { children?: ReactNode; className?: string }) {
-  return <td className={cx("border-b border-linesoft py-3 pr-4 align-middle last:pr-0", className)}>{children}</td>;
+  return <td className={cx("border-b border-linesoft py-2.5 pr-2.5 align-middle last:pr-0 sm:py-3 sm:pr-4", className)}>{children}</td>;
 }
 
 /* --------------------------------- modal ---------------------------------- */

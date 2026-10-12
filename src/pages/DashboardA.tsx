@@ -556,7 +556,7 @@ export function Analytics() {
         <div className="flex items-center justify-between gap-3 px-4 py-4 sm:px-5">
           <CardHead title="Rekap mingguan" sub="Siap dilaporkan ke pembukuan" />
         </div>
-        <TableWrap minW="min-w-[360px]">
+        <TableWrap>
           <thead>
             <tr>
               <Th>Minggu</Th>
@@ -576,7 +576,7 @@ export function Analytics() {
             ))}
           </tbody>
         </TableWrap>
-        <div className="flex items-center justify-between px-4 py-3.5 text-[12.5px] text-faint sm:px-5">
+        <div className="flex flex-col gap-1 px-4 py-3.5 text-[12.5px] text-faint sm:flex-row sm:items-center sm:justify-between sm:px-5">
           <span>Menampilkan {weeks.length} minggu terakhir</span>
           <span className="micro">Sumber: pesanan tokomu</span>
         </div>
