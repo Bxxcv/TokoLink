@@ -180,7 +180,7 @@ export function ButikRapi(p: ThemeStorefrontProps) {
       {coverUrl && <img src={coverUrl} alt="" style={{ width: "100%", height: 152, objectFit: "cover", display: "block" }} />}
 
       {/* hero lookbook */}
-      <section className={WRAP} style={{ marginTop: coverUrl ? -22 : 14 }}>
+      <section className={`${WRAP} relative z-[1]`} style={{ marginTop: coverUrl ? -22 : 14 }}>
         <div style={{ background: PANEL, border: `1px solid ${GOLD_LINE}`, borderRadius: 12, padding: "16px 15px" }}>
           {promo && (
             <div style={{ background: "#11100E", border: `1px dashed ${GOLD}`, borderRadius: 10, padding: "10px 12px", marginBottom: 12 }}>

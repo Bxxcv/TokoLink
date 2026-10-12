@@ -177,7 +177,7 @@ export function JasaKilat(p: ThemeStorefrontProps) {
       {coverUrl && <img src={coverUrl} alt="" style={{ width: "100%", height: 152, objectFit: "cover", display: "block" }} />}
 
       {/* hero panel hijau muda */}
-      <section className={WRAP} style={{ marginTop: coverUrl ? -22 : 14 }}>
+      <section className={`${WRAP} relative z-[1]`} style={{ marginTop: coverUrl ? -22 : 14 }}>
         <div style={{ background: SOFT, border: `1px solid ${SOFT_LINE}`, borderRadius: 14, padding: "14px 15px" }}>
           {promo && (
             <div style={{ background: SURFACE, border: `1px dashed ${GREEN}`, borderRadius: 10, padding: "10px 12px", marginBottom: 12 }}>

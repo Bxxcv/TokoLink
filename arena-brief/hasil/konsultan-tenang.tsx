@@ -162,7 +162,7 @@ export function KonsultanTenang(p: ThemeStorefrontProps) {
       {coverUrl && <img src={coverUrl} alt="" style={{ width: "100%", height: 152, objectFit: "cover", display: "block" }} />}
 
       {/* hero tenang */}
-      <section className={WRAP} style={{ marginTop: coverUrl ? 16 : 18 }}>
+      <section className={`${WRAP} relative z-[1]`} style={{ marginTop: coverUrl ? 16 : 18 }}>
         <div style={{ maxWidth: 640 }}>
           <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: MUTED }}>{statusLine}</div>
           <h1 style={{ fontFamily: DISPLAY, fontWeight: 500, fontSize: 26, lineHeight: 1.2, color: INK, margin: "8px 0 0", overflowWrap: "anywhere" }}>{storeName}</h1>

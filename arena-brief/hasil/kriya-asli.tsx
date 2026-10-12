@@ -178,7 +178,7 @@ export function KriyaAsli(p: ThemeStorefrontProps) {
       {coverUrl && <img src={coverUrl} alt="" style={{ width: "100%", height: 152, objectFit: "cover", display: "block" }} />}
 
       {/* hero + blok cerita pembuat */}
-      <section className={WRAP} style={{ marginTop: coverUrl ? -22 : 14 }}>
+      <section className={`${WRAP} relative z-[1]`} style={{ marginTop: coverUrl ? -22 : 14 }}>
         <div style={{ background: CARD, border: `1px solid ${GOLD_LINE}`, borderRadius: 14, padding: "15px 15px" }}>
           {promo && (
             <div style={{ background: PANEL, border: `1px dashed ${GOLD}`, borderRadius: 10, padding: "10px 12px", marginBottom: 12 }}>

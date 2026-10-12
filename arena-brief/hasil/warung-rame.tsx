@@ -184,7 +184,7 @@ export function WarungRame(p: ThemeStorefrontProps) {
       {coverUrl && <img src={coverUrl} alt="" style={{ width: "100%", height: 152, objectFit: "cover", display: "block" }} />}
 
       {/* hero promo hijau — status + identitas toko + bio (semua data asli) */}
-      <section className={WRAP} style={{ marginTop: coverUrl ? -22 : 14 }}>
+      <section className={`${WRAP} relative z-[1]`} style={{ marginTop: coverUrl ? -22 : 14 }}>
         <div style={{ background: GREEN_SOFT, border: `1px solid ${GREEN_LINE}`, borderRadius: 16, padding: "14px 15px" }}>
           {promo && (
             <div style={{ background: SURFACE, border: `1px dashed ${GREEN}`, borderRadius: 12, padding: "10px 12px", marginBottom: 12 }}>

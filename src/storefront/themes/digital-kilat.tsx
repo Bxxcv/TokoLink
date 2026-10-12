@@ -177,7 +177,7 @@ export function DigitalKilat(p: ThemeStorefrontProps) {
       {coverUrl && <img src={coverUrl} alt="" style={{ width: "100%", height: 152, objectFit: "cover", display: "block" }} />}
 
       {/* hero panel terminal */}
-      <section className={WRAP} style={{ marginTop: coverUrl ? 14 : 14 }}>
+      <section className={`${WRAP} relative z-[1]`} style={{ marginTop: coverUrl ? 14 : 14 }}>
         <div style={{ background: CARD, border: `1px solid ${CYAN}`, borderRadius: 8, padding: "14px 15px", boxShadow: "0 0 24px rgba(34,230,230,.12)" }}>
           {promo && (
             <div style={{ background: DEEP, border: `1px dashed ${CYAN}`, borderRadius: 6, padding: "10px 12px", marginBottom: 12 }}>
