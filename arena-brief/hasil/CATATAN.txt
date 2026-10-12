@@ -1,0 +1,34 @@
+Warung Rame (warung-rame.tsx)
+(a) Warna utama: hijau pasar #178A3D (harga/tombol/aksen), panel hero hijau muda #E4F3E7, halaman #F2F3F0, kartu putih.
+(b) Diambil dari gambar: grid rapat (gap 8px, s/d 5 kolom), kartu putih + harga hijau + tombol pil outline hijau, hero promo hijau, tab kategori bergaris bawah.
+(c) Tidak diambil: navigasi akun milik marketplace, filter merek + slider harga + paginasi, semua angka karangan, klaim ongkir gratis & info gudang — fitur itu tidak ada di TokoLink dan tidak ada datanya di props.
+
+Jasa Kilat (jasa-kilat.tsx)
+(a) Warna utama: hijau tua #14512F (bar atas/aksen/tombol), kartu putih, halaman netral terang.
+(b) Diambil dari gambar: bar atas hijau gelap, kartu putih bersih + hijau sebagai aksen CTA, badge "Terlaris" posisi kiri atas foto.
+(c) Tidak diambil: tombol WhatsApp/telepon besar milik jasa marketplace, info "respon cepat" tanpa data, semua angka rating/pemesanan karangan.
+
+Butik Rapi (butik-rapi.tsx)
+(a) Warna utama: gelap-emas #CFA85F di atas halaman gelap, tipografi serif Fraunces.
+(b) Diambil dari gambar: etalase gelap mewah, foto produk potret 3:4 dengan overlay gradasi berisi nama+harga, tombol outline pil "＋ Keranjang".
+(c) Tidak diambil: daftar kategori sidebar marketplace, garis "terjual X kali" per kartu (hanya dipakai diam-diam untuk badge Terlaris), angka diskon % karangan.
+
+Dapur Ngebul (dapur-ngebul.tsx)
+(a) Warna utama: merah #CE2020 + kuning #FFD84D, halaman krem #FFF8EE.
+(b) Diambil dari gambar: bar atas merah, hero panel kuning bingkai merah (judul merah tua), kartu putih bingkai merah, tab kategori bergaris bawah, strip promo gaya papan menu.
+(c) Tidak diambil: foto makanan bebas dari internet (semua foto dari props), info pengiriman/ongkir, jam sibuk/perkiraan antre — tidak ada datanya.
+
+Kriya Asli (kriya-asli.tsx)
+(a) Warna utama: biru navy #152651 + emas #E0B65A, teks krem.
+(b) Diambil dari gambar: panel navy bingkai emas, blok "Cerita penjual" (bio), chip kategori emas rounded, tombol emas + navy.
+(c) Tidak diambil: testimonial pembeli, kota workshop karangan, rating bintang — tidak ada datanya; kategori = dari data produk.
+
+Digital Kilat (digital-kilat.tsx)
+(a) Warna utama: gelap #0A1120 + neon cyan #22E6E6, aksen mono.
+(b) Diambil dari gambar: panel gelap bingkai neon dengan glow, tab kategori bergaris bawah, kode promo gaya terminal mono, CTA outline neon.
+(c) Tidak diambil: angka "10rb+ pengguna", status server/response time, badge POPULER/% diskon (butuh data → KEBUTUHAN-DATA.md).
+
+Konsultan Tenang (konsultan-tenang.tsx)
+(a) Warna utama: krem #F6F1EA, taupe #7D6E58, hijau lembut untuk status BUKA.
+(b) Diambil dari gambar: kesan serif tenang + ruang lega, hero ringkas (tanpa panel tebal), kartu putih dengan tombol outline, tanpa badge produk.
+(c) Tidak diambil: foto profil konsultan besar, testimoni klien, jam konsultasi karangan — semua dari props.

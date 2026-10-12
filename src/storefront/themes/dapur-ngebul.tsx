@@ -1,83 +1,100 @@
 /**
- * Tema 5 — "Dapur Ngebul" (katering & jajanan).
- * Papan menu chalk. SEMUA data dari props.
+ * Tema 5 — "Dapur Ngebul" (katering & jajanan) — REVISI VISUAL 12 Okt 2026.
+ * Gaya: papan menu merah-kuning (IMG-20261001-WA0004) — panel hero kuning
+ * judul merah, kartu putih bingkai merah. SEMUA data dari props.
+ * Badge hanya dari data asli (Terlaris = sold tertinggi unik);
+ * NEW/HOT/FAVORIT butuh data → KEBUTUHAN-DATA.md.
  */
 import { useState } from "react";
 import { rupiah } from "../../lib/format";
-import type { Product } from "../../lib/shop";
 import { Icon } from "../../components/ui";
 import { iconForLink } from "../../lib/links";
 import type { ThemeStorefrontProps } from "../types";
 import { nextOpenText } from "./shared";
 
-const BG = "#FAF6ED";
-const SURFACE = "#FFFDF7";
-const INK = "#221B14";
-const MUTED = "#615649";
-const ACCENT = "#8A6A00";
-const ON_ACCENT = "#FFFFFF";
-const BUKA = "#166B3C";
-const TUTUP = "#B0261B";
-const HABIS = "#8A7F6E";
-const DEAD_BG = "#EAE3D5";
-const DISPLAY = "Fraunces, Georgia, serif";
-const BODY = "'Plus Jakarta Sans', 'Segoe UI', ui-sans-serif, system-ui, sans-serif";
+type Item = ThemeStorefrontProps["items"][number];
 
-function Row({ p, slug, canAdd, closed, onAdd, onChatWA }: {
-  p: Product; slug: string; canAdd: boolean; closed: boolean;
-  onAdd: (p: Product) => void; onChatWA: () => void;
+const PAGE = "#FFF8EE";
+const SURFACE = "#FFFFFF";
+const INK = "#2A1712";
+const MUTED = "#7A655C";
+const LINE = "rgba(42,23,18,.14)";
+const RED = "#CE2020";
+const RED_DEEP = "#8F1717";
+const YELLOW = "#FFD84D";
+const YELLOW_SOFT = "#FFF0C9";
+const CARD_LINE = "rgba(206,32,32,.45)";
+const TUTUP = "#7A0F0F";
+const HABIS_BG = "#F1EBE3";
+const HABIS_FG = "#8A7A72";
+const SISA_BG = "#FFEBAD";
+const SISA_FG = "#8F1717";
+const DISPLAY = "'Bricolage Grotesque', 'Archivo', ui-sans-serif, system-ui, sans-serif";
+const BODY = "'Plus Jakarta Sans', 'Segoe UI', ui-sans-serif, system-ui, sans-serif";
+const WRAP = "mx-auto w-full max-w-[1240px] px-4";
+
+function StockCap({ stock }: { stock: number }) {
+  if (stock === 0)
+    return (
+      <span style={{ background: INK, color: "#FFF3E2", fontSize: 10, fontWeight: 800, letterSpacing: "0.08em", padding: "4px 8px", borderRadius: 6 }}>
+        HABIS
+      </span>
+    );
+  if (stock <= 5)
+    return (
+      <span style={{ background: SISA_BG, color: SISA_FG, fontSize: 10, fontWeight: 800, letterSpacing: "0.08em", padding: "4px 8px", borderRadius: 6 }}>
+        SISA {stock}
+      </span>
+    );
+  return null;
+}
+
+function Card({
+  p, slug, canAdd, closed, isTop, onAdd,
+}: {
+  p: Item; slug: string; canAdd: boolean; closed: boolean; isTop: boolean; onAdd: (p: Item) => void;
 }) {
   const out = p.stock === 0;
   const dead = !canAdd || out;
   return (
-    <div className="flex gap-3" style={{ padding: "14px 0", borderBottom: `1px solid ${INK}14` }}>
-      <a href={`#/s/${slug}/p/${p.id}`} aria-label={p.name} style={{ position: "relative", flexShrink: 0, width: 104, height: 104, borderRadius: 8, overflow: "hidden", display: "block" }}>
-        <img src={p.img} alt="" loading="lazy" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
-        {!closed && (
-          out ? (
-            <span style={{ position: "absolute", right: 6, bottom: 6, border: `2px double ${TUTUP}`, color: TUTUP, background: "#FFFDF7E6", fontSize: 10, fontWeight: 800, letterSpacing: "0.1em", padding: "3px 7px", borderRadius: 4, transform: "rotate(-14deg)" }}>
-              HABIS
+    <article style={{ background: SURFACE, borderRadius: 12, overflow: "hidden", border: `1.5px solid ${CARD_LINE}` }}>
+      <a href={`#/s/${slug}/p/${p.id}`} aria-label={p.name} style={{ display: "block", position: "relative" }}>
+        <img src={p.img} alt="" loading="lazy" style={{ aspectRatio: "4 / 3", width: "100%", objectFit: "cover", display: "block", background: "#F6EEE4" }} />
+        <span style={{ position: "absolute", left: 6, top: 6, display: "flex", gap: 6 }}>
+          {isTop && (
+            <span style={{ background: YELLOW, color: RED_DEEP, fontSize: 9.5, fontWeight: 800, letterSpacing: "0.06em", padding: "4px 8px", borderRadius: 6 }}>
+              TERLARIS
             </span>
-          ) : p.stock <= 5 ? (
-            <span className="tnum" style={{ position: "absolute", right: 6, bottom: 6, background: "#F5DE8B", color: ACCENT, fontSize: 10, fontWeight: 800, padding: "3px 7px", borderRadius: 999 }}>
-              Sisa {p.stock}
-            </span>
-          ) : null
-        )}
+          )}
+          <StockCap stock={p.stock} />
+        </span>
       </a>
-      <div className="min-w-0 flex-1">
-        <div className="flex items-baseline gap-2">
-          <a href={`#/s/${slug}/p/${p.id}`} style={{ fontFamily: DISPLAY, fontWeight: 700, fontSize: 15, color: INK, textDecoration: "none", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-            {p.name}
-          </a>
-          <span aria-hidden style={{ flex: 1, borderBottom: "1px dotted rgba(34,27,20,.35)", transform: "translateY(-4px)" }} />
-          <span className="tnum shrink-0" style={{ fontSize: 17, fontWeight: 700, color: ACCENT }}>{rupiah(p.price)}</span>
+      <div style={{ padding: "9px 10px 11px", opacity: closed ? 0.75 : 1 }}>
+        <a
+          href={`#/s/${slug}/p/${p.id}`}
+          style={{ fontSize: 14, fontWeight: 700, fontFamily: DISPLAY, color: INK, textDecoration: "none", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", lineHeight: 1.3, minHeight: 36 }}
+        >
+          {p.name}
+        </a>
+        <div style={{ marginTop: 4, display: "flex", flexWrap: "wrap", alignItems: "baseline", columnGap: 5 }}>
+          <span style={{ fontSize: 16, fontWeight: 800, fontFamily: DISPLAY, color: RED }}>{rupiah(p.price)}</span>
+          {p.unit ? <span style={{ fontSize: 11, color: MUTED, fontWeight: 600 }}>· {p.unit}</span> : null}
         </div>
-        {p.desc ? (
-          <p style={{ fontSize: 12, color: MUTED, margin: "5px 0 0", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{p.desc}</p>
-        ) : null}
-        <div className="flex items-center justify-end gap-2" style={{ marginTop: 10 }}>
-          {!closed && !out && (
-            <button onClick={onChatWA} aria-label="Tanya stok" style={{ width: 44, height: 44, display: "grid", placeItems: "center", background: "none", border: `1px solid ${INK}30`, borderRadius: 8, color: INK, cursor: "pointer" }}>
-              <Icon name="wa" size={18} />
-            </button>
-          )}
-          {dead ? (
-            <div style={{ height: 44, minWidth: 120, padding: "0 16px", borderRadius: 8, display: "grid", placeItems: "center", fontSize: 13, fontWeight: 700, background: DEAD_BG, color: HABIS }}>
-              {closed ? "Toko tutup" : "Habis hari ini"}
-            </div>
-          ) : (
-            <button
-              onClick={() => onAdd(p)}
-              aria-label={`Pesan ${p.name}`}
-              style={{ height: 44, minWidth: 120, padding: "0 16px", border: "none", borderRadius: 8, background: ACCENT, color: ON_ACCENT, fontSize: 13.5, fontWeight: 700, cursor: "pointer", fontFamily: BODY }}
-            >
-              + Pesan
-            </button>
-          )}
-        </div>
+        {dead ? (
+          <div style={{ marginTop: 8, minHeight: 44, borderRadius: 8, display: "grid", placeItems: "center", fontSize: 12.5, fontWeight: 700, background: HABIS_BG, color: closed && !out ? "#6E5B52" : HABIS_FG }}>
+            {closed && !out ? "Toko tutup" : "Stok habis"}
+          </div>
+        ) : (
+          <button
+            onClick={() => onAdd(p)}
+            aria-label={`Tambah ${p.name}`}
+            style={{ marginTop: 8, width: "100%", minHeight: 44, border: "none", borderRadius: 8, background: RED, color: "#FFFFFF", fontSize: 13.5, fontWeight: 700, cursor: "pointer", fontFamily: BODY }}
+          >
+            + Tambah
+          </button>
+        )}
       </div>
-    </div>
+    </article>
   );
 }
 
@@ -89,187 +106,287 @@ export function DapurNgebul(p: ThemeStorefrontProps) {
     showHours, showQR, showCart, cartCount, onAdd, onChatWA,
     qrData, onOpenQR, onShare, shared,
   } = p;
+  const promo = (p.promos ?? [])[0] ?? null;
   const canAdd = showCart && !closed;
+  const [more, setMore] = useState(false);
+  const [hoursOpen, setHoursOpen] = useState(false);
   const dirty = q.trim() !== "" || cat !== "Semua";
-  const nextOpen = closed ? nextOpenText(hourRows, todayHours) : null;
+  const nextOpen = closed || openNow === false ? nextOpenText(hourRows, todayHours) : null;
+  const countOf = (c: string) => (c === "Semua" ? allItems.length : allItems.filter((i) => i.cat === c).length);
+  const tutup = closed || openNow === false;
+  const statusLine = tutup ? (nextOpen ? `Tutup · ${nextOpen}` : "Tutup hari ini") : todayHours || "Buka hari ini";
+  const barOn = showCart && cartCount > 0;
+
+  let topId: string | null = null;
+  if (allItems.length > 0) {
+    const topSold = allItems.reduce((m, i) => Math.max(m, i.sold), 0);
+    const tops = allItems.filter((i) => i.sold === topSold);
+    if (topSold > 0 && tops.length === 1) topId = tops[0].id;
+  }
+
+  const gotoKatalog = () => {
+    document.getElementById("dn-katalog")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
 
   return (
-    <div style={{ background: BG, color: INK, fontFamily: BODY, fontSize: 14, lineHeight: 1.55, minHeight: "100vh" }}>
-      {/* header */}
-      <header className="sticky top-0 z-40" style={{ background: BG, borderBottom: `1px solid ${INK}12` }}>
-        <div className="flex items-center gap-2.5 px-4" style={{ height: 64 }}>
-          <span className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-full" style={{ border: `2px solid ${ACCENT}4D`, background: ACCENT, color: ON_ACCENT, fontFamily: DISPLAY, fontWeight: 700, fontSize: 16 }}>
+    <div style={{ background: PAGE, color: INK, fontFamily: BODY, fontSize: 14, lineHeight: 1.5, minHeight: "100vh", paddingBottom: barOn ? 78 : 0 }}>
+      {/* bar atas merah */}
+      <header className="sticky top-0 z-40" style={{ background: RED }}>
+        <div className={`${WRAP} flex items-center gap-2.5`} style={{ height: 56 }}>
+          <span className="grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-full" style={{ background: YELLOW, color: RED_DEEP, fontFamily: DISPLAY, fontWeight: 800, fontSize: 15 }}>
             {avatarUrl ? <img src={avatarUrl} alt="" className="h-full w-full object-cover" /> : storeName.slice(0, 1)}
           </span>
           <span className="min-w-0 flex-1 leading-tight">
-            <span className="block truncate" style={{ fontFamily: DISPLAY, fontWeight: 700, fontSize: 18 }}>{storeName}</span>
-            {city ? <span className="flex items-center gap-1 truncate" style={{ fontSize: 12, color: MUTED }}><Icon name="pin" size={13} />{city}</span> : null}
+            <span className="block truncate" style={{ fontFamily: DISPLAY, fontWeight: 800, fontSize: 17, color: "#FFFFFF" }}>{storeName}</span>
+            {city ? <span className="block truncate" style={{ fontSize: 12, color: "#FFD9C9" }}>{city}</span> : null}
           </span>
-          <span className="tnum" style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.06em", color: "#fff", background: openNow === false || closed ? TUTUP : BUKA, padding: "6px 10px", borderRadius: 999 }}>
-            {openNow === false || closed ? "TUTUP" : "BUKA"}
+          <span className="tnum" style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: "0.08em", color: tutup ? "#FFB3AD" : RED_DEEP, background: tutup ? TUTUP : YELLOW, padding: "5px 9px", borderRadius: 999 }}>
+            {tutup ? "TUTUP" : "BUKA"}
           </span>
           {showQR && (
-            <button onClick={onOpenQR} aria-label="QR toko" style={{ width: 44, height: 44, display: "grid", placeItems: "center", background: "none", border: "none", color: INK, cursor: "pointer" }}>
+            <button onClick={onOpenQR} aria-label="QR toko" style={{ width: 44, height: 44, display: "grid", placeItems: "center", background: "none", border: "none", color: "#FFFFFF", cursor: "pointer" }}>
               <Icon name="qr" size={19} />
             </button>
           )}
-          <button onClick={onShare} aria-label="Bagikan" style={{ width: 44, height: 44, display: "grid", placeItems: "center", background: "none", border: "none", color: INK, cursor: "pointer" }}>
+          <button onClick={onShare} aria-label="Bagikan" style={{ width: 44, height: 44, display: "grid", placeItems: "center", background: "none", border: "none", color: "#FFFFFF", cursor: "pointer" }}>
             <Icon name={shared ? "check" : "external"} size={19} />
           </button>
           {showCart && (
-            <a href="#/cart" aria-label="Keranjang" style={{ position: "relative", width: 44, height: 44, display: "grid", placeItems: "center", borderRadius: 8, background: INK, color: BG }}>
-              <Icon name="cart" size={18} />
+            <a href="#/cart" aria-label="Keranjang" style={{ position: "relative", width: 44, height: 44, display: "grid", placeItems: "center", color: "#FFFFFF" }}>
+              <Icon name="cart" size={19} />
               {cartCount > 0 && (
-                <span className="tnum" style={{ position: "absolute", top: 5, right: 6, fontSize: 13, fontFamily: DISPLAY, fontWeight: 700 }}>{cartCount}</span>
+                <span className="tnum" style={{ position: "absolute", top: 4, right: 2, minWidth: 17, height: 17, borderRadius: 999, background: YELLOW, color: RED_DEEP, fontSize: 10, fontWeight: 800, display: "grid", placeItems: "center", padding: "0 4px" }}>
+                  {cartCount}
+                </span>
               )}
             </a>
           )}
         </div>
-        <div className="px-4 pb-2 md:hidden tnum" style={{ fontSize: 12, color: MUTED }}>
-          {closed ? <>Tutup{nextOpen ? ` · ${nextOpen}` : ""}</> : todayHours || "Buka hari ini"}
-        </div>
       </header>
 
-      {/* sampul + pita */}
-      {coverUrl && (
-        <div>
-          <img src={coverUrl} alt="" style={{ width: "100%", height: 168, objectFit: "cover", display: "block", borderBottom: `3px solid ${ACCENT}` }} />
+      {/* banner tutup */}
+      {closed && (
+        <div style={{ background: "#5E1414", color: "#FFC9C4", padding: "10px 16px", fontSize: 13, fontWeight: 700, textAlign: "center" }}>
+          Toko tutup{nextOpen ? ` · ${nextOpen}` : ""}
         </div>
       )}
-      <div className="px-4" style={{ marginTop: 14 }}>
-        <div style={{ fontSize: 11, letterSpacing: "0.2em", fontWeight: 700, color: ACCENT }}>▬▬▬ PAPAN MENU HARI INI ▬▬▬</div>
-        {bio ? (
-          <p style={{ fontSize: 14, lineHeight: 1.6, margin: "8px 0 0" }}>{bio}</p>
-        ) : (
-          <p className="tnum" style={{ fontSize: 13.5, color: MUTED, margin: "8px 0 0" }}>
-            {[city, `${allItems.length} menu`].filter(Boolean).join(" · ")}
-          </p>
-        )}
-      </div>
+
+      {/* sampul */}
+      {coverUrl && <img src={coverUrl} alt="" style={{ width: "100%", height: 152, objectFit: "cover", display: "block" }} />}
+
+      {/* hero papan menu kuning */}
+      <section className={WRAP} style={{ marginTop: coverUrl ? -22 : 14 }}>
+        <div style={{ background: YELLOW, border: `2px solid ${RED}`, borderRadius: 14, padding: "14px 15px" }}>
+          {promo && (
+            <div style={{ background: SURFACE, border: `2px dashed ${RED}`, borderRadius: 10, padding: "10px 12px", marginBottom: 12 }}>
+              <div className="micro" style={{ color: RED_DEEP }}>PROMO</div>
+              <div style={{ fontSize: 14.5, fontWeight: 800, fontFamily: DISPLAY, color: INK, marginTop: 4, lineHeight: 1.3, overflowWrap: "anywhere" }}>{promo.label}</div>
+              <span className="tnum" style={{ display: "inline-block", marginTop: 8, background: YELLOW_SOFT, border: `1px solid ${RED}`, color: RED_DEEP, borderRadius: 6, padding: "5px 10px", fontSize: 13, fontWeight: 800, letterSpacing: "0.04em" }}>
+                {promo.code}
+              </span>
+            </div>
+          )}
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", color: RED_DEEP }}>{statusLine}</div>
+              <h1 style={{ fontFamily: DISPLAY, fontWeight: 800, fontSize: 22, lineHeight: 1.15, color: RED_DEEP, margin: "6px 0 0", overflowWrap: "anywhere" }}>{storeName}</h1>
+              {city ? <div style={{ fontSize: 12.5, color: "#5A4238", marginTop: 4 }}>{city}</div> : null}
+            </div>
+            {allItems.length > 0 && (
+              <span className="tnum shrink-0" style={{ background: SURFACE, border: `1px solid ${RED}`, color: RED_DEEP, borderRadius: 999, fontSize: 11.5, fontWeight: 700, padding: "6px 11px", whiteSpace: "nowrap" }}>
+                {allItems.length} menu
+              </span>
+            )}
+          </div>
+          {bio ? (
+            <>
+              <p style={{ fontSize: 13.5, lineHeight: 1.55, color: INK, margin: "10px 0 0", display: "-webkit-box", WebkitLineClamp: more ? 99 : 3, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{bio}</p>
+              {bio.length > 140 && (
+                <button onClick={() => setMore((m) => !m)} style={{ background: "none", border: "none", padding: "6px 0 0", color: RED_DEEP, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+                  {more ? "Tutup" : "Selengkapnya"}
+                </button>
+              )}
+            </>
+          ) : city ? (
+            <p style={{ fontSize: 13.5, color: "#5A4238", margin: "10px 0 0" }}>{city}</p>
+          ) : null}
+          {allItems.length > 0 && (
+            <button
+              onClick={gotoKatalog}
+              className="w-full sm:w-auto"
+              style={{ marginTop: 12, minHeight: 42, padding: "0 22px", border: "none", borderRadius: 999, background: RED, color: "#FFFFFF", fontSize: 13.5, fontWeight: 700, cursor: "pointer", fontFamily: BODY }}
+            >
+              Lihat menu ↓
+            </button>
+          )}
+        </div>
+      </section>
 
       {/* tautan */}
       {bioLinks.length > 0 && (
-        <div className="grid grid-cols-2 gap-2 px-4" style={{ marginTop: 14 }}>
-          {bioLinks.map((l) => (
-            <button
-              key={l.id}
-              onClick={() => onOpenBioLink(l)}
-              className="flex items-center gap-2 text-left"
-              style={{ minHeight: 48, background: "none", border: `1px dashed ${INK}38`, borderRadius: 8, padding: "8px 10px", cursor: "pointer", color: INK }}
-            >
-              <Icon name={iconForLink(l.icon)} size={18} />
-              <span className="min-w-0 flex-1 truncate" style={{ fontSize: 12, fontWeight: 600 }}>
-                {l.icon === "wa" ? "hitung porsi" : l.label}
-              </span>
-            </button>
-          ))}
-        </div>
+        <section className={WRAP} style={{ marginTop: 14 }}>
+          <div className="micro" style={{ color: MUTED, marginBottom: 8 }}>Tautan</div>
+          <div className="grid gap-2">
+            {bioLinks.map((l) => {
+              const isWA = l.icon === "wa";
+              return (
+                <button
+                  key={l.id}
+                  onClick={() => onOpenBioLink(l)}
+                  className="flex items-center gap-3 text-left"
+                  style={{ minHeight: 52, background: SURFACE, border: `1px solid ${LINE}`, borderLeft: isWA ? "3px solid #1FA855" : undefined, borderRadius: 10, padding: "8px 12px", cursor: "pointer", width: "100%" }}
+                >
+                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full" style={{ background: "#FFE9E4", color: RED }}>
+                    <Icon name={iconForLink(l.icon)} size={20} />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate" style={{ fontSize: 14, fontWeight: 600 }}>{l.label}</span>
+                    <span className="block truncate" style={{ fontSize: 12, color: MUTED }}>{l.url.replace(/^https?:\/\//, "")}</span>
+                  </span>
+                  <span aria-hidden style={{ color: MUTED }}>›</span>
+                </button>
+              );
+            })}
+          </div>
+        </section>
       )}
 
-      {/* filter */}
-      <div className="px-4" style={{ marginTop: 14 }}>
-        <div className="relative">
-          <Icon name="search" size={16} className="absolute left-3 top-1/2 -translate-y-1/2" />
-          <input
-            value={q}
-            onChange={(e) => onQ(e.target.value)}
-            placeholder="Cari menu"
-            aria-label="Cari menu"
-            style={{ width: "100%", height: 46, borderRadius: 10, border: `1px solid ${INK}22`, background: SURFACE, padding: "0 40px 0 38px", fontSize: 14, color: INK, outline: "none" }}
-          />
-          {q && (
-            <button onClick={() => onQ("")} aria-label="Bersihkan" style={{ position: "absolute", right: 6, top: "50%", transform: "translateY(-50%)", width: 32, height: 32, border: "none", background: "none", color: MUTED, cursor: "pointer", fontSize: 16 }}>×</button>
-          )}
-        </div>
-        <div className="tl-scroll flex gap-2 overflow-x-auto" style={{ marginTop: 10, paddingBottom: 2 }}>
-          {cats.map((c) => (
-            <button
-              key={c}
-              onClick={() => onCat(c)}
-              style={{ flexShrink: 0, background: cat === c ? INK : "transparent", color: cat === c ? BG : INK, border: `1px solid ${INK}35`, borderRadius: 999, padding: "8px 14px", fontSize: 13, fontWeight: cat === c ? 700 : 500, cursor: "pointer", whiteSpace: "nowrap" }}
-            >
-              {c}
-            </button>
-          ))}
-          <button
-            onClick={onResetFilter}
-            disabled={!dirty}
-            style={{ flexShrink: 0, background: "none", border: "none", color: MUTED, opacity: dirty ? 1 : 0.4, fontSize: 13, fontWeight: 600, cursor: dirty ? "pointer" : "default", whiteSpace: "nowrap", padding: "8px 6px" }}
-          >
-            Reset
+      {/* jam */}
+      {showHours && (
+        <section className={WRAP} style={{ marginTop: 12 }}>
+          <button onClick={() => setHoursOpen((o) => !o)} aria-expanded={hoursOpen} className="flex w-full items-center gap-2.5" style={{ minHeight: 44, background: "none", border: "none", padding: 0, cursor: "pointer", color: INK, fontSize: 13.5, fontWeight: 700 }}>
+            <Icon name="clock" size={17} /> Jam buka
+            <span className="tnum" style={{ fontWeight: 400, color: MUTED }}>{todayHours || (openNow === false ? "Tutup hari ini" : "")}</span>
           </button>
+          {hoursOpen && hourRows.length > 0 && (
+            <ul style={{ margin: "6px 0 0", padding: 0, listStyle: "none", background: SURFACE, borderRadius: 10, border: `1px solid ${LINE}`, overflow: "hidden" }}>
+              {hourRows.map((h) => (
+                <li key={h.day} className="tnum flex items-center justify-between" style={{ padding: "9px 12px", fontSize: 13, background: h.text === todayHours ? "rgba(206,32,32,.08)" : undefined }}>
+                  <span style={{ fontWeight: h.text === todayHours ? 700 : 400 }}>
+                    <span aria-hidden style={{ color: h.on ? RED : "transparent" }}>●</span> {h.day}
+                  </span>
+                  <span style={{ color: h.on ? INK : TUTUP }}>{h.text}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      )}
+
+      {/* cari + tab menu */}
+      <div className="md:sticky md:z-30" style={{ top: 56, background: PAGE }}>
+        <div className={WRAP} style={{ paddingTop: 12, paddingBottom: 10 }}>
+          <div className="relative">
+            <Icon name="search" size={16} className="absolute left-3 top-1/2 -translate-y-1/2" />
+            <input
+              value={q}
+              onChange={(e) => onQ(e.target.value)}
+              placeholder="Cari menu…"
+              aria-label="Cari menu"
+              className="focus:outline-2 focus:outline-offset-1 focus:outline-[#CE2020]"
+              style={{ width: "100%", height: 46, borderRadius: 10, border: `1px solid ${LINE}`, background: SURFACE, padding: "0 38px", fontSize: 14, color: INK }}
+            />
+            {q && (
+              <button onClick={() => onQ("")} aria-label="Bersihkan" style={{ position: "absolute", right: 6, top: "50%", transform: "translateY(-50%)", width: 32, height: 32, border: "none", background: "none", color: MUTED, cursor: "pointer", fontSize: 16 }}>×</button>
+            )}
+          </div>
+          <div className="tl-scroll flex gap-3.5 overflow-x-auto" style={{ marginTop: 10 }}>
+            {cats.map((c) => (
+              <button
+                key={c}
+                onClick={() => onCat(c)}
+                style={{ flexShrink: 0, background: "none", border: "none", padding: "8px 1px", cursor: "pointer", whiteSpace: "nowrap", fontFamily: DISPLAY, fontSize: 14, fontWeight: cat === c ? 800 : 600, color: cat === c ? RED : MUTED, borderBottom: `2px solid ${cat === c ? RED : "transparent"}` }}
+              >
+                {c} <span className="tnum" style={{ fontSize: 11.5, fontWeight: 500, opacity: 0.7 }}>{countOf(c)}</span>
+              </button>
+            ))}
+            {dirty && (
+              <button onClick={onResetFilter} style={{ flexShrink: 0, background: "none", border: "none", color: RED, fontSize: 13, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap", padding: "8px 6px", borderBottom: "2px solid transparent" }}>
+                Atur ulang
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
-      {/* menu */}
-      <main className="px-4" style={{ paddingBottom: 8 }}>
+      {/* katalog */}
+      <main id="dn-katalog" className={WRAP} style={{ marginTop: 2, paddingBottom: 28, scrollMarginTop: 68 }}>
         {loading ? (
-          <div>
-            {[0, 1, 2].map((i) => (
-              <div key={i} className="flex gap-3" style={{ padding: "14px 0", borderBottom: `1px solid ${INK}14` }}>
-                <div style={{ width: 104, height: 104, borderRadius: 8, background: `${INK}10`, flexShrink: 0 }} />
-                <div style={{ flex: 1, display: "grid", gap: 8, alignContent: "start", paddingTop: 6 }}>
-                  <div style={{ height: 14, background: `${INK}12`, borderRadius: 4 }} />
-                  <div style={{ height: 12, width: "60%", background: `${INK}10`, borderRadius: 4 }} />
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+            {[0, 1, 2, 3].map((i) => (
+              <div key={i} style={{ background: SURFACE, borderRadius: 12, overflow: "hidden", border: `1.5px solid ${CARD_LINE}` }}>
+                <div style={{ aspectRatio: "4/3", background: "#F6EEE4" }} />
+                <div style={{ padding: 10, display: "grid", gap: 8 }}>
+                  <div style={{ height: 13, background: "rgba(42,23,18,.08)", borderRadius: 4 }} />
+                  <div style={{ height: 13, width: "55%", background: "rgba(42,23,18,.08)", borderRadius: 4 }} />
                 </div>
               </div>
             ))}
           </div>
         ) : items.length === 0 ? (
-          <div style={{ textAlign: "center", padding: "40px 20px", border: `1px dashed ${INK}30`, borderRadius: 12, marginTop: 12 }}>
-            <div className="mx-auto grid h-16 w-16 place-items-center rounded-full" style={{ border: `1px solid ${INK}25`, color: MUTED }}>
-              <Icon name="box" size={26} />
-            </div>
-            <div style={{ fontFamily: DISPLAY, fontWeight: 700, fontSize: 17, marginTop: 14 }}>
-              {q || cat !== "Semua" ? `Tidak ada menu “${q || cat}”` : "Belum ada menu hari ini. Dapur menulis menu baru tiap subuh."}
-            </div>
+          <div style={{ textAlign: "center", padding: "44px 20px", background: SURFACE, borderRadius: 12, border: `1.5px dashed ${CARD_LINE}` }}>
+            <div style={{ fontSize: 16, fontWeight: 800, fontFamily: DISPLAY }}>{q || cat !== "Semua" ? `Tidak ada “${q || cat}”` : "Belum ada menu hari ini"}</div>
+            <p style={{ fontSize: 13, color: MUTED, marginTop: 6 }}>
+              {q || cat !== "Semua" ? "Coba kata lain atau atur ulang filter." : "Tambahkan menu lewat dasbor TokoLink."}
+            </p>
             {(q || cat !== "Semua") && (
-              <button onClick={onResetFilter} style={{ marginTop: 12, background: "none", border: "none", fontSize: 13.5, color: ACCENT, fontWeight: 700, textDecoration: "underline", textUnderlineOffset: 3, cursor: "pointer" }}>
-                lihat semua menu
+              <button onClick={onResetFilter} style={{ marginTop: 14, background: RED, color: "#FFFFFF", border: "none", borderRadius: 8, padding: "12px 22px", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+                Atur ulang filter
               </button>
             )}
           </div>
         ) : (
-          <div className="grid gap-x-8 md:grid-cols-2">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
             {items.map((item) => (
-              <Row key={item.id} p={item} slug={slug} canAdd={canAdd} closed={closed} onAdd={onAdd} onChatWA={onChatWA} />
+              <Card key={item.id} p={item} slug={slug} canAdd={canAdd} closed={closed} isTop={item.id === topId} onAdd={onAdd} />
             ))}
           </div>
         )}
       </main>
 
-      {/* jam */}
-      {showHours && (
-        <div className="px-4" style={{ marginTop: 16 }}>
-          <div style={{ fontSize: 11, letterSpacing: "0.18em", fontWeight: 700, color: ACCENT }}>JAM DAPUR</div>
-          {hourRows.length > 0 ? (
-            <div className="grid grid-cols-2 gap-x-6">
-              {hourRows.map((h) => (
-                <div key={h.day} className="tnum flex items-baseline justify-between gap-2" style={{ fontSize: 12.5, padding: "6px 0", borderBottom: `1px solid ${INK}10`, textDecoration: h.text === todayHours ? "underline" : "none", textUnderlineOffset: 4, textDecorationColor: ACCENT }}>
-                  <span style={{ color: MUTED }}>{h.day}</span>
-                  <span style={{ color: h.on ? INK : TUTUP }}>{h.on ? h.text : "LIBUR"}</span>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div style={{ fontSize: 12.5, color: MUTED, marginTop: 6 }}>Jadwal belum diatur penjual.</div>
-          )}
-        </div>
-      )}
-
-      {/* footer + QR */}
-      <footer style={{ textAlign: "center", marginTop: 24, padding: "0 16px 40px" }}>
+      {/* footer */}
+      <footer style={{ background: YELLOW_SOFT, borderTop: `2px solid ${RED}`, padding: "20px 16px 40px", textAlign: "center" }}>
         {showQR && qrData && (
-          <div style={{ display: "inline-block", background: SURFACE, border: `1px solid ${INK}16`, borderRadius: 10, padding: 14, marginBottom: 14 }}>
-            <img src={qrData} alt={`QR ${storeName}`} width={150} height={150} style={{ width: 150, height: 150, display: "block" }} />
-            <a href={qrData} download={`qr-${slug}.png`} style={{ display: "inline-block", marginTop: 10, background: ACCENT, color: ON_ACCENT, borderRadius: 8, padding: "10px 18px", fontSize: 13, fontWeight: 700, textDecoration: "none" }}>
-              Unduh PNG
-            </a>
+          <div className="hidden lg:block" style={{ marginBottom: 14 }}>
+            <span style={{ display: "inline-block", background: SURFACE, border: `1px solid ${CARD_LINE}`, borderRadius: 12, padding: 10 }}>
+              <img src={qrData} alt={`QR ${storeName}`} width={128} height={128} style={{ width: 128, height: 128, display: "block" }} />
+            </span>
+            <div style={{ marginTop: 8 }}>
+              <a href={qrData} download={`qr-${slug}.png`} style={{ fontSize: 12, fontWeight: 700, color: RED_DEEP, textDecoration: "none", borderBottom: `1px solid ${RED}` }}>
+                Unduh PNG
+              </a>
+            </div>
           </div>
         )}
-        <div style={{ fontSize: 14, fontWeight: 700 }}>{storeName}{city ? ` · ${city}` : ""}</div>
-        <div style={{ fontSize: 12, color: MUTED, marginTop: 4 }}>Dibuat dengan TokoLink</div>
+        <div style={{ fontSize: 15, fontWeight: 800, fontFamily: DISPLAY, color: RED_DEEP }}>{storeName}{city ? ` · ${city}` : ""}</div>
+        <div style={{ fontSize: 12, color: MUTED, marginTop: 4 }}>Dibuat dengan tokolink.store</div>
+        <div style={{ marginTop: 10 }}>
+          <button onClick={onChatWA} style={{ background: "none", border: "none", fontSize: 12.5, color: MUTED, textDecoration: "underline", textUnderlineOffset: 3, cursor: "pointer" }}>
+            Hubungi penjual
+          </button>
+        </div>
       </footer>
+
+      {/* bilah keranjang */}
+      {barOn && (
+        <div style={{ position: "fixed", left: 0, right: 0, bottom: 0, zIndex: 50, padding: "10px 16px calc(10px + env(safe-area-inset-bottom))", pointerEvents: "none" }}>
+          <a
+            href="#/cart"
+            className="mx-auto flex w-full max-w-[1240px] items-center justify-between gap-3"
+            style={{ background: RED, color: "#FFFFFF", borderRadius: 999, minHeight: 50, padding: "0 20px", textDecoration: "none", fontSize: 14.5, fontWeight: 700, boxShadow: "0 8px 24px rgba(143,23,23,.28)", pointerEvents: "auto" }}
+          >
+            <span className="flex items-center gap-2">
+              <Icon name="cart" size={18} /> Lihat keranjang
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="tnum" style={{ background: "rgba(255,255,255,.22)", borderRadius: 999, minWidth: 24, height: 24, display: "grid", placeItems: "center", fontSize: 12.5, fontWeight: 800, padding: "0 6px" }}>
+                {cartCount}
+              </span>
+              <span aria-hidden style={{ fontSize: 18, lineHeight: 1 }}>›</span>
+            </span>
+          </a>
+        </div>
+      )}
     </div>
   );
 }

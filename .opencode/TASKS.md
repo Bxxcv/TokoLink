@@ -286,6 +286,21 @@ referensi itu.
       kolomnya. Tidak perlu migrasi.
 - [x] **Sistem tema per-warna beda desain** — SELESAI, lihat item "Tema
       toko (theme engine)" di Fase 5 dan `docs/THEME_ENGINE.md`.
+- [ ] **Revisi visual 7 tema via MiMo (arena.ai) — KEPUTUSAN user 12 Okt
+      2026:** gambar di `Desain UI, Toko Seller /` TIDAK boleh dibangun
+      apa adanya (isi marketplace: login buyer, ongkir, angka palsu,
+      domain salah — melanggar PRD). Yang dikerjakan = revisi KULIT 7 tema
+      engine (`warung-rame`, `butik-rapi`, `jasa-kilat`, `dapur-ngebul`,
+      `kriya-asli`, `digital-kilat`, `konsultan-tenang`) ikut gaya gambar.
+      Brief + checklist review di `arena-brief/`. Hasil MiMo masuk
+      `arena-brief/hasil/`, saya review + pasang + sambung DB. Catatan:
+      saya review per sesi (tidak realtime).
+      **Progres 12 Okt 2026: 7/7 sudah ditulis** (warung-rame lolos review
+      user; 6 sisanya `jasa-kilat`, `butik-rapi`, `dapur-ngebul`,
+      `kriya-asli`, `digital-kilat`, `konsultan-tenang` ditulis + lolos
+      verifikasi teknis `tsc`/`build`/grep anti data-contoh, salinan di
+      `arena-brief/hasil/`). **Menunggu review user** satu per satu lalu
+      saya pasang + sambung DB.
 - [ ] **Fitur Ulasan Pembeli (rating + komentar), data REAL** —
       disetujui user 30 Sep 2026, dengan syarat keras: harus aman dari
       injection. Checklist wajib sebelum dianggap selesai:
@@ -305,6 +320,12 @@ referensi itu.
       (token + selesai + 1/order) + `product_reviews`/`order_review`,
       badge & daftar di `ProductDetail`, form di `OrderTracking`.
       Perlu migrasi `database/migrate_reviews.sql`.
+      **Audit 12 Okt 2026: semua syarat keras LOLOS di kode** (token +
+      selesai dicek RPC, escape React tanpa innerHTML, 1/order via
+      unique, tulis via RPC saja, tanpa rating karangan; form cuma muncul
+      saat order `selesai`). **Perbaikan:** habis kirim, form langsung
+      jadi "Ulasanmu" (sebelumnya masih menawarkan barang kedua yang pasti
+      ditolak). Migrasi sudah dijalankan user — tinggal tes live.
 - [ ] **Twitter Card / OG per-toko untuk seller Premium** — **DITUNDA
       10 Okt 2026:** `middleware.js` sempat dibuat tapi MENYEBABKAN
       `/reset` loop 508 di production → file dihapus. Butuh riset

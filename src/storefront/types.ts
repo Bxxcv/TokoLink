@@ -71,4 +71,8 @@ export interface ThemeStorefrontProps {
   onOpenQR: () => void;
   onShare: () => void;
   shared: boolean;
+
+  /** Kode diskon AKTIF seller (sudah divalidasi StoreHome). Opsional:
+      kosong = tidak ada promo, tampilkan hero default (bio/jam). */
+  promos: { code: string; label: string }[];
 }

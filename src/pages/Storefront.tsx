@@ -547,8 +547,36 @@ export function StoreHome({ slug }: { slug: string }) {
       setBioLinks((data ?? []) as { id: string; label: string; url: string; icon: string | null }[]);
     })();
   }, [store]);
-  const openBioLink = (l: { id: string; url: string }) => {
-    // Hitung klik best-effort, jangan blokir navigasi kalau gagal.
+  // Kode diskon AKTIF untuk hero tema (mis. Pasar Rapi). Public hanya boleh
+  // baca yang is_active (cek RLS); validasi tanggal di sini, kuota di server.
+  const [promos, setPromos] = useState<{ code: string; label: string }[]>([]);
+  useEffect(() => {
+    if (!store) return;
+    (async () => {
+      const { data } = await supabase
+        .from("discount_codes")
+        .select("code,type,value,valid_until")
+        .eq("seller_id", store.id)
+        .eq("is_active", true);
+      const today = new Date().toISOString().slice(0, 10);
+      const list = ((data ?? []) as {
+        code: string; type: string; value: number | string; valid_until?: string | null;
+      }[])
+        .filter((d) => !d.valid_until || String(d.valid_until) >= today)
+        .slice(0, 5)
+        .map((d) => ({
+          code: String(d.code),
+          label:
+            d.type === "persen"
+              ? `Hemat ${Number(d.value)}%`
+              : d.type === "nominal"
+                ? `Hemat ${rupiah(Number(d.value))}`
+                : "Promo spesial",
+        }));
+      setPromos(list);
+    })();
+  }, [store]);
+  const openBioLink = (l: { id: string; url: string }) => {    // Hitung klik best-effort, jangan blokir navigasi kalau gagal.
     supabase.rpc("increment_bio_link_click", { p_id: l.id }).then(
       () => {},
       () => {},
@@ -631,6 +659,7 @@ export function StoreHome({ slug }: { slug: string }) {
             window.setTimeout(() => setShared(false), 1600);
           }}
           shared={shared}
+          promos={promos}
         />
         <Modal open={qrOpen} onClose={() => setQrOpen(false)} title="QR TokoLink" eyebrow={name} width="max-w-sm">
           <div className="flex flex-col items-center gap-4 text-center">
@@ -2625,6 +2654,9 @@ function OrderReviewForm({ orderId, token, items }: {
         return;
       }
       setSent((s) => [...s, picked]);
+      // 1 order = 1 ulasan: langsung tampilkan hasil, jangan biarkan
+      // form menawarkan barang kedua (pasti ditolak SUDAH_ULAS).
+      setMine({ rating: stars, comment: text.trim().slice(0, 500) });
       setPicked("");
       setText("");
       setStars(5);
