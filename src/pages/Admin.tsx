@@ -361,14 +361,14 @@ export function AdminHome() {
         <TableWrap>
           <thead>
             <tr>
-              <Th>ID</Th>
-              <Th>Toko</Th>
-              <Th>Kanal</Th>
-              <Th className="text-right">Nilai</Th>
-              <Th className="text-right">Biaya</Th>
-              <Th>Status</Th>
-            </tr>
-          </thead>
+                <Th>ID</Th>
+                <Th>Toko</Th>
+                <Th>Kanal</Th>
+                <Th className="text-right">Nilai</Th>
+                <Th className="hidden text-right md:table-cell">Biaya</Th>
+                <Th>Status</Th>
+              </tr>
+            </thead>
           <tbody>
             {loading ? (
               <tr>
@@ -394,13 +394,13 @@ export function AdminHome() {
             ) : (
             recentPays.map((p) => (
               <tr key={p.id} className="transition-colors hover:bg-canvas/70">
-                <Td className="tnum text-[13px] font-semibold">{p.id.slice(0, 8).toUpperCase()}</Td>
+                <Td className="tnum whitespace-nowrap text-[13px] font-semibold">{p.id.slice(0, 8).toUpperCase()}</Td>
                 <Td className="text-[13.5px]">{p.seller}</Td>
                 <Td>
                   <Badge tone={p.channel === "QRIS" ? "blue" : "gray"}>{p.channel}</Badge>
                 </Td>
-                <Td className="tnum text-right font-semibold">{rupiah(Number(p.amount))}</Td>
-                <Td className="tnum text-right text-muted">{rupiah(Number(p.fee))}</Td>
+                <Td className="tnum whitespace-nowrap text-right font-semibold">{rupiah(Number(p.amount))}</Td>
+                <Td className="hidden tnum text-right text-muted md:table-cell">{rupiah(Number(p.fee))}</Td>
                 <Td>
                   <Badge tone={statusTone(p.status)} dot>
                     {label(p.status)}
@@ -560,10 +560,10 @@ export function AdminSellers() {
             <thead>
               <tr>
                 <Th>Toko / pemilik</Th>
-                <Th>Kota</Th>
+                <Th className="hidden md:table-cell">Kota</Th>
                 <Th>Paket</Th>
-                <Th className="text-right">GMV</Th>
-                <Th className="text-right">Pesanan</Th>
+                <Th className="tnum whitespace-nowrap text-right">GMV</Th>
+                <Th className="hidden text-right md:table-cell">Pesanan</Th>
                 <Th>Status</Th>
                 <Th className="text-right">Aksi</Th>
               </tr>
@@ -579,12 +579,12 @@ export function AdminSellers() {
                       <div className="text-[12.5px] text-faint">{s.owner_name || "—"}</div>
                     </button>
                   </Td>
-                  <Td className="text-[13.5px]">{s.city || "—"}</Td>
+                  <Td className="hidden text-[13.5px] md:table-cell">{s.city || "—"}</Td>
                   <Td>
                     <Badge tone={s.plan === "premium" ? "blue" : "gray"}>{s.plan === "premium" ? "Premium" : "Gratis"}</Badge>
                   </Td>
-                  <Td className="tnum text-right font-semibold">{rupiahShort(a.sales)}</Td>
-                  <Td className="tnum text-right">{a.orders}</Td>
+                  <Td className="tnum whitespace-nowrap text-right font-semibold">{rupiahShort(a.sales)}</Td>
+                  <Td className="hidden tnum text-right md:table-cell">{a.orders}</Td>
                   <Td>
                     <Badge tone={statusTone(s.status)} dot>
                       {label(s.status)}
@@ -770,14 +770,14 @@ export function AdminPremium() {
         <TableWrap>
           <thead>
             <tr>
-              <Th>ID</Th>
-              <Th>Toko</Th>
-              <Th>Paket</Th>
-              <Th className="text-right">Nilai</Th>
-              <Th className="hidden md:table-cell">Bukti bayar</Th>
-              <Th>Tanggal</Th>
-              <Th>Status</Th>
-              <Th className="text-right">Aksi</Th>
+                <Th>ID</Th>
+                <Th>Toko</Th>
+                <Th>Paket</Th>
+                <Th className="text-right">Nilai</Th>
+                <Th className="hidden md:table-cell">Bukti bayar</Th>
+                <Th className="hidden md:table-cell">Tanggal</Th>
+                <Th>Status</Th>
+                <Th className="text-right">Aksi</Th>
             </tr>
           </thead>
           <tbody>
@@ -801,14 +801,14 @@ export function AdminPremium() {
             ) : (
               filtered.map((p) => (
               <tr key={p.id} className="transition-colors hover:bg-canvas/70">
-                <Td className="tnum text-[13px] text-muted">{p.id.slice(0, 8).toUpperCase()}</Td>
+                <Td className="tnum whitespace-nowrap text-[13px] text-muted">{p.id.slice(0, 8).toUpperCase()}</Td>
                 <Td className="text-[13.5px] font-semibold">{storeOf(p)}</Td>
-                <Td className="text-[13.5px]">{p.plan}</Td>
-                <Td className="tnum text-right font-bold">{rupiah(Number(p.amount))}</Td>
+                <Td className="whitespace-nowrap text-[13.5px]">{p.plan}</Td>
+                <Td className="tnum whitespace-nowrap text-right font-bold">{rupiah(Number(p.amount))}</Td>
                 <Td className="hidden md:table-cell">
                   <Badge tone={p.proof_channel === "QRIS" ? "blue" : "gray"}>{p.proof_channel ?? "—"}</Badge>
                 </Td>
-                <Td className="text-[13px] text-muted">
+                <Td className="hidden text-[13px] text-muted md:table-cell">
                   {new Date(p.created_at).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" })}
                 </Td>
                 <Td>
@@ -954,7 +954,7 @@ export function AdminWithdrawals() {
               <Th>Penjual</Th>
               <Th>Rekening</Th>
               <Th className="text-right">Diminta</Th>
-              <Th className="text-right">Biaya</Th>
+              <Th className="hidden text-right md:table-cell">Biaya</Th>
               <Th className="hidden md:table-cell">Tanggal</Th>
               <Th>Status</Th>
               <Th className="text-right">Aksi</Th>
@@ -973,13 +973,13 @@ export function AdminWithdrawals() {
             ) : (
               filtered.map((w) => (
               <tr key={w.id} className="transition-colors hover:bg-canvas/70">
-                <Td className="tnum text-[13px] text-muted">{w.id.slice(0, 8).toUpperCase()}</Td>
+                <Td className="tnum whitespace-nowrap text-[13px] text-muted">{w.id.slice(0, 8).toUpperCase()}</Td>
                 <Td className="text-[13.5px] font-semibold">{storeOf(w)}</Td>
-                <Td className="text-[13.5px]">
+                <Td className="whitespace-nowrap text-[13.5px]">
                   {w.bank} <span className="tnum text-faint">{masked(w.account_number)}</span>
                 </Td>
-                <Td className="tnum text-right font-bold">{rupiah(Number(w.amount))}</Td>
-                <Td className="tnum text-right text-muted">{rupiah(Number(w.fee))}</Td>
+                <Td className="tnum whitespace-nowrap text-right font-bold">{rupiah(Number(w.amount))}</Td>
+                <Td className="hidden tnum text-right text-muted md:table-cell">{rupiah(Number(w.fee))}</Td>
                 <Td className="hidden text-[13px] text-muted md:table-cell">
                   {new Date(w.created_at).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" })}
                 </Td>
@@ -1325,7 +1325,7 @@ export function AdminPayments() {
                 <Th>Kanal</Th>
                 <Th className="hidden md:table-cell">Waktu</Th>
                 <Th className="text-right">Nilai</Th>
-                <Th className="text-right">Biaya</Th>
+                <Th className="hidden text-right md:table-cell">Biaya</Th>
                 <Th>Status</Th>
                 <Th className="text-right">Aksi</Th>
               </tr>
@@ -1334,8 +1334,11 @@ export function AdminPayments() {
               {filtered.map((p) => (
                 <tr key={p.id} className="transition-colors hover:bg-canvas/70">
                   <Td>
-                    <div className="tnum text-[13px] font-semibold">{p.external_ref ?? p.id.slice(0, 8).toUpperCase()}</div>
-                    <div className="tnum text-[12px] text-faint">{p.order_id}</div>
+                    <div className="tnum whitespace-nowrap text-[13px] font-semibold">
+                      <span className="md:hidden">{(p.external_ref ?? p.id).slice(0, 8).toUpperCase()}</span>
+                      <span className="hidden md:inline">{p.external_ref ?? p.id.slice(0, 8).toUpperCase()}</span>
+                    </div>
+                    <div className="tnum max-w-[140px] truncate text-[12px] text-faint">{p.order_id}</div>
                   </Td>
                   <Td className="text-[13.5px]">{storeOf(p)}</Td>
                   <Td>
@@ -1344,8 +1347,8 @@ export function AdminPayments() {
                   <Td className="hidden text-[13px] text-muted md:table-cell">
                     {new Date(p.created_at).toLocaleString("id-ID", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
                   </Td>
-                  <Td className="tnum text-right font-bold">{rupiah(Number(p.amount))}</Td>
-                  <Td className="tnum text-right text-muted">{rupiah(Number(p.fee))}</Td>
+                  <Td className="tnum whitespace-nowrap text-right font-bold">{rupiah(Number(p.amount))}</Td>
+                  <Td className="hidden tnum whitespace-nowrap text-right text-muted md:table-cell">{rupiah(Number(p.fee))}</Td>
                   <Td>
                     <Badge tone={statusTone(p.status)} dot>
                       {label(p.status)}
@@ -1519,12 +1522,12 @@ export function AdminUsers() {
             ) : (
               filtered.map((u) => (
               <tr key={u.id} className="transition-colors hover:bg-canvas/70">
-                <Td className="tnum text-[13px] text-muted">{u.id.slice(0, 8).toUpperCase()}</Td>
+                <Td className="tnum whitespace-nowrap text-[13px] text-muted">{u.id.slice(0, 8).toUpperCase()}</Td>
                 <Td>
                   <div className="text-[13.5px] font-semibold">{u.owner_name}</div>
                   <div className="text-[12px] text-faint">{u.store_name}</div>
                 </Td>
-                <Td className="text-[13.5px] text-muted">{u.email}</Td>
+                <Td className="max-w-[180px] truncate text-[13.5px] text-muted">{u.email}</Td>
                 <Td>
                   <Badge tone={u.role === "admin" ? "navy" : "blue"}>{u.role === "admin" ? "Admin" : "Penjual"}</Badge>
                 </Td>

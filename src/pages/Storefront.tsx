@@ -1080,6 +1080,9 @@ export function ProductDetail({ id, slug }: { id: string; slug: string }) {
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [qty, setQty] = useState(1);
+  // Hook HARUS di sini (sebelum return loading/notFound di bawah) — kalau
+  // dipanggil setelah return, jumlah hook berubah-ubah dan halaman jadi putih.
+  const waUrlDetail = useStoreContact(store?.id);
   useVisitBeacon(store?.id, `/s/${slug}/p/${id}`);
 
   useEffect(() => {
@@ -1154,7 +1157,6 @@ export function ProductDetail({ id, slug }: { id: string; slug: string }) {
   const out = p.stock === 0;
   const closedDetail = store?.is_closed ?? false;
   const cannotBuy = out || closedDetail;
-  const waUrlDetail = useStoreContact(store?.id);
 
   return (
     <div className="min-h-screen bg-canvas pb-32 lg:pb-16">

@@ -14,7 +14,7 @@ const cx2 = clsx;
 // AppShell remount saat pindah halaman.
 let drawerTop = 0;
 
-type NavItem = { label: string; to: string; icon: string; badge?: number };
+type NavItem = { label: string; short?: string; to: string; icon: string; badge?: number };
 type NavGroup = { title?: string; items: NavItem[] };
 
 export const SELLER_NAV: NavGroup[] = [
@@ -37,7 +37,7 @@ export const SELLER_NAV: NavGroup[] = [
   {
     title: "Toko",
     items: [
-      { label: "Tampilan toko", to: "/app/theme", icon: "image" },
+      { label: "Tampilan toko", short: "Tampilan", to: "/app/theme", icon: "image" },
       { label: "Tautan bio", to: "/app/bio", icon: "link" },
       { label: "Jam buka", to: "/app/hours", icon: "clock" },
       { label: "QR toko", to: "/app/qr", icon: "qr" },
@@ -53,7 +53,7 @@ export const SELLER_NAV: NavGroup[] = [
   {
     title: "Pengaturan",
     items: [
-      { label: "Pengaturan toko", to: "/app/settings", icon: "settings" },
+      { label: "Pengaturan toko", short: "Pengaturan", to: "/app/settings", icon: "settings" },
       { label: "Profil & akun", to: "/app/account", icon: "user" },
     ],
   },
@@ -70,10 +70,10 @@ export const ADMIN_NAV: NavGroup[] = [
   {
     title: "Operasi",
     items: [
-      { label: "Kelola penjual", to: "/admin/sellers", icon: "store" },
-      { label: "Permintaan Premium", to: "/admin/premium", icon: "star" },
-      { label: "Penarikan dana", to: "/admin/withdrawals", icon: "wallet" },
-      { label: "Pemantauan bayar", to: "/admin/payments", icon: "receipt" },
+      { label: "Kelola penjual", short: "Penjual", to: "/admin/sellers", icon: "store" },
+      { label: "Permintaan Premium", short: "Premium", to: "/admin/premium", icon: "star" },
+      { label: "Penarikan dana", short: "Penarikan", to: "/admin/withdrawals", icon: "wallet" },
+      { label: "Pemantauan bayar", short: "Bayar", to: "/admin/payments", icon: "receipt" },
     ],
   },
   {
@@ -443,11 +443,11 @@ export function AppShell({
           {mobileItems.map((it) => {
             const active = navActive(path, it.to);
             return (
-              <li key={it.to} className="flex-1">
+              <li key={it.to} className="min-w-0 flex-1">
                 <Link
                   to={it.to}
                   className={cx(
-                    "relative flex flex-col items-center gap-1 py-2.5 text-[10.5px] font-semibold transition-colors duration-150",
+                    "relative flex flex-col items-center gap-1 px-1 py-2.5 text-center text-[10.5px] font-semibold leading-tight transition-colors duration-150",
                     active ? "text-brand-700" : "text-faint",
                   )}
                 >
@@ -458,15 +458,15 @@ export function AppShell({
                     )}
                   />
                   <Icon name={it.icon} size={20} strokeWidth={active ? 2.1 : 1.7} />
-                  {it.label}
+                  {it.short ?? it.label}
                 </Link>
               </li>
             );
           })}
-          <li className="flex-1">
+          <li className="min-w-0 flex-1">
             <button
               onClick={() => setSheet(true)}
-              className="flex w-full flex-col items-center gap-1 py-2.5 text-[10.5px] font-semibold text-faint"
+              className="flex w-full flex-col items-center gap-1 px-1 py-2.5 text-center text-[10.5px] font-semibold leading-tight text-faint"
             >
               <Icon name="more" size={20} />
               Lainnya

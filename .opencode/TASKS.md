@@ -308,13 +308,15 @@ referensi itu.
       grid/stacking konsisten dengan halaman lain yang sudah lolos cek
       responsif, belum ketemu elemen spesifik yang patah. **Butuh
       screenshot dari user** untuk pinpoint sebelum diperbaiki.
-- [ ] **Email kode OTP tak sampai (Brevo API 10 Okt 2026):** endpoint
-      `/api/request-reset` 200 tapi Brevo tidak kirim. Sudah dipastikan:
-      sender verified, kredensial benar, IP review dimatikan. Butuh isi
-      Runtime Log `[request-reset] Brevo` dari Vercel + pastikan
-      `BREVO_API_KEY` = key tab **API keys** (bukan SMTP) di env
-      Production + redeploy. Alur OTP (kode 6 digit, tabel
-      `password_resets`, halaman Forgot 2-langkah) sudah jadi di kode.
+- [x] **Email kode OTP tak sampai (Brevo API 10 Okt 2026):** **SELESAI — akar
+      masalah ketemu 12 Okt 2026:** Brevo 401 "unrecognised IP" karena fitur
+      "blokir IP tak dikenal" aktif otomatis setelah ~30 hari, sementara IP
+      keluar Vercel gonta-ganti tiap request (tidak bisa di-allowlist).
+      Perbaikan: fitur blokir-IP dimatikan di Brevo (Security →
+      Authorized IPs), key tetap aman di server + rate-limit di kode.
+      Opsi IP-tetap Vercel ($100/bln) ditolak — berlebihan untuk OTP.
+      Dites user: email kode OTP masuk. Jalur sunyi di `request-reset`
+      sekarang tercatat di log server + `.env.example` dilengkapi var Brevo.
 - [x] **Brief desain Tema & Katalog** — SELESAI, dikerjakan arena.ai
       (mimo-v2.6-flash) bukan Lovable, hasilnya sudah di-port (lihat item
       "Tema toko (theme engine)" di Fase 5).
