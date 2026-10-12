@@ -8,6 +8,7 @@ Problem_screenshot/
 # Arsip lokal: sumber desain AI & tema lama (tidak dipakai production)
 arsip/
 desain_toko_seller/
+Desain UI, Toko Seller/
 
 # Dependencies & build output
 node_modules/
