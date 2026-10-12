@@ -479,10 +479,10 @@ export function Analytics() {
                   a.download = `analitik-${period.replace(/ /g, "")}.csv`;
                   a.click();
                   URL.revokeObjectURL(a.href);
-                  toast("Laporan Excel diunduh.");
+                  toast("Laporan CSV diunduh.");
                 }}
               >
-              <Icon name="download" size={16} /> Unduh Excel
+              <Icon name="download" size={16} /> Unduh CSV
             </Button>
           </>
         }

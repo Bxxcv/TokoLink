@@ -11,6 +11,7 @@ import { AppShell } from "../components/layout";
 import {
   Badge,
   Button,
+  ButtonLink,
   Card,
   CardHead,
   ConfirmDialog,
@@ -421,7 +422,7 @@ export function AdminSellers() {
   const [q, setQ] = useState("");
   const [status, setStatus] = useState("Semua");
   type SellerRow = {
-    id: string; store_name: string | null; owner_name: string | null;
+    id: string; store_name: string | null; store_slug: string | null; owner_name: string | null;
     city: string | null; plan: string; status: string; created_at: string;
   };
   const [sellers, setSellers] = useState<SellerRow[]>([]);
@@ -437,7 +438,7 @@ export function AdminSellers() {
     try {
       const { data: profs, error: e1 } = await supabase
         .from("profiles")
-        .select("id,store_name,owner_name,city,plan,status,created_at")
+        .select("id,store_name,store_slug,owner_name,city,plan,status,created_at")
         .eq("role", "seller")
         .order("created_at", { ascending: false });
       if (e1) throw e1;
@@ -622,6 +623,11 @@ export function AdminSellers() {
             <Button variant="secondary" onClick={() => setDetail(null)}>
               Tutup
             </Button>
+            {detail?.store_slug && (
+              <ButtonLink to={`/s/${detail.store_slug}`} variant="secondary">
+                <Icon name="external" size={16} /> Lihat toko
+              </ButtonLink>
+            )}
             <Button onClick={() => { setDetail(null); navigate("/admin/analytics"); }}>Lihat analitik toko</Button>
           </>
         }
