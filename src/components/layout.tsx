@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import clsx from "clsx";
 import { Link, navigate, useRoute } from "../lib/router";
-import { signOut, useAuth } from "../lib/auth";
+import { signOut, useAuth, isPremiumActive } from "../lib/auth";
 import { useApp } from "../lib/store";
 import { supabase } from "../lib/supabase";
 import { countUnread } from "../lib/notifications";
@@ -294,7 +294,7 @@ export function AppShell({
           <NavList groups={groups} path={path} dark={admin} />
         </div>
         <div className={cx("border-t p-3", admin ? "border-white/10" : "border-line")}>
-          {!admin && (profile?.plan ?? "gratis") !== "premium" && (
+          {!admin && !isPremiumActive(profile) && (
             <div className="notch mb-3 bg-navy-800 p-3.5">
               <div className="micro text-brand-300">Paket Premium</div>
               <p className="mt-1 text-[13px] font-semibold leading-snug text-white">
@@ -527,8 +527,8 @@ export function AppShell({
                 </div>
                 <div className={cx("truncate text-[12px]", admin ? "text-white/55" : "text-faint")}>{admin ? "Super admin" : "Pemilik toko"}</div>
               </div>
-              <Badge tone={admin || (profile?.plan ?? "gratis") === "premium" ? "blue" : "gray"} dot>
-                {admin ? "Admin" : (profile?.plan ?? "gratis") === "premium" ? "Premium" : "Gratis"}
+              <Badge tone={admin || isPremiumActive(profile) ? "blue" : "gray"} dot>
+                {admin ? "Admin" : isPremiumActive(profile) ? "Premium" : "Gratis"}
               </Badge>
             </div>
             <button

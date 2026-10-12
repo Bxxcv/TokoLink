@@ -268,6 +268,18 @@ referensi itu.
       tombol "Ajukan Premium" di `StoreSettings` memang sudah insert ke
       `premium_requests` → diproses di `AdminPremium` (Fase 6). Tidak ada
       yang kurang — item ini sebenarnya sudah jalan.
+- [ ] **Bayar Premium via QRIS otomatis — KEPUTUSAN user 12 Okt 2026:**
+      **KODE SELESAI 12 Okt 2026, BELUM BISA CENTANG:** `api/create-premium-order.ts`
+      baru (harga server 59rb/588rb, tolak dobel-bayar) + cabang Premium di
+      `api/buatqris-webhook.ts` (HMAC sama, aktivasi `plan` + `premium_until`
+      otomatis, idempoten) + halaman `/app/premium-pay` (QR + polling 5 dtk)
+      + `isPremiumActive()` (kedaluwarsa = dianggap gratis) + `AdminPremium`
+      tampil "QRIS · lunas". **SYARAT: jalankan
+      `database/migrate_premium_qris.sql` di SQL editor Supabase DULU**
+      (kolom `premium_until`/`external_ref`/`paid_at`, trigger sadar
+      kedaluwarsa, kunci anti-ubah-tanggal), lalu tes sandbox 588rb/59rb
+      sampai plan aktif. Opsi "transfer + upload bukti" dan "manual via WA"
+      DITOLAK user.
 - [x] **Kolom `profiles` yang belum ada tapi dipakai di StoreSettings**:
       **Diverifikasi 10 Okt 2026: TIDAK ADA yang kurang** — semua field
       form (nama, slug, kategori, kota, WA, bio, alamat) sudah ada

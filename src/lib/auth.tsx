@@ -20,6 +20,7 @@ export type Profile = {
   address: string | null;
   is_closed: boolean;
   plan: string;
+  premium_until: string | null;
   status: string;
 };
 
@@ -51,6 +52,15 @@ const AuthCtx = createContext<AuthState>({
 
 export function useAuth() {
   return useContext(AuthCtx);
+}
+
+/** Premium AKTIF = plan `premium` DAN belum kedaluwarsa.
+ *  premium_until NULL = premium lama (sebelum ada masa berlaku),
+ *  dianggap aktif selamanya (grandfathering). */
+export function isPremiumActive(profile: Profile | null | undefined): boolean {
+  if (!profile || profile.plan !== "premium") return false;
+  if (!profile.premium_until) return true;
+  return new Date(profile.premium_until).getTime() > Date.now();
 }
 
 /** Pesan error Supabase Auth → bahasa Indonesia yang ramah. */
@@ -192,12 +202,12 @@ export function RequireAuth({ children }: { children: ReactNode }) {
   return <>{children}</>;
 }
 
-/** Bungkus halaman khusus Premium: gratis → ajakan upgrade (bukan data). */
+/** Bungkus halaman khusus Premium: gratis/kedaluwarsa → ajakan upgrade (bukan data). */
 export function RequirePremium({ children }: { children: ReactNode }) {
   const { profile, loading, refresh } = useAuth();
   const [upgradeDone, setUpgradeDone] = useState(false);
   if (loading) return null;
-  if ((profile?.plan ?? "gratis") === "premium" || upgradeDone) return <>{children}</>;
+  if (isPremiumActive(profile) || upgradeDone) return <>{children}</>;
   return (
     <div className="flex min-h-screen items-center justify-center bg-canvas px-6 py-10">
       <div className="w-full max-w-md rounded-xl border border-line bg-white p-8 text-center shadow-card">

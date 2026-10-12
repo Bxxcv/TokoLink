@@ -1,8 +1,8 @@
 import QRCode from "qrcode";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { isReservedSlug, navigate, storeUrl } from "../lib/router";
 import { supabase } from "../lib/supabase";
-import { useAuth } from "../lib/auth";
+import { useAuth, isPremiumActive } from "../lib/auth";
 import { digitsOnly, formatRibuan, isValidWA, normalizeWA } from "../lib/format";
 import { detectLinkIcon, iconForLink } from "../lib/links";
 import { uploadImage } from "../lib/storage";
@@ -1176,7 +1176,7 @@ export function Theme() {
               {THEMES.map((t) => {
                 const active = themeId === t.id;
                 const isEngine = isEngineTheme(t.id);
-                const isPremium = (profile?.plan ?? "gratis") === "premium";
+                const isPremium = isPremiumActive(profile);
                 // Gratis: tetap boleh PAKAI tema engine yang sudah terpasang,
                 // tapi tidak bisa PINDAH ke tema engine lain.
                 const locked = isEngine && !isPremium && snapshot.current.themeId !== t.id;
@@ -2181,6 +2181,7 @@ export function StoreSettings() {
   const { toast } = useApp();
   const { user, profile, loading: authLoading, refresh } = useAuth();
   const [plan, setPlan] = useState("Bulanan");
+  const [payLoading, setPayLoading] = useState(false);
   const [close, setClose] = useState(false);
   const [saving, setSaving] = useState(false);
   const initialized = useRef(false);
@@ -2388,14 +2389,16 @@ export function StoreSettings() {
         <aside className="space-y-4 lg:sticky lg:top-24 lg:self-start">
           <div className="notch rounded-xl border border-line bg-navy-900 p-5 text-white">
             <div className="micro text-brand-300">Paket saat ini</div>
-            {(profile?.plan ?? "gratis") === "premium" ? (
+            {isPremiumActive(profile) ? (
               <>
                 <div className="mt-2 flex items-baseline gap-2">
                   <span className="text-[24px] font-extrabold">Premium</span>
                   <Badge tone="green" dot>Aktif</Badge>
                 </div>
                 <p className="mt-2 text-[13px] leading-relaxed text-white/65">
-                  Toko memakai fitur Premium. Komisi platform mengikuti pengaturan admin.
+                  {profile?.premium_until
+                    ? `Aktif sampai ${new Date(profile.premium_until).toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" })}.`
+                    : "Toko memakai fitur Premium."}
                 </p>
               </>
             ) : (
@@ -2404,7 +2407,7 @@ export function StoreSettings() {
                   <span className="text-[24px] font-extrabold">Gratis</span>
                 </div>
                 <p className="mt-2 text-[13px] leading-relaxed text-white/65">
-                  Naik ke Premium: Rp59.000/bln atau Rp590.000/thn. Pengajuan ditinjau admin 1×24 jam.
+                  Naik ke Premium: Rp59.000/bln atau Rp588.000/thn. Bayar via QRIS, aktif otomatis.
                 </p>
                 <Segmented
                   items={["Bulanan", "Tahunan"]}
@@ -2415,28 +2418,57 @@ export function StoreSettings() {
             )}
             <Button
               className="mt-3 w-full bg-brand-500! text-navy-900! hover:bg-brand-400!"
+              loading={payLoading}
               onClick={async () => {
-                if (!user) return;
-                if ((profile?.plan ?? "gratis") === "premium") {
+                if (!user) {
+                  toast("Sesi berakhir. Masuk lagi.", "bad");
+                  return;
+                }
+                if (isPremiumActive(profile)) {
                   toast("Tokomu sudah Premium.", "ok");
                   return;
                 }
-                const isYearly = plan === "Tahunan";
-                const { error } = await supabase.from("premium_requests").insert({
-                  seller_id: user.id,
-                  plan: isYearly ? "Premium Tahunan" : "Premium Bulanan",
-                  amount: isYearly ? 590000 : 59000,
-                  proof_channel: "Menunggu bukti",
-                  status: "menunggu",
-                });
-                if (error) {
-                  toast("Gagal mengirim pengajuan.", "bad");
-                  return;
+                setPayLoading(true);
+                try {
+                  const { data: sess } = await supabase.auth.getSession();
+                  const token = sess.session?.access_token;
+                  if (!token) {
+                    toast("Sesi berakhir. Masuk lagi.", "bad");
+                    return;
+                  }
+                  const res = await fetch("/api/create-premium-order", {
+                    method: "POST",
+                    headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+                    body: JSON.stringify({ billing: plan === "Tahunan" ? "tahunan" : "bulanan" }),
+                  });
+                  const out = (await res.json().catch(() => ({}))) as {
+                    request_id?: string; qr?: unknown; amount?: number; error?: string;
+                  };
+                  if (!res.ok || !out.request_id || !out.qr) {
+                    toast(out.error ?? "Gagal membuat tagihan.", "bad");
+                    return;
+                  }
+                  try {
+                    sessionStorage.setItem(
+                      "tl_premium_qr",
+                      JSON.stringify({ request_id: out.request_id, qr: out.qr, amount: out.amount, billing: plan, at: Date.now() }),
+                    );
+                  } catch {
+                    /* abaikan */
+                  }
+                  navigate(`/app/premium-pay?id=${out.request_id}`);
+                } catch {
+                  toast("Tidak bisa menghubungi server.", "bad");
+                } finally {
+                  setPayLoading(false);
                 }
-                toast("Pengajuan Premium dikirim. Admin akan meninjau 1×24 jam.", "ok");
               }}
             >
-              {(profile?.plan ?? "gratis") === "premium" ? "Paket Premium aktif" : "Ajukan Premium"}
+              {isPremiumActive(profile)
+                ? "Paket Premium aktif"
+                : plan === "Tahunan"
+                  ? "Bayar Rp588.000 via QRIS"
+                  : "Bayar Rp59.000 via QRIS"}
             </Button>
           </div>
 
@@ -2767,6 +2799,186 @@ export function AccountSettings() {
           }
         }}
       />
+    </AppShell>
+  );
+}
+
+/* ============================== PREMIUM PAY ============================= */
+export function PremiumPay({ id }: { id: string }) {
+  const { toast } = useApp();
+  const { user, refresh } = useAuth();
+  const [qr, setQr] = useState<{
+    qr_url: string; qris_image: string; total_amount: number;
+    expired_at: string | null; payment_url: string | null; is_test: boolean;
+  } | null>(null);
+  const [billing, setBilling] = useState("");
+  const [amount, setAmount] = useState(0);
+  const [status, setStatus] = useState("menunggu");
+  const [loading, setLoading] = useState(true);
+  const [imgOk, setImgOk] = useState(true);
+  const [checking, setChecking] = useState(false);
+  const [now, setNow] = useState(Date.now());
+
+  // QR disimpan saat tagihan dibuat (tidak disimpan di database).
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem("tl_premium_qr");
+      if (raw) {
+        const o = JSON.parse(raw) as { request_id: string; qr: typeof qr; amount: number; billing: string };
+        if (o.request_id === id && o.qr) {
+          setQr(o.qr);
+          setAmount(Number(o.amount) || 0);
+          setBilling(String(o.billing || ""));
+        }
+      }
+    } catch {
+      /* abaikan */
+    }
+  }, [id]);
+
+  const check = useCallback(async () => {
+    if (!user) return;
+    const { data } = await supabase
+      .from("premium_requests")
+      .select("status")
+      .eq("id", id)
+      .eq("seller_id", user.id)
+      .maybeSingle();
+    const st = (data as { status: string } | null)?.status ?? "unknown";
+    setStatus(st);
+    if (st === "disetujui") await refresh();
+  }, [id, user]);
+
+  useEffect(() => {
+    check().finally(() => setLoading(false));
+    const t = window.setInterval(check, 5000);
+    return () => window.clearInterval(t);
+  }, [check]);
+
+  useEffect(() => {
+    const t = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(t);
+  }, []);
+
+  const left = qr?.expired_at
+    ? Math.max(0, Math.floor((new Date(qr.expired_at).getTime() - now) / 1000))
+    : 900;
+  const expired = left === 0;
+  const mm = String(Math.floor(left / 60)).padStart(2, "0");
+  const ss = String(left % 60).padStart(2, "0");
+  const payAmount = qr?.total_amount ?? amount;
+
+  return (
+    <AppShell>
+      <PageHeader
+        index="08"
+        kicker="Premium"
+        title="Bayar Premium"
+        desc="Scan QRIS dari e-wallet / m-banking. Premium aktif otomatis setelah bayar."
+      />
+      {loading ? (
+        <Card>
+          <Skeleton className="h-64 w-full" />
+          <Skeleton className="mt-3 h-10 w-full" />
+        </Card>
+      ) : status === "disetujui" ? (
+        <Card>
+          <div className="py-6 text-center">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-lg bg-oksoft text-ok">
+              <Icon name="check" size={26} />
+            </div>
+            <h2 className="mt-4 text-[20px] font-extrabold text-ink">Premium aktif.</h2>
+            <p className="mx-auto mt-2 max-w-sm text-[14px] leading-relaxed text-muted">
+              Pembayaran diterima. Fitur Premium sudah bisa dipakai di toko Anda.
+            </p>
+            <ButtonLink to="/app/settings" size="lg" className="mt-6 w-full sm:w-auto">
+              Kembali ke pengaturan
+            </ButtonLink>
+          </div>
+        </Card>
+      ) : status === "kedaluwarsa" || status === "ditolak" ? (
+        <Card>
+          <EmptyState
+            icon="qr"
+            title={status === "ditolak" ? "Tagihan ditolak" : "QR kedaluwarsa"}
+            desc="Buat tagihan baru di halaman pengaturan untuk mencoba lagi."
+            action={
+              <ButtonLink to="/app/settings">Buat tagihan baru</ButtonLink>
+            }
+          />
+        </Card>
+      ) : (
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
+          <Card>
+            <div className="flex flex-col items-center py-2">
+              <div className="micro text-faint">
+                {billing ? `Premium ${billing}` : "Premium"} · <span className="tnum">{id.slice(0, 8).toUpperCase()}</span>
+              </div>
+              <div className="tnum mt-2 text-[34px] font-extrabold text-ink">{rupiah(payAmount)}</div>
+              {qr?.is_test && <div className="micro mt-1 text-warn">MODE SANDBOX — tanpa uang asli</div>}
+              <div className="mt-5">
+                {qr && imgOk && !expired ? (
+                  <img
+                    src={qr.qr_url || qr.qris_image}
+                    alt={`QRIS ${rupiah(payAmount)}`}
+                    width={260}
+                    height={260}
+                    className="h-[260px] w-[260px] rounded-lg border border-line object-contain"
+                    onError={() => setImgOk(false)}
+                  />
+                ) : (
+                  <div className="flex w-full min-w-[260px] flex-col items-center rounded-lg border border-dashed border-line bg-canvas px-4 py-10 text-center">
+                    <Icon name="qr" size={30} className="text-faint" />
+                    <p className="mt-3 text-[14px] font-bold text-ink">
+                      {expired ? "QR kedaluwarsa" : "QR belum tampil"}
+                    </p>
+                    <p className="mt-1 max-w-xs text-[13px] leading-relaxed text-muted">
+                      {expired
+                        ? "Masa berlaku QR habis. Buat tagihan baru di pengaturan."
+                        : "Kembali ke pengaturan dan buat tagihan baru."}
+                    </p>
+                  </div>
+                )}
+              </div>
+              {!expired && qr && (
+                <div className="tnum mt-3 text-[13px] font-semibold text-muted">
+                  Berlaku {mm}:{ss}
+                </div>
+              )}
+            </div>
+          </Card>
+          <aside className="space-y-4">
+            <Card>
+              <CardHead title="Sudah bayar?" icon="check" />
+              <p className="text-[13.5px] leading-relaxed text-muted">
+                Halaman ini memeriksa otomatis tiap 5 detik. Kalau sudah scan dan bayar, tekan tombol di
+                bawah untuk cek sekarang.
+              </p>
+              <Button
+                className="mt-4 w-full"
+                loading={checking}
+                disabled={expired || !qr}
+                onClick={async () => {
+                  setChecking(true);
+                  try {
+                    await check();
+                    if (status !== "disetujui") {
+                      toast("Pembayaran belum masuk. Tunggu sebentar lalu cek lagi.", "info");
+                    }
+                  } finally {
+                    setChecking(false);
+                  }
+                }}
+              >
+                Saya sudah bayar — cek status
+              </Button>
+              <ButtonLink to="/app/settings" variant="secondary" size="sm" className="mt-2 w-full">
+                Kembali ke pengaturan
+              </ButtonLink>
+            </Card>
+          </aside>
+        </div>
+      )}
     </AppShell>
   );
 }

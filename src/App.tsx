@@ -26,6 +26,7 @@ import {
   StoreQR,
   StoreSettings,
   AccountSettings,
+  PremiumPay,
   Notifications,
 } from "./pages/DashboardB";
 import {
@@ -169,6 +170,11 @@ function RouteView({ path }: { path: string }) {
       case "notifications":
         return <Notifications />;
       default: {
+        if (rest === "premium-pay" || rest.startsWith("premium-pay?")) {
+          const q = rest.includes("?") ? rest.split("?")[1] : "";
+          const params = new URLSearchParams(q);
+          return <PremiumPay id={params.get("id") ?? ""} />;
+        }
         if (rest.startsWith("products/") && rest.endsWith("/edit")) {
           const id = rest.split("/")[1];
           return <ProductForm id={id} />;

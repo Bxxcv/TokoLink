@@ -248,11 +248,11 @@ function Hero() {
             </TagChip>
 
             <h1 className="mt-6 text-[38px] font-extrabold leading-[1.04] tracking-[-0.035em] text-white drop-shadow-[0_2px_12px_rgba(6,27,69,0.55)] sm:text-[52px] lg:text-[62px]">
-              Satu tautan untuk
+              Wujudkan Toko
               <br />
-              semua jualan{" "}
+              Online Anda{" "}
               <span className="relative whitespace-nowrap text-brand-400">
-                kamu
+                Dengan Mudah
                 <svg
                   viewBox="0 0 120 12"
                   className="absolute -bottom-1 left-0 h-2.5 w-full"
@@ -273,6 +273,14 @@ function Hero() {
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
               <ButtonLink to="/register" size="lg" className="sm:px-7">
                 Buka toko sekarang <Icon name="arrowRight" size={17} />
+              </ButtonLink>
+              <ButtonLink
+                to="/demo-account"
+                size="lg"
+                variant="secondary"
+                className="border-white/30! bg-transparent! text-white! hover:border-white/60 hover:bg-white/10 hover:text-white sm:px-7"
+              >
+                Lihat contoh toko
               </ButtonLink>
             </div>
 
@@ -1187,6 +1195,13 @@ function Footer() {
                     ) : l === "Syarat layanan" || l === "Kebijakan privasi" ? (
                       <Link
                         to="/legal/privacy"
+                        className="text-left text-[14px] text-white/65 transition-colors duration-150 hover:text-white"
+                      >
+                        {l}
+                      </Link>
+                    ) : l === "Contoh toko" ? (
+                      <Link
+                        to="/demo-account"
                         className="text-left text-[14px] text-white/65 transition-colors duration-150 hover:text-white"
                       >
                         {l}

@@ -26,6 +26,58 @@ function readRaw(req: any): Promise<string> {
   });
 }
 
+/** Aktivasi Premium otomatis dari webhook BuatQris (idempoten). */
+async function handlePremium(
+  db: any,
+  res: any,
+  pr: { id: string; seller_id: string; plan: string; amount: number | string; status: string },
+  payload: { total_amount?: number },
+  evt: string,
+) {
+  // Sudah diproses (sukses/kedaluwarsa/ditolak) → webhook ganda diabaikan.
+  if (pr.status !== "menunggu") return res.status(200).json({ ok: true, deduped: true });
+
+  if (evt === "payment.success") {
+    // Nominal yang dibayar HARUS sama dengan harga paket. Beda → biarkan
+    // 'menunggu' supaya admin meninjau manual, jangan aktifkan.
+    const paidTotal = Number(payload.total_amount);
+    if (Number.isFinite(paidTotal) && Math.round(paidTotal) !== Math.round(Number(pr.amount))) {
+      console.error("[webhook] nominal Premium tidak cocok", pr.id);
+      return res.status(200).json({ ok: true, flagged: true });
+    }
+    // Klaim atomik: hanya 1 webhook yang bisa mengubah menunggu→disetujui.
+    const { data: claimed } = await db
+      .from("premium_requests")
+      .update({ status: "disetujui", paid_at: new Date().toISOString(), reviewed_at: new Date().toISOString() })
+      .eq("id", pr.id)
+      .eq("status", "menunggu")
+      .select("id");
+    if (!claimed || claimed.length === 0) return res.status(200).json({ ok: true, deduped: true });
+
+    // Masa berlaku: Bulanan +30 hari, Tahunan +365 hari, dihitung dari
+    // sisa masa aktif (kalau masih ada) supaya perpanjangan tidak rugi.
+    const days = /tahunan/i.test(pr.plan) ? 365 : 30;
+    const { data: prof } = await db
+      .from("profiles")
+      .select("premium_until")
+      .eq("id", pr.seller_id)
+      .maybeSingle();
+    const cur = (prof as { premium_until: string | null } | null)?.premium_until;
+    const base = cur && new Date(cur).getTime() > Date.now() ? new Date(cur).getTime() : Date.now();
+    const until = new Date(base + days * 24 * 3600_000).toISOString();
+    await db.from("profiles").update({ plan: "premium", premium_until: until }).eq("id", pr.seller_id);
+    return res.status(200).json({ ok: true, premium: true });
+  }
+
+  if (evt === "payment.expired" || evt === "payment.failed") {
+    // QR hangus/gagal → tandai supaya tidak menumpuk di antrean admin.
+    await db.from("premium_requests").update({ status: "kedaluwarsa" }).eq("id", pr.id).eq("status", "menunggu");
+    return res.status(200).json({ ok: true });
+  }
+
+  return res.status(200).json({ ok: true });
+}
+
 export default async function handler(req: any, res: any) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method tidak didukung." });
 
@@ -90,6 +142,22 @@ export default async function handler(req: any, res: any) {
       status: string;
     } | null;
   };
+
+  // ---------- cabang Premium: transaction_id milik premium_requests ----------
+  // (uang Premium masuk ke akun BuatQris platform — BUKAN pendapatan seller,
+  // jadi tidak ada baris ledger di sini, hanya aktivasi plan + masa berlaku.)
+  const { data: prem } = await db
+    .from("premium_requests")
+    .select("id,seller_id,plan,amount,status")
+    .eq("external_ref", payload.transaction_id)
+    .maybeSingle();
+  const pr = prem as {
+    id: string; seller_id: string; plan: string; amount: number | string; status: string;
+  } | null;
+
+  if (!payment && !pr) return res.status(404).json({ error: "Transaksi tidak dikenal." });
+  if (pr && !payment) return handlePremium(db, res, pr, payload, evt);
+
   if (!payment) return res.status(404).json({ error: "Transaksi tidak dikenal." });
   if (payment.status !== "menunggu") return res.status(200).json({ ok: true, deduped: true });
 

@@ -678,7 +678,7 @@ export function AdminPremium() {
   const { toast } = useApp();
   type PRow = {
     id: string; plan: string; amount: number | string; proof_channel: string | null;
-    status: string; created_at: string; seller_id: string;
+    status: string; created_at: string; seller_id: string; paid_at: string | null;
     profiles: { store_name: string | null } | { store_name: string | null }[] | null;
   };
   const [list, setList] = useState<PRow[]>([]);
@@ -690,7 +690,7 @@ export function AdminPremium() {
     setLoading(true);
     const { data } = await supabase
       .from("premium_requests")
-      .select("id,plan,amount,proof_channel,status,created_at,seller_id,profiles(store_name)")
+      .select("id,plan,amount,proof_channel,status,created_at,seller_id,paid_at,profiles(store_name)")
       .order("created_at", { ascending: false });
     setList((data ?? []) as PRow[]);
     setLoading(false);
@@ -712,7 +712,11 @@ export function AdminPremium() {
       .eq("id", row.id);
     let e2: unknown = null;
     if (!e1) {
-      const r = await supabase.from("profiles").update({ plan: "premium" }).eq("id", row.seller_id);
+      // Persetujuan manual ikut memberi masa berlaku (sama seperti QRIS
+      // otomatis) supaya paket Bulanan/Tahunan benar-benar berakhir.
+      const days = /tahunan/i.test(row.plan) ? 365 : 30;
+      const until = new Date(Date.now() + days * 24 * 3600_000).toISOString();
+      const r = await supabase.from("profiles").update({ plan: "premium", premium_until: until }).eq("id", row.seller_id);
       e2 = r.error;
     }
     if (e1 || e2) {
@@ -739,7 +743,7 @@ export function AdminPremium() {
       return;
     }
     await logAdmin("reject_premium", "premium_requests", target, "Ditolak oleh admin");
-    toast("Permintaan ditolak. Penjual bisa lihat statusnya di halaman Premium.", "warn");
+    toast("Permintaan ditolak. Penjual bisa mengajukan ulang dari pengaturan.", "warn");
   };
 
   const filtered = list.filter((l) => (filter === "Semua" ? true : l.status === "menunggu"));
@@ -753,7 +757,7 @@ export function AdminPremium() {
         index="A03"
         kicker="Operasi"
         title="Permintaan Premium"
-        desc="Penjual mengunggah bukti bayar manual. Tinjau dalam 1×24 jam supaya tidak ada toko tertahan."
+        desc="Sebagian besar lunas otomatis via QRIS. Sisa antrean manual ditinjau 1×24 jam."
         actions={<Segmented items={["Menunggu", "Semua"]} active={filter} onChange={setFilter} />}
       />
 
@@ -806,7 +810,11 @@ export function AdminPremium() {
                 <Td className="whitespace-nowrap text-[13.5px]">{p.plan}</Td>
                 <Td className="tnum whitespace-nowrap text-right font-bold">{rupiah(Number(p.amount))}</Td>
                 <Td className="hidden md:table-cell">
-                  <Badge tone={p.proof_channel === "QRIS" ? "blue" : "gray"}>{p.proof_channel ?? "—"}</Badge>
+                  {p.paid_at ? (
+                    <Badge tone="green">QRIS · lunas</Badge>
+                  ) : (
+                    <Badge tone={p.proof_channel === "QRIS" ? "blue" : "gray"}>{p.proof_channel ?? "—"}</Badge>
+                  )}
                 </Td>
                 <Td className="hidden text-[13px] text-muted md:table-cell">
                   {new Date(p.created_at).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" })}
