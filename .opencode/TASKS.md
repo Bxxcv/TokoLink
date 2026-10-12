@@ -295,12 +295,14 @@ referensi itu.
       Brief + checklist review di `arena-brief/`. Hasil MiMo masuk
       `arena-brief/hasil/`, saya review + pasang + sambung DB. Catatan:
       saya review per sesi (tidak realtime).
-      **Progres 12 Okt 2026: 7/7 sudah ditulis** (warung-rame lolos review
-      user; 6 sisanya `jasa-kilat`, `butik-rapi`, `dapur-ngebul`,
-      `kriya-asli`, `digital-kilat`, `konsultan-tenang` ditulis + lolos
-      verifikasi teknis `tsc`/`build`/grep anti data-contoh, salinan di
-      `arena-brief/hasil/`). **Menunggu review user** satu per satu lalu
-      saya pasang + sambung DB.
+      **Progres 12 Okt 2026: 7/7 sudah ditulis + TERPASANG + PUSH**
+      (warung-rame lolos review user lebih dulu; 6 sisanya
+      `butik-rapi`, `jasa-kilat`, `dapur-ngebul`, `kriya-asli`,
+      `digital-kilat`, `konsultan-tenang` lolos verifikasi teknis
+      `tsc`/`build`/grep anti-data-contoh + desain di-acc user, lalu
+      dipasang ke `src/storefront/themes/`). **Tinggal cek visual user
+      di HP** (satu per satu) + badge KEBUTUHAN-DATA (Baru/Terverifikasi/
+      rating) menyusul bila diminta.
 - [ ] **Fitur Ulasan Pembeli (rating + komentar), data REAL** —
       disetujui user 30 Sep 2026, dengan syarat keras: harus aman dari
       injection. Checklist wajib sebelum dianggap selesai:
