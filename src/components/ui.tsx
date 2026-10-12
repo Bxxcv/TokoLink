@@ -736,11 +736,11 @@ export function Segmented({
 /* --------------------------------- table ---------------------------------- */
 export function TableWrap({ children, className = "", minW = "" }: { children: ReactNode; className?: string; minW?: string }) {
   return (
-    <div className={cx("tl-scroll -mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0", className)}>
-      {/* Tanpa min-width paksa: di HP kolom ikut mengecil & teks wrap,
-          jadi tidak ada tulisan kepotong. Tabel yang butuh lebar khusus
-          bisa lewat prop minW. overflow-x-auto tetap jadi jaring
-          pengaman kalau isinya benar-benar tidak muat. */}
+    <div className={cx("tl-scroll overflow-x-auto px-4 sm:px-5", className)}>
+      {/* Padding px-4 sm:px-5 SEJAJAR dengan header card (pad={false}) —
+          tanpa margin negatif, jadi garis & teks tidak menempel di
+          border card. Tanpa min-width paksa: di HP kolom ikut mengecil &
+          teks wrap. overflow-x-auto tetap jadi jaring pengaman. */}
       <table className={cx("w-full border-collapse text-left", minW)}>{children}</table>
     </div>
   );
