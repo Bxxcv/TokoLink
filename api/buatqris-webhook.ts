@@ -38,10 +38,11 @@ async function handlePremium(
   if (pr.status !== "menunggu") return res.status(200).json({ ok: true, deduped: true });
 
   if (evt === "payment.success") {
-    // Nominal yang dibayar HARUS sama dengan harga paket. Beda → biarkan
-    // 'menunggu' supaya admin meninjau manual, jangan aktifkan.
+    // Nominal yang dibayar HARUS sama dengan harga paket. Beda ATAU tidak
+    // ada angkanya → JANGAN aktifkan (fail-closed), biarkan 'menunggu'
+    // supaya admin meninjau manual.
     const paidTotal = Number(payload.total_amount);
-    if (Number.isFinite(paidTotal) && Math.round(paidTotal) !== Math.round(Number(pr.amount))) {
+    if (!Number.isFinite(paidTotal) || Math.round(paidTotal) !== Math.round(Number(pr.amount))) {
       console.error("[webhook] nominal Premium tidak cocok", pr.id);
       return res.status(200).json({ ok: true, flagged: true });
     }
@@ -65,7 +66,14 @@ async function handlePremium(
     const cur = (prof as { premium_until: string | null } | null)?.premium_until;
     const base = cur && new Date(cur).getTime() > Date.now() ? new Date(cur).getTime() : Date.now();
     const until = new Date(base + days * 24 * 3600_000).toISOString();
-    await db.from("profiles").update({ plan: "premium", premium_until: until }).eq("id", pr.seller_id);
+    const { error: profErr } = await db.from("profiles").update({ plan: "premium", premium_until: until }).eq("id", pr.seller_id);
+    if (profErr) {
+      // Plan gagal aktif: kembalikan ke menunggu supaya retry webhook
+      // berikutnya bisa coba lagi (jangan terkunci "disetujui" tanpa plan).
+      console.error("[webhook] aktivasi plan gagal", pr.id, profErr.message);
+      await db.from("premium_requests").update({ status: "menunggu", paid_at: null, reviewed_at: null }).eq("id", pr.id);
+      return res.status(200).json({ ok: true, flagged: true });
+    }
     return res.status(200).json({ ok: true, premium: true });
   }
 
