@@ -26,13 +26,25 @@ export default async function handler(req: any, res: any) {
     return res.status(403).json({ error: "Khusus admin." });
   }
 
-  const { data: usersData, error } = await db.auth.admin.listUsers();
-  if (error) return res.status(500).json({ error: "Gagal memuat pengguna." });
-  const { data: profiles } = await db.from("profiles").select("*").order("created_at", { ascending: false });
+  // listUsers per halaman (default cuma 50; tanpa loop, admin baru tak
+  // terlihat + respons membengkak). Dibatasi 1000 akun terbaru.
+  const allUsers: { id: string; email?: string; last_sign_in_at?: string }[] = [];
+  for (let page = 1; page <= 10; page++) {
+    const { data: pg, error } = await db.auth.admin.listUsers({ page, perPage: 100 });
+    if (error) return res.status(500).json({ error: "Gagal memuat pengguna." });
+    const batch = (pg?.users ?? []) as { id: string; email?: string; last_sign_in_at?: string }[];
+    allUsers.push(...batch);
+    if (batch.length < 100) break;
+  }
+  const { data: profiles } = await db
+    .from("profiles")
+    .select("id,role,store_name,owner_name,city,plan,status")
+    .order("created_at", { ascending: false })
+    .limit(2000);
   const byId = new Map(((profiles ?? []) as Record<string, unknown>[]).map((p) => [(p as { id: string }).id, p]));
 
   return res.status(200).json({
-    users: (usersData.users ?? []).map((u) => {
+    users: allUsers.map((u) => {
       const p = (byId.get(u.id) ?? {}) as {
         role?: string; store_name?: string | null; owner_name?: string | null;
         city?: string | null; plan?: string; status?: string;

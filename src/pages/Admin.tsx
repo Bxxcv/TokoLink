@@ -689,6 +689,7 @@ export function AdminPremium() {
   };
   const [list, setList] = useState<PRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState("");
   const [filter, setFilter] = useState("Semua");
   const [reject, setReject] = useState<PRow | null>(null);
 
@@ -710,28 +711,41 @@ export function AdminPremium() {
     Array.isArray(p.profiles) ? (p.profiles[0]?.store_name ?? "Toko") : (p.profiles?.store_name ?? "Toko");
 
   const approve = async (row: PRow) => {
+    if (busy) return;
+    setBusy(row.id);
     const prev = row.status;
     setList((l) => l.map((x) => (x.id === row.id ? { ...x, status: "disetujui" } : x)));
-    const { error: e1 } = await supabase
-      .from("premium_requests")
-      .update({ status: "disetujui", reviewed_at: new Date().toISOString() })
-      .eq("id", row.id);
-    let e2: unknown = null;
-    if (!e1) {
-      // Persetujuan manual ikut memberi masa berlaku (sama seperti QRIS
-      // otomatis) supaya paket Bulanan/Tahunan benar-benar berakhir.
-      const days = /tahunan/i.test(row.plan) ? 365 : 30;
-      const until = new Date(Date.now() + days * 24 * 3600_000).toISOString();
-      const r = await supabase.from("profiles").update({ plan: "premium", premium_until: until }).eq("id", row.seller_id);
-      e2 = r.error;
+    try {
+      const { error: e1 } = await supabase
+        .from("premium_requests")
+        .update({ status: "disetujui", reviewed_at: new Date().toISOString() })
+        .eq("id", row.id);
+      let e2: unknown = null;
+      if (!e1) {
+        // Persetujuan manual ikut memberi masa berlaku (sama seperti QRIS
+        // otomatis): dihitung dari SISA masa aktif supaya tidak menimpa.
+        const days = /tahunan/i.test(row.plan) ? 365 : 30;
+        const { data: cur } = await supabase
+          .from("profiles")
+          .select("premium_until")
+          .eq("id", row.seller_id)
+          .maybeSingle();
+        const curUntil = (cur as { premium_until: string | null } | null)?.premium_until;
+        const base = curUntil && new Date(curUntil).getTime() > Date.now() ? new Date(curUntil).getTime() : Date.now();
+        const until = new Date(base + days * 24 * 3600_000).toISOString();
+        const r = await supabase.from("profiles").update({ plan: "premium", premium_until: until }).eq("id", row.seller_id);
+        e2 = r.error;
+      }
+      if (e1 || e2) {
+        setList((l) => l.map((x) => (x.id === row.id ? { ...x, status: prev } : x)));
+        toast("Gagal menyetujui.", "bad");
+        return;
+      }
+      await logAdmin("approve_premium", "premium_requests", row.id, `${storeOf(row)} · ${row.plan}`, Number(row.amount));
+      toast("Permintaan Premium disetujui. Akses langsung aktif.");
+    } finally {
+      setBusy("");
     }
-    if (e1 || e2) {
-      setList((l) => l.map((x) => (x.id === row.id ? { ...x, status: prev } : x)));
-      toast("Gagal menyetujui.", "bad");
-      return;
-    }
-    await logAdmin("approve_premium", "premium_requests", row.id, `${storeOf(row)} · ${row.plan}`, Number(row.amount));
-    toast("Permintaan Premium disetujui. Akses langsung aktif.");
   };
 
   const doReject = async () => {
@@ -832,10 +846,10 @@ export function AdminPremium() {
                 </Td>
                 <Td>
                   <div className="flex justify-end gap-2">
-                    <Button size="sm" disabled={p.status !== "menunggu"} onClick={() => approve(p)}>
+                    <Button size="sm" disabled={p.status !== "menunggu" || !!busy} loading={busy === p.id} onClick={() => approve(p)}>
                       Setujui
                     </Button>
-                    <Button size="sm" variant="ghost" disabled={p.status !== "menunggu"} onClick={() => setReject(p)}>
+                    <Button size="sm" variant="ghost" disabled={p.status !== "menunggu" || !!busy} onClick={() => setReject(p)}>
                       Tolak
                     </Button>
                   </div>

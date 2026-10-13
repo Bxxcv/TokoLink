@@ -186,6 +186,26 @@ export default async function handler(req: any, res: any) {
       .eq("status", "menunggu")
       .select("id");
     if (!claimed || claimed.length === 0) return res.status(200).json({ ok: true, deduped: true });
+    // Kurangi stok DULU (atomik per produk via RPC) SEBELUM uang dicatat.
+    // Kalau stok ternyata kurang (race), JANGAN kreditkan dan JANGAN
+    // majukan order — tandai perlu_cek supaya admin refund manual.
+    const { data: items } = await db
+      .from("order_items")
+      .select("product_id,qty")
+      .eq("order_id", payment.order_id);
+    let short = false;
+    for (const it of ((items ?? []) as { product_id: string | null; qty: number }[])) {
+      if (!it.product_id) continue;
+      const { data: ok } = await db.rpc("decrement_stock", {
+        p_product_id: it.product_id,
+        p_qty: Math.max(1, Math.floor(Number(it.qty))),
+      });
+      if (!ok) short = true;
+    }
+    if (short) {
+      await db.from("payments").update({ status: "perlu_cek" }).eq("id", payment.id);
+      return res.status(200).json({ ok: true, flagged: true });
+    }
     // Jangan turunkan status order yang sudah jalan (kirim/selesai).
     const { data: ord } = await db.from("orders").select("status").eq("id", payment.order_id).maybeSingle();
     if ((ord as { status: string } | null)?.status === "menunggu") {
@@ -204,8 +224,10 @@ export default async function handler(req: any, res: any) {
       ref_order_id: payment.order_id,
     });
     if (ledgerErr) {
-      // Uang JANGAN hilang diam-diam: tandai agar admin rekonsiliasi manual.
-      await db.from("payments").update({ status: "perlu_cek" }).eq("id", payment.id);
+      // Catat gagal: kembalikan ke menunggu supaya webhook berikutnya bisa
+      // coba lagi (jangan terkunci tanpa kredit).
+      console.error("[webhook] ledger gagal", payment.id, ledgerErr.message);
+      await db.from("payments").update({ status: "menunggu" }).eq("id", payment.id);
       return res.status(200).json({ ok: true, flagged: true });
     }
 
@@ -233,24 +255,7 @@ export default async function handler(req: any, res: any) {
         });
       }
     }
-    // Kurangi stok + tambah counter terjual ATOMIK per produk via RPC.
-    // Kalau stok ternyata kurang (race), tandai perlu_cek untuk review admin.
-    const { data: items } = await db
-      .from("order_items")
-      .select("product_id,qty")
-      .eq("order_id", payment.order_id);
-    let short = false;
-    for (const it of ((items ?? []) as { product_id: string | null; qty: number }[])) {
-      if (!it.product_id) continue;
-      const { data: ok } = await db.rpc("decrement_stock", {
-        p_product_id: it.product_id,
-        p_qty: Math.max(1, Math.floor(Number(it.qty))),
-      });
-      if (!ok) short = true;
-    }
-    if (short) {
-      await db.from("payments").update({ status: "perlu_cek" }).eq("id", payment.id);
-    }
+    // Stok sudah dikurangi di atas sebelum pengkreditan.
     return res.status(200).json({ ok: true });
   }
 
@@ -260,7 +265,16 @@ export default async function handler(req: any, res: any) {
     // menggantung 'menunggu' selamanya (tidak ada retry di UI).
     if (payment.status !== "menunggu") return res.status(200).json({ ok: true, deduped: true });
     await db.from("payments").update({ status: "gagal", fee }).eq("id", payment.id).eq("status", "menunggu");
-    await db.from("orders").update({ status: "batal" }).eq("id", payment.order_id).eq("status", "menunggu");
+    const { data: cancelled } = await db
+      .from("orders")
+      .update({ status: "batal" })
+      .eq("id", payment.order_id)
+      .eq("status", "menunggu")
+      .select("promo_id")
+      .single();
+    // Kuota promo kembali (tidak hangus karena tak dibayar).
+    const pid = (cancelled as { promo_id: string | null } | null)?.promo_id;
+    if (pid) await db.rpc("restore_promo", { p_id: pid });
     return res.status(200).json({ ok: true });
   }
 

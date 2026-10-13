@@ -100,6 +100,7 @@ export default async function handler(req: any, res: any) {
     const r = await fetch("https://api.brevo.com/v3/smtp/email", {
       method: "POST",
       headers: { "api-key": brevoKey, "content-type": "application/json", accept: "application/json" },
+      signal: AbortSignal.timeout(15000),
       body: JSON.stringify({
         sender: { email: sender, name: "TokoLink" },
         to: [{ email }],

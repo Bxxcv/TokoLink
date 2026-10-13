@@ -121,46 +121,56 @@ function usePublicStore(slug: string) {
   const [items, setItems] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
+  const [loadError, setLoadError] = useState(false);
 
   useEffect(() => {
     (async () => {
       setLoading(true);
       setNotFound(false);
-      const { data: prof } = await supabase
-        .from("public_stores")
-        .select("id,store_name,store_slug,city,avatar_url,cover_url,bio,is_closed")
-        .eq("store_slug", slug)
-        .maybeSingle();
-      if (!prof) {
-        setStore(null);
-        setItems([]);
-        setNotFound(true);
-        setLoading(false);
-        return;
-      }
-      // Badge premium via RPC (kolom plan tertutup untuk publik).
-      let premium = false;
+      setLoadError(false);
       try {
-        const { data: prem } = await supabase.rpc("store_is_premium", {
-          p_seller_id: (prof as StoreProfile).id,
-        });
-        premium = prem === true;
+        const { data: prof, error: profErr } = await supabase
+          .from("public_stores")
+          .select("id,store_name,store_slug,city,avatar_url,cover_url,bio,is_closed")
+          .eq("store_slug", slug)
+          .maybeSingle();
+        if (profErr) throw profErr;
+        if (!prof) {
+          setStore(null);
+          setItems([]);
+          setNotFound(true);
+          setLoading(false);
+          return;
+        }
+        // Badge premium via RPC (kolom plan tertutup untuk publik).
+        let premium = false;
+        try {
+          const { data: prem } = await supabase.rpc("store_is_premium", {
+            p_seller_id: (prof as StoreProfile).id,
+          });
+          premium = prem === true;
+        } catch {
+          /* RPC belum ada (migrasi part 3 belum jalan) → anggap gratis */
+        }
+        setStore({ ...(prof as StoreProfile), is_premium: premium });
+        const { data: prods, error: prodsErr } = await supabase
+          .from("products")
+          .select("*")
+          .eq("seller_id", (prof as StoreProfile).id)
+          .eq("status", "aktif")
+          .order("created_at", { ascending: false });
+        if (prodsErr) throw prodsErr;
+        setItems(((prods ?? []) as DbProduct[]).map(mapProduct));
+        setLoading(false);
       } catch {
-        /* RPC belum ada (migrasi part 3 belum jalan) → anggap gratis */
+        // Jaringan putus / DB tidak merespons: jangan skeleton selamanya.
+        setLoadError(true);
+        setLoading(false);
       }
-      setStore({ ...(prof as StoreProfile), is_premium: premium });
-      const { data: prods } = await supabase
-        .from("products")
-        .select("*")
-        .eq("seller_id", (prof as StoreProfile).id)
-        .eq("status", "aktif")
-        .order("created_at", { ascending: false });
-      setItems(((prods ?? []) as DbProduct[]).map(mapProduct));
-      setLoading(false);
     })();
   }, [slug]);
 
-  return { store, items, loading, notFound };
+  return { store, items, loading, notFound, loadError };
 }
 
 /** Bentuk baris `discount_codes` yang dibaca publik saat validasi promo. */
@@ -283,12 +293,12 @@ function Stepper({
         aria-label="Kurangi"
         className={cx(
           "grid place-items-center text-muted transition-colors hover:bg-canvas hover:text-ink disabled:opacity-35",
-          small ? "h-8 w-8" : "h-10 w-10",
+          small ? "h-10 w-10" : "h-10 w-10",
         )}
       >
         <Icon name="minus" size={14} strokeWidth={2.2} />
       </button>
-      <span className={cx("tnum text-center font-bold text-ink", small ? "w-8 text-[13px]" : "w-10 text-[15px]")}>
+      <span className={cx("tnum text-center font-bold text-ink", small ? "w-10 text-[14px]" : "w-10 text-[15px]")}>
         {value}
       </span>
       <button
@@ -297,7 +307,7 @@ function Stepper({
         aria-label="Tambah"
         className={cx(
           "grid place-items-center text-muted transition-colors hover:bg-canvas hover:text-ink disabled:opacity-35",
-          small ? "h-8 w-8" : "h-10 w-10",
+          small ? "h-10 w-10" : "h-10 w-10",
         )}
       >
         <Icon name="plus" size={14} strokeWidth={2.2} />
@@ -408,7 +418,7 @@ export function LegalPrivacy() {
 
 export function StoreHome({ slug }: { slug: string }) {
   const { add, toast, count } = useApp();
-  const { store, items, loading, notFound } = usePublicStore(slug);
+  const { store, items, loading, notFound, loadError } = usePublicStore(slug);
   const [cat, setCat] = useState("Semua");
   const [q, setQ] = useState("");
   const [qrOpen, setQrOpen] = useState(false);
@@ -584,6 +594,23 @@ export function StoreHome({ slug }: { slug: string }) {
     const href = /^https?:\/\//i.test(l.url) ? l.url : `https://${l.url}`;
     window.open(href, "_blank", "noopener,noreferrer");
   };
+
+  if (loadError) {
+    return (
+      <div className="min-h-screen bg-canvas pb-24">
+        <StoreHeader />
+        <PageShell className="py-10">
+          <ErrorState
+            desc="Toko tidak bisa dimuat. Koneksi terputus atau server tidak merespons."
+            onRetry={() => window.location.reload()}
+          />
+        </PageShell>
+        <div className="mt-10">
+          <StoreFooter />
+        </div>
+      </div>
+    );
+  }
 
   if (notFound) {
     return (
@@ -1485,22 +1512,35 @@ function useOrderStatus(orderId: string, token: string) {
         timer = window.setTimeout(fetchOnce, 10000);
         return;
       }
-      const { data } = await supabase.rpc("track_order", { p_id: orderId, p_token: token });
-      if (!alive) return;
-      if (!data) {
-        setNotFound(true);
+      try {
+        const { data } = await supabase.rpc("track_order", { p_id: orderId, p_token: token });
+        if (!alive) return;
+        if (!data) {
+          setNotFound(true);
+          setLoading(false);
+          return;
+        }
+        const next = data as TrackedOrder;
+        setOrder(next);
         setLoading(false);
-        return;
+        // Berhenti total saat status final; backoff 3→10→30 dtk sebelumnya.
+        if (TERMINAL.has(String(next.status))) return;
+        tries += 1;
+        const wait = tries < 6 ? 3000 : tries < 12 ? 10000 : 30000;
+        if (tries >= 40) return; // ±15 menit, cukup.
+        timer = window.setTimeout(fetchOnce, wait);
+      } catch {
+        // Jaringan putus sesaat: coba lagi (putus berkepanjangan baru
+        // berhenti supaya tidak spinner selamanya).
+        if (!alive) return;
+        tries += 1;
+        if (tries >= 10) {
+          setNotFound(true);
+          setLoading(false);
+          return;
+        }
+        timer = window.setTimeout(fetchOnce, 10000);
       }
-      const next = data as TrackedOrder;
-      setOrder(next);
-      setLoading(false);
-      // Berhenti total saat status final; backoff 3→10→30 dtk sebelumnya.
-      if (TERMINAL.has(String(next.status))) return;
-      tries += 1;
-      const wait = tries < 6 ? 3000 : tries < 12 ? 10000 : 30000;
-      if (tries >= 40) return; // ±15 menit, cukup.
-      timer = window.setTimeout(fetchOnce, wait);
     };
     fetchOnce();
     return () => {
@@ -1525,10 +1565,16 @@ function useVisitBeacon(sellerId: string | null | undefined, path: string) {
     const key = `tl_visit_${sellerId}`;
     if (sessionStorage.getItem(key)) return;
     sessionStorage.setItem(key, "1");
-    supabase
-      .from("store_visits")
-      .insert({ seller_id: sellerId, path })
-      .then(() => {}, () => {});
+    // Lewat server (rate-limit per IP) — insert anon langsung dicabut
+    // supaya tidak bisa di-spam curl loop.
+    fetch("/api/visit", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ seller_id: sellerId, path }),
+    }).then(
+      () => {},
+      () => {},
+    );
   }, [sellerId, path]);
 }
 
@@ -1931,6 +1977,7 @@ export function Checkout() {
             </div>
           ))}
         </div>
+        <p className="micro -mt-3 mb-6 text-faint sm:hidden">Langkah 2 dari 4 · Data pembeli</p>
 
         <h1 className="text-[26px] font-extrabold tracking-[-0.03em] text-ink">Data pengiriman & pembayaran</h1>
 
@@ -2193,7 +2240,7 @@ export function Qris({ orderId, token }: { orderId: string; token: string }) {
                   alt={`QRIS ${rupiah(amount)}`}
                   width={260}
                   height={260}
-                  className="h-[260px] w-[260px] rounded-lg border border-line object-contain"
+                  className="h-auto w-full max-w-[260px] rounded-lg border border-line object-contain"
                   onError={() => setImgOk(false)}
                 />
                 <span className="absolute left-1/2 top-1/2 flex h-14 w-14 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-md border-2 border-white bg-white shadow-xs">
@@ -2371,7 +2418,7 @@ export function PaymentStatus({ orderId, token }: { orderId: string; token: stri
                 <Icon name="alert" size={30} />
               </div>
               <div className="micro mt-5 text-bad">04 / Pembayaran gagal</div>
-              <h1 className="mt-2 text-[24px] font-extrabold tracking-[-0.02em] text-ink">
+            <h1 className="mt-2 text-[24px] font-extrabold tracking-[-0.02em] text-ink" aria-live="polite">
                 Pesanan dibatalkan
               </h1>
               <p className="mx-auto mt-2 max-w-sm text-[14px] leading-relaxed text-muted">

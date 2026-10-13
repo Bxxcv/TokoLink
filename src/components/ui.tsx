@@ -831,16 +831,21 @@ export function ConfirmDialog({
 }: {
   open: boolean;
   onClose: () => void;
-  onConfirm: () => void;
+  onConfirm: () => void | Promise<void>;
   title: string;
   body: string;
   confirmLabel?: string;
   tone?: "danger" | "primary";
 }) {
+  // Kunci tombol selama aksi jalan (anti klik-ganda → submit 2x).
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    if (!open) setBusy(false);
+  }, [open ]);
   return (
     <Modal
       open={open}
-      onClose={onClose}
+      onClose={busy ? () => {} : onClose}
       title={title}
       eyebrow="Konfirmasi"
       width="max-w-md"
@@ -851,9 +856,15 @@ export function ConfirmDialog({
           </Button>
           <Button
             variant={tone === "danger" ? "danger" : "primary"}
-            onClick={() => {
-              onConfirm();
-              onClose();
+            loading={busy}
+            onClick={async () => {
+              setBusy(true);
+              try {
+                await onConfirm();
+              } finally {
+                setBusy(false);
+                onClose();
+              }
             }}
           >
             {confirmLabel}

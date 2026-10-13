@@ -20,6 +20,19 @@ export default async function handler(req: any, res: any) {
   const { data: me } = await gate.auth.getUser(token);
   if (!me.user) return res.status(401).json({ error: "Sesi tidak valid." });
 
+  // Konfirmasi kata sandi: token curian saja tidak cukup untuk
+  // menghapus permanen. Password TIDAK disimpan, hanya diverifikasi.
+  let password = "";
+  try {
+    const b = (typeof req.body === "string" ? JSON.parse(req.body) : req.body) as { password?: string } | null;
+    password = String(b?.password ?? "");
+  } catch {
+    return res.status(400).json({ error: "Data tidak valid." });
+  }
+  if (!password || !me.user.email) return res.status(400).json({ error: "Masukkan kata sandi untuk konfirmasi." });
+  const { error: pwErr } = await gate.auth.signInWithPassword({ email: me.user.email, password });
+  if (pwErr) return res.status(401).json({ error: "Kata sandi salah." });
+
   const db = createClient(url, key, { auth: { persistSession: false } });
 
   // BUG-022: jangan hapus akun yang masih punya kewajiban.

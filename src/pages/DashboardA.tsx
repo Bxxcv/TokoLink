@@ -1125,6 +1125,7 @@ export function ProductForm({ id }: { id?: string }) {
   const save = async (asDraft = false) => {
     const e: Record<string, string> = {};
     if (f.name.trim().length < 4) e.name = "Nama produk minimal 4 karakter.";
+    if (f.name.trim().length > 120) e.name = "Nama produk maksimal 120 karakter.";
     if (!f.price || Number(f.price) <= 0) e.price = "Masukkan harga jual.";
     if (f.stock === "") e.stock = "Isi stok, boleh 0.";
     setErr(e);
@@ -1221,6 +1222,7 @@ export function ProductForm({ id }: { id?: string }) {
                 <Input
                   value={f.name}
                   invalid={!!err.name}
+                  maxLength={120}
                   onChange={(e) => set("name", e.target.value)}
                   placeholder="Contoh: Kue Lapis Legit 380g"
                 />
@@ -1240,12 +1242,13 @@ export function ProductForm({ id }: { id?: string }) {
                   </datalist>
                 </Field>
                 <Field label="Kode produk (SKU)" hint="Untuk pencatatan sendiri">
-                  <Input value={f.sku} onChange={(e) => set("sku", e.target.value)} placeholder="LL-380" />
+                  <Input value={f.sku} maxLength={40} onChange={(e) => set("sku", e.target.value)} placeholder="LL-380" />
                 </Field>
               </FieldRow>
               <Field label="Deskripsi" hint="Cara penyimpanan, level pedas, atau isinya apa.">
                 <Textarea
                   value={f.desc}
+                  maxLength={2000}
                   onChange={(e) => set("desc", e.target.value)}
                   placeholder="Tulis seperti menjelaskan ke pembeli di depan toko…"
                   rows={5}

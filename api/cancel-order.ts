@@ -35,11 +35,11 @@ export default async function handler(req: any, res: any) {
 
   const { data: order } = await db
     .from("orders")
-    .select("id,status,seller_id")
+    .select("id,status,seller_id,promo_id")
     .eq("id", orderId)
     .eq("access_token", token)
     .maybeSingle();
-  const o = order as { id: string; status: string; seller_id: string } | null;
+  const o = order as { id: string; status: string; seller_id: string; promo_id: string | null } | null;
   if (!o) return json(res, { error: "Pesanan tidak ditemukan." }, 404);
   if (o.status !== "menunggu") {
     return json(res, { error: "Pesanan sudah diproses, tidak bisa dibatalkan dari sini. Hubungi penjual." }, 409);
@@ -49,5 +49,7 @@ export default async function handler(req: any, res: any) {
   await db.from("payments").update({ status: "gagal" }).eq("order_id", o.id).eq("status", "menunggu");
   const { error } = await db.from("orders").update({ status: "batal" }).eq("id", o.id).eq("status", "menunggu");
   if (error) return json(res, { error: "Gagal membatalkan. Coba lagi." }, 500);
+  // Kuota promo kembali ke seller (tidak hangus karena batal).
+  if (o.promo_id) await db.rpc("restore_promo", { p_id: o.promo_id });
   return json(res, { ok: true, order_id: o.id });
 }

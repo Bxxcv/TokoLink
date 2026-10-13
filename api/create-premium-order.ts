@@ -136,6 +136,7 @@ export default async function handler(req: any, res: any) {
       method: "POST",
       headers: { "content-type": "application/x-www-form-urlencoded" },
       body: params.toString(),
+      signal: AbortSignal.timeout(15000),
     });
     const out = (await r.json()) as {
       success: boolean;

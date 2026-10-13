@@ -343,6 +343,21 @@ referensi itu.
       grid/stacking konsisten dengan halaman lain yang sudah lolos cek
       responsif, belum ketemu elemen spesifik yang patah. **Butuh
       screenshot dari user** untuk pinpoint sebelum diperbaiki.
+- [x] **Audit 6 agen + hardening batch (12 Okt 2026):** temuan diperbaiki di
+      kode — `validate-promo` rate-limit + pesan seragam, hapus akun wajib
+      kata sandi, beacon kunjungan via `/api/visit`, stok dikurangi SEBELUM
+      ledger (gagal stok = tanpa kredit), kuota promo kembali saat batal
+      (`orders.promo_id` + `restore_promo`), webhook ledger-gagal bisa retry,
+      sweeper harian `/api/sweep-stale` (cron 02:00, butuh `CRON_SECRET`),
+      timeout 15 dtk semua API luar, `admin-users` paging, hapus WA-login
+      palsu, langkah checkout kelihatan di HP, tombol stepper 44px, QR
+      responsif, polling berhenti saat final, ConfirmDialog anti-dobel,
+      approve Premium anti-dobel + warisi sisa masa, batas input produk.
+      Migrasi baru: `migrate_scale_hardening.sql` (14 indeks, CHECK
+      harga/stok, cabut grant promo + baca settings publik + insert anon
+      visits) — WAJIB dijalankan. **Sisa sadar:** agregat admin di-RPC-kan
+      (tahap 2), CAPTCHA daftar (nanti bila diserang), alur refund manual
+      (belum ada UI), soft-delete (masih cascade).
 - [x] **Email kode OTP tak sampai (Brevo API 10 Okt 2026):** **SELESAI — akar
       masalah ketemu 12 Okt 2026:** Brevo 401 "unrecognised IP" karena fitur
       "blokir IP tak dikenal" aktif otomatis setelah ~30 hari, sementara IP

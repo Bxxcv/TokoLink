@@ -174,8 +174,6 @@ export function Login() {
     }
   };
 
-  const whatsappSoon = () => setErr("Masuk via WhatsApp belum tersedia. Pakai email dulu ya.");
-
   return (
     <AuthLayout
       index="01"
@@ -198,7 +196,7 @@ export function Login() {
             {notice}
           </div>
         )}
-        <Field label="Email terdaftar" error={err}>
+        <Field label="Email terdaftar">
           <Input
             type="text"
             value={email}
@@ -256,9 +254,9 @@ export function Login() {
           <span className="h-px flex-1 bg-line" />
         </div>
 
-        <Button type="button" variant="secondary" size="lg" className="w-full" onClick={whatsappSoon}>
-          <Icon name="wa" size={17} className="text-[#0a7a55]" /> Masuk lewat WhatsApp
-        </Button>
+        <p className="rounded-md border border-line bg-canvas px-3.5 py-2.5 text-center text-[13px] leading-relaxed text-muted">
+          Masuk hanya lewat email. Tombol WhatsApp menyusul.
+        </p>
       </form>
     </AuthLayout>
   );

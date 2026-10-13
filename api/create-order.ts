@@ -178,6 +178,7 @@ export default async function handler(req: any, res: any) {
 
   // 4) Promo server-side + kuota atomik. Promo ongkir sudah tidak berlaku.
   let discount = 0;
+  let promoId: string | null = null;
   const code = String(body.promo_code ?? "").trim().slice(0, 40);
   if (code) {
     const { data: codes } = await db
@@ -209,6 +210,8 @@ export default async function handler(req: any, res: any) {
           if (!claimed) {
             return json(res, { error: "Kuota kode promo baru saja habis." }, 400);
           }
+          // Catat promo di order supaya kuota bisa DIKEMBALIKAN saat batal.
+          promoId = match.id;
         }
       }
     }
@@ -237,6 +240,7 @@ export default async function handler(req: any, res: any) {
         total,
         status: "menunggu",
         channel: "QRIS",
+        promo_id: promoId,
         shipping_method: null,
         shipping_cost: 0,
         idempotency_key: idemKey,
@@ -304,6 +308,7 @@ export default async function handler(req: any, res: any) {
       method: "POST",
       headers: { "content-type": "application/x-www-form-urlencoded" },
       body: params.toString(),
+      signal: AbortSignal.timeout(15000),
     });
     const out = (await r.json()) as {
       success: boolean;

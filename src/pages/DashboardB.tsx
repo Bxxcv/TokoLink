@@ -2525,6 +2525,9 @@ export function AccountSettings() {
   const { toast } = useApp();
   const { user, profile, loading: authLoading, refresh } = useAuth();
   const [del, setDel] = useState(false);
+  const [delPw, setDelPw] = useState("");
+  const [delErr, setDelErr] = useState("");
+  const [delLoading, setDelLoading] = useState(false);
   const [owner, setOwner] = useState("");
   const [phone, setPhone] = useState("");
   const [saving, setSaving] = useState(false);
@@ -2768,37 +2771,88 @@ export function AccountSettings() {
         </aside>
       </div>
 
-      <ConfirmDialog
+      <Modal
         open={del}
-        onClose={() => setDel(false)}
-        title="Hapus akun TokoLink?"
-        body="Seluruh toko, produk, dan riwayat pesanan akan dihapus permanen. Saldo yang masih ada HARUS ditarik dulu — setelah dihapus tidak bisa kembali."
-        confirmLabel="Ya, hapus akun"
-        onConfirm={async () => {
+        onClose={() => {
+          if (delLoading) return;
           setDel(false);
-          try {
-            const { data: sess } = await supabase.auth.getSession();
-            const token = sess.session?.access_token;
-            if (!token) {
-              toast("Sesi berakhir. Masuk lagi.", "bad");
-              return;
-            }
-            const res = await fetch("/api/delete-account", {
-              method: "POST",
-              headers: { authorization: `Bearer ${token}` },
-            });
-            const out = (await res.json().catch(() => ({}))) as { error?: string };
-            if (!res.ok) {
-              toast(out.error ?? "Gagal menghapus akun.", "bad");
-              return;
-            }
-            await supabase.auth.signOut({ scope: "local" });
-            navigate("/");
-          } catch {
-            toast("Tidak bisa menghubungi server.", "bad");
-          }
+          setDelPw("");
+          setDelErr("");
         }}
-      />
+        title="Hapus akun TokoLink?"
+        eyebrow="Tindakan permanen"
+        footer={
+          <>
+            <Button
+              variant="secondary"
+              disabled={delLoading}
+              onClick={() => {
+                setDel(false);
+                setDelPw("");
+                setDelErr("");
+              }}
+            >
+              Batal
+            </Button>
+            <Button
+              variant="danger"
+              loading={delLoading}
+              onClick={async () => {
+                if (delPw.length < 1) {
+                  setDelErr("Masukkan kata sandi untuk konfirmasi.");
+                  return;
+                }
+                setDelErr("");
+                setDelLoading(true);
+                try {
+                  const { data: sess } = await supabase.auth.getSession();
+                  const token = sess.session?.access_token;
+                  if (!token) {
+                    toast("Sesi berakhir. Masuk lagi.", "bad");
+                    return;
+                  }
+                  const res = await fetch("/api/delete-account", {
+                    method: "POST",
+                    headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+                    body: JSON.stringify({ password: delPw }),
+                  });
+                  const out = (await res.json().catch(() => ({}))) as { error?: string };
+                  if (!res.ok) {
+                    setDelErr(out.error ?? "Gagal menghapus akun.");
+                    return;
+                  }
+                  setDel(false);
+                  await supabase.auth.signOut({ scope: "local" });
+                  navigate("/");
+                } catch {
+                  setDelErr("Tidak bisa menghubungi server.");
+                } finally {
+                  setDelLoading(false);
+                }
+              }}
+            >
+              Ya, hapus akun
+            </Button>
+          </>
+        }
+      >
+        <p className="text-[14px] leading-relaxed text-muted">
+          Seluruh toko, produk, dan riwayat pesanan akan dihapus permanen. Saldo yang masih ada HARUS
+          ditarik dulu — setelah dihapus tidak bisa kembali.
+        </p>
+        <Field label="Kata sandi akun" required error={delErr} className="mt-4">
+          <Input
+            type="password"
+            value={delPw}
+            autoComplete="current-password"
+            onChange={(e) => {
+              setDelPw(e.target.value);
+              setDelErr("");
+            }}
+            placeholder="••••••••"
+          />
+        </Field>
+      </Modal>
     </AppShell>
   );
 }
@@ -2837,23 +2891,30 @@ export function PremiumPay({ id }: { id: string }) {
   }, [id]);
 
   const check = useCallback(async () => {
-    if (!user) return;
-    const { data } = await supabase
-      .from("premium_requests")
-      .select("status")
-      .eq("id", id)
-      .eq("seller_id", user.id)
-      .maybeSingle();
-    const st = (data as { status: string } | null)?.status ?? "unknown";
-    setStatus(st);
-    if (st === "disetujui") await refresh();
-  }, [id, user]);
+    if (!user) return "unknown";
+    try {
+      const { data } = await supabase
+        .from("premium_requests")
+        .select("status")
+        .eq("id", id)
+        .eq("seller_id", user.id)
+        .maybeSingle();
+      const st = (data as { status: string } | null)?.status ?? "unknown";
+      setStatus(st);
+      if (st === "disetujui") await refresh();
+      return st;
+    } catch {
+      return "unknown";
+    }
+  }, [id, user, refresh]);
 
   useEffect(() => {
     check().finally(() => setLoading(false));
+    // Berhenti polling begitu status final (lunas/kedaluwarsa/ditolak).
+    if (status === "disetujui" || status === "kedaluwarsa" || status === "ditolak") return;
     const t = window.setInterval(check, 5000);
     return () => window.clearInterval(t);
-  }, [check]);
+  }, [check, status]);
 
   useEffect(() => {
     const t = window.setInterval(() => setNow(Date.now()), 1000);
@@ -2923,11 +2984,11 @@ export function PremiumPay({ id }: { id: string }) {
                     alt={`QRIS ${rupiah(payAmount)}`}
                     width={260}
                     height={260}
-                    className="h-[260px] w-[260px] rounded-lg border border-line object-contain"
+                    className="h-auto w-full max-w-[260px] rounded-lg border border-line object-contain"
                     onError={() => setImgOk(false)}
                   />
                 ) : (
-                  <div className="flex w-full min-w-[260px] flex-col items-center rounded-lg border border-dashed border-line bg-canvas px-4 py-10 text-center">
+                  <div className="flex w-full flex-col items-center rounded-lg border border-dashed border-line bg-canvas px-4 py-10 text-center">
                     <Icon name="qr" size={30} className="text-faint" />
                     <p className="mt-3 text-[14px] font-bold text-ink">
                       {expired ? "QR kedaluwarsa" : "QR belum tampil"}
@@ -2961,8 +3022,8 @@ export function PremiumPay({ id }: { id: string }) {
                 onClick={async () => {
                   setChecking(true);
                   try {
-                    await check();
-                    if (status !== "disetujui") {
+                    const st = await check();
+                    if (st !== "disetujui") {
                       toast("Pembayaran belum masuk. Tunggu sebentar lalu cek lagi.", "info");
                     }
                   } finally {

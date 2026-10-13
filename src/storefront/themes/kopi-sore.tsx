@@ -36,7 +36,7 @@ function Card({ p, slug, canAdd, closed, onAdd, restockLabel, onRestock }: {
       <div style={{ fontSize: 11, color: MUTED, textTransform: "uppercase", letterSpacing: "0.1em", marginTop: 12 }}>
         {p.cat}{out ? <span style={{ color: HABIS }}> · Habis</span> : p.stock <= 5 ? <span style={{ color: SISA }}> · Sisa {p.stock}</span> : null}
       </div>
-      <a href={`#/s/${slug}/p/${p.id}`} style={{ fontFamily: DISPLAY, fontSize: 18, color: INK, textDecoration: "none", display: "block", marginTop: 4, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+      <a href={`#/s/${slug}/p/${p.id}`} style={{ fontFamily: DISPLAY, fontSize: 18, color: INK, textDecoration: "none", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", lineHeight: 1.3, marginTop: 4, minHeight: 47 }}>
         {p.name}
       </a>
       {p.desc ? (
@@ -132,7 +132,7 @@ export function KopiSore(p: ThemeStorefrontProps) {
                   <p style={{ fontSize: 15, lineHeight: 1.7, margin: 0, display: "-webkit-box", WebkitLineClamp: more ? 99 : 3, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{bio}</p>
                   {bio.length > 120 && (
                     <button onClick={() => setMore((m) => !m)} style={{ background: "none", border: "none", padding: "8px 0 0", fontSize: 13, color: INK, textDecoration: "underline", textUnderlineOffset: 3, cursor: "pointer" }}>
-                      {more ? "Tutup" : "Read more"}
+                      {more ? "Tutup" : "Selengkapnya"}
                     </button>
                   )}
                 </>

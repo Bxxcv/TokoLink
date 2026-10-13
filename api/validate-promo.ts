@@ -31,6 +31,21 @@ function parsePromoBody(req: any): PromoBody | null {
 export default async function handler(req: any, res: any) {
   if (req.method !== "POST") return json(res, { error: "Method tidak didukung." }, 405);
 
+  // Rate limit per-IP: endpoint publik tanpa auth, jangan bisa ditebak massal.
+  const g = globalThis as unknown as { __vpHits?: Map<string, { n: number; reset: number }> };
+  g.__vpHits = g.__vpHits ?? new Map();
+  const ip =
+    ((req.headers["x-real-ip"] as string | undefined)?.trim() ||
+      (req.headers["x-vercel-forwarded-for"] as string | undefined)?.split(",")[0]?.trim() ||
+      "unknown");
+  const now = Date.now();
+  const cur = g.__vpHits.get(ip);
+  if (!cur || now > cur.reset) g.__vpHits.set(ip, { n: 1, reset: now + 60_000 });
+  else {
+    cur.n += 1;
+    if (cur.n > 30) return json(res, { ok: false, discount: 0, ship_discount: 0, message: "Terlalu banyak percobaan." });
+  }
+
   const body = parsePromoBody(req);
   if (!body) return json(res, { ok: false, message: "Data tidak valid." });
 
@@ -55,13 +70,19 @@ export default async function handler(req: any, res: any) {
     usage_limit: number | null; used_count: number; valid_until?: string | null;
   }[]).find((d) => String(d.code).toLowerCase() === code.toLowerCase());
 
-  if (!match) return json(res, { ok: false, discount: 0, ship_discount: 0, message: "Kode tidak dikenal di toko ini." });
+  // Pesan SERAGAM untuk semua kode tidak valid (anti-oracle: jangan bocorkan
+  // kode mana yang ada/kedaluwarsa/habis — detailnya tetap dicek server
+  // saat create-order).
+  const invalid = (message = "Kode tidak berlaku di toko ini.") =>
+    json(res, { ok: false, discount: 0, ship_discount: 0, message });
+
+  if (!match) return invalid();
   const today = new Date().toISOString().slice(0, 10);
   if (match.valid_until && String(match.valid_until) < today) {
-    return json(res, { ok: false, discount: 0, ship_discount: 0, message: "Kode sudah kedaluwarsa." });
+    return invalid();
   }
   if (match.usage_limit != null && match.used_count >= match.usage_limit) {
-    return json(res, { ok: false, discount: 0, ship_discount: 0, message: "Kuota kode habis." });
+    return invalid();
   }
   if (subtotal < Number(match.min_purchase)) {
     return json(res, { ok: false, discount: 0, ship_discount: 0, message: "Belanja belum mencapai minimum." });
