@@ -233,8 +233,11 @@ referensi itu.
       sebelumnya meta tag-nya sudah benar di `index.html` tapi file
       gambarnya tidak pernah ada (`public/images/twitter_meta/` kosong),
       makanya preview link tidak muncul di WhatsApp/dsb.
-- [ ] Environment variables di Vercel (anon key public, service role +
-      BuatQris secret hanya di server functions)
+- [x] Environment variables di Vercel (anon key public, service role +
+      BuatQris secret hanya di server functions). **Diverifikasi 13 Okt
+      2026 dari perilaku:** auth jalan, webhook QRIS jalan, Brevo jalan,
+      `CRON_SECRET` dipasang user — semua env terbukti ADA di Production
+      (fitur yang butuh masing-masing sudah dites hidup).
 - [ ] Smoke test end-to-end di production: register → tambah produk →
       checkout → bayar (sandbox) → seller lihat order → withdraw
 
@@ -278,8 +281,10 @@ referensi itu.
       `database/migrate_premium_qris.sql` di SQL editor Supabase DULU**
       (kolom `premium_until`/`external_ref`/`paid_at`, trigger sadar
       kedaluwarsa, kunci anti-ubah-tanggal), lalu tes sandbox 588rb/59rb
-      sampai plan aktif. Opsi "transfer + upload bukti" dan "manual via WA"
-      DITOLAK user.
+      sampai plan aktif. **Update 13 Okt 2026: user sudah jalankan SEMUA
+      SQL** (termasuk migrasi kunci `migrate_premium_requests_lock.sql`
+      + `migrate_scale_hardening.sql`) — tinggal tes bayar sandbox.
+      Opsi "transfer + upload bukti" dan "manual via WA" DITOLAK user.
 - [x] **Kolom `profiles` yang belum ada tapi dipakai di StoreSettings**:
       **Diverifikasi 10 Okt 2026: TIDAK ADA yang kurang** — semua field
       form (nama, slug, kategori, kota, WA, bio, alamat) sudah ada
@@ -343,6 +348,12 @@ referensi itu.
       grid/stacking konsisten dengan halaman lain yang sudah lolos cek
       responsif, belum ketemu elemen spesifik yang patah. **Butuh
       screenshot dari user** untuk pinpoint sebelum diperbaiki.
+- [ ] **Anti-bot form daftar (CAPTCHA) — NOTED user 13 Okt 2026:** tanpa
+      verifikasi email, bot bisa daftar massal (bloat DB, bukan jebol).
+      Perintah user: JANGAN dikerjakan sekarang, dicatat saja. Kalau
+      diserang/diaktifkan nanti: pasang Cloudflare Turnstile di
+      `Register` + teruskan token ke `signUp` (butuh kunci site+secret
+      dari dashboard Cloudflare, gratis).
 - [x] **Audit 6 agen + hardening batch (12 Okt 2026):** temuan diperbaiki di
       kode — `validate-promo` rate-limit + pesan seragam, hapus akun wajib
       kata sandi, beacon kunjungan via `/api/visit`, stok dikurangi SEBELUM
