@@ -262,8 +262,11 @@ function StoreFooter({ store }: { store?: StoreProfile | null }) {
             >
               Laporkan toko
             </a>
+            <Link to="/legal/terms" className="hover:text-ink">
+              Syarat layanan
+            </Link>
             <Link to="/legal/privacy" className="hover:text-ink">
-              Syarat &amp; privasi
+              Privasi
             </Link>
           </div>
         </div>
@@ -378,7 +381,7 @@ export function LegalPrivacy() {
      cookies, QRIS/BuatQris, hak pengguna. */
   return (
     <div className="min-h-screen bg-canvas">
-      <header className="border-b border-line bg-white">
+      <header className="sticky top-0 z-40 border-b border-line bg-white/95 backdrop-blur-sm">
         <PageShell>
           <div className="flex h-[68px] items-center justify-between">
             <Link to="/" aria-label="TokoLink beranda">
@@ -511,6 +514,268 @@ export function LegalPrivacy() {
           </div>
 
           <div className="mt-12 border-t border-line pt-6">
+            <Link to="/legal/terms" className="text-[14px] font-semibold text-brand-700 hover:underline">
+              Baca Syarat Layanan →
+            </Link>
+          </div>
+          <div className="mt-6">
+            <Link to="/" className="inline-flex items-center gap-1.5 text-[14px] font-semibold text-muted transition-colors hover:text-ink">
+              <Icon name="left" size={16} /> Kembali ke beranda
+            </Link>
+          </div>
+        </div>
+      </PageShell>
+
+      <footer className="border-t border-line bg-white py-6">
+        <PageShell>
+          <span className="micro text-faint">© 2026 TokoLink · tokolink.store</span>
+        </PageShell>
+      </footer>
+    </div>
+  );
+}
+
+export function LegalTerms() {
+  /* Syarat Layanan TokoLink — dibuat atas permintaan user (Okt 2026):
+     isi lengkap, berbantuan UU Indonesia, penanggung jawab "TokoLink",
+     sengketa di Pengadilan Negeri Yogyakarta. Ditulis sebagai kontrak
+     standar PMSE, bukan nasihat hukum — user diminta mereview sebelum
+     dianggap final. */
+  const H = ({ n, t }: { n: string; t: string }) => (
+    <section>
+      <div className="micro flex items-center gap-2.5 text-brand-600">
+        <span className="text-ink">{n}</span>
+        <span className="h-px w-5 bg-brand-300" />
+      </div>
+      <h2 className="mt-2 text-[18px] font-extrabold text-ink">{t}</h2>
+    </section>
+  );
+  return (
+    <div className="min-h-screen bg-canvas">
+      <header className="sticky top-0 z-40 border-b border-line bg-white/95 backdrop-blur-sm">
+        <PageShell>
+          <div className="flex h-[68px] items-center justify-between">
+            <Link to="/" aria-label="TokoLink beranda">
+              <Logo size={28} tone="light" wordClass="text-navy-800" />
+            </Link>
+            <div className="flex items-center gap-2">
+              <Link
+                to="/login"
+                className="rounded-md px-3 py-2 text-[14px] font-semibold text-muted transition-colors hover:text-brand-700"
+              >
+                Masuk
+              </Link>
+              <ButtonLink to="/register" size="sm">
+                Buka toko gratis
+              </ButtonLink>
+            </div>
+          </div>
+        </PageShell>
+      </header>
+
+      <PageShell className="py-12 lg:py-16">
+        <div className="mx-auto max-w-[680px]">
+          <div className="micro flex items-center gap-2.5 text-brand-600">
+            <span className="text-ink">01</span>
+            <span className="h-px w-6 bg-brand-300" />
+            <span>Legal</span>
+          </div>
+          <h1 className="mt-4 text-[30px] font-extrabold leading-[1.1] tracking-[-0.03em] text-ink sm:text-[38px]">
+            Syarat Layanan
+          </h1>
+          <p className="mt-3 text-[14px] text-faint">
+            Terakhir diperbarui Oktober 2026 · Berlaku untuk semua pengguna tokolink.store
+          </p>
+
+          <div className="mt-10 space-y-9">
+            <section>
+              <h2 className="text-[18px] font-extrabold text-ink">Ringkasan singkat</h2>
+              <p className="mt-2 text-[14.5px] leading-relaxed text-muted">
+                Dengan mendaftar atau memakai TokoLink, Anda setuju pada syarat di halaman ini.
+                Intinya: penjual bertanggung jawab atas produknya sendiri, pembeli menyelesaikan
+                belanja langsung dengan penjual, pembayaran lewat QRIS diproses pihak ketiga, dan
+                TokoLink hanya jadi penyedia sistem — bukan penjual, bukan perbankan.
+              </p>
+            </section>
+
+            <H n="01" t="Penerimaan syarat" />
+            <p className="text-[14.5px] leading-relaxed text-muted">
+              Syarat Layanan ini merupakan perjanjian yang sah antara Anda dan TokoLink sebagaimana
+              diatur dalam Pasal 1320 Kitab Undang-Undang Hukum Perdata (KUHPerdata), yang terpenuhi
+              karena Anda memberi persetujuan secara elektronik (mencentang kotak persetujuan saat
+              mendaftar) dengan sadar dan berwenang. Persetujuan elektronik diakui sah berdasarkan
+              Undang-Undang Nomor 11 Tahun 2008 tentang Informasi dan Transaksi Elektronik sebagaimana
+              diubah dengan Undang-Undang Nomor 19 Tahun 2016, serta Undang-Undang Nomor 27 Tahun 2022
+              tentang Perlindungan Data Pribadi. Jika Anda tidak setuju, mohon tidak memakai layanan
+              TokoLink.
+            </p>
+
+            <H n="02" t="Akun dan keamanan" />
+            <ul className="space-y-2 text-[14.5px] leading-relaxed text-muted">
+              <li className="flex gap-2.5">
+                <span className="mt-2 h-1 w-1 shrink-0 rounded-full bg-brand-500" />
+                Anda wajib memakai data yang benar (nama, email aktif) — menurut Pasal 4 angka 1
+                Undang-Undang Nomor 7 Tahun 2014 tentang Perdagangan, pelaku usaha wajib memberi
+                informasi yang jujur dan benar.
+              </li>
+              <li className="flex gap-2.5">
+                <span className="mt-2 h-1 w-1 shrink-0 rounded-full bg-brand-500" />
+                Kata sandi sepenuhnya tanggung jawab Anda. Segera laporkan ke TokoLink kalau ada
+                tanda-tanda akun dipakai orang lain.
+              </li>
+              <li className="flex gap-2.5">
+                <span className="mt-2 h-1 w-1 shrink-0 rounded-full bg-brand-500" />
+                Satu orang satu akun. Penyalahgunaan (dipinjamkan, dijual, disewakan) bisa membuat
+                akun ditangguhkan.
+              </li>
+            </ul>
+
+            <H n="03" t="Kewajiban penjual" />
+            <ul className="space-y-2 text-[14.5px] leading-relaxed text-muted">
+              <li className="flex gap-2.5">
+                <span className="mt-2 h-1 w-1 shrink-0 rounded-full bg-brand-500" />
+                Menjual produk legal, halal, dan sesuai deskripsi — tidak menjual obat keras tanpa
+                izin, narkotika, senjata, hasil curian, atau produk lain yang dilarang hukum
+                Indonesia.
+              </li>
+              <li className="flex gap-2.5">
+                <span className="mt-2 h-1 w-1 shrink-0 rounded-full bg-brand-500" />
+                Memproses pesanan yang masuk dengan jujur: sesuai jumlah, harga, dan waktu yang
+                dijanjikan. Hak konsumen atas barang sesuai janji dilindungi Undang-Undang Nomor 8
+                Tahun 1999 tentang Perlindungan Konsumen.
+              </li>
+              <li className="flex gap-2.5">
+                <span className="mt-2 h-1 w-1 shrink-0 rounded-full bg-brand-500" />
+                Menanggung sendiri sengketa dengan pembeli (reparasi, penggantian, pengembalian
+                dana) — TokoLink hanya memfasilitasi, bukan pihak yang menjual.
+              </li>
+              <li className="flex gap-2.5">
+                <span className="mt-2 h-1 w-1 shrink-0 rounded-full bg-brand-500" />
+                Memastikan stok yang ditampilkan akurat. Menjual produk dengan stok fiktif termasuk
+                perbuatan menyesatkan yang dilarang UU Perlindungan Konsumen dan UU Perdagangan.
+              </li>
+            </ul>
+
+            <H n="04" t="Pembeli dan pesanan" />
+            <p className="text-[14.5px] leading-relaxed text-muted">
+              Pembeli tidak perlu membuat akun. Setiap pesanan yang dibuat menghasilkan tautan cek
+              status khusus yang hanya boleh dibuka oleh pembeli terkait — jangan bagikan tautan itu
+              ke sembarang orang. Pembeli wajib mengisi data kontak yang benar supaya penjual bisa
+              menghubungi soal pengiriman. Pesanan yang sudah dibayar dan diproses tidak bisa dibatalkan
+              sepihak oleh pembeli tanpa persetujuan penjual, kecuali produk tidak dikirim sama sekali.
+            </p>
+
+            <H n="05" t="Pembayaran, saldo, dan komisi" />
+            <ul className="space-y-2 text-[14.5px] leading-relaxed text-muted">
+              <li className="flex gap-2.5">
+                <span className="mt-2 h-1 w-1 shrink-0 rounded-full bg-brand-500" />
+                Pembayaran hanya lewat QRIS yang diproses penyedia resmi (BuatQris, berizin Bank
+                Indonesia sebagai penyelenggara QRIS). Sesuai Pasal 66–67 UU Perdagangan dan PP Nomor
+                80 Tahun 2019 tentang Perdagangan Melalui Sistem Elektronik, transaksi dilakukan
+                elektronik dan wajib tercatat.
+              </li>
+              <li className="flex gap-2.5">
+                <span className="mt-2 h-1 w-1 shrink-0 rounded-full bg-brand-500" />
+                Status pembayaran hanya dianggap sah setelah dikonfirmasi penyedia pembayaran — bukan
+                dari tangkapan layar bukti bayar.
+              </li>
+              <li className="flex gap-2.5">
+                <span className="mt-2 h-1 w-1 shrink-0 rounded-full bg-brand-500" />
+                Saldo penjual berasal dari penjualan yang berhasil, lalu bisa ditarik ke rekening
+                bank. TokoLink mengenakan komisi platform atas tiap penjualan — besarnya selalu
+                ditampilkan di dasbor sebelum Anda menarik dana, sehingga tidak ada potongan diam-diam.
+              </li>
+              <li className="flex gap-2.5">
+                <span className="mt-2 h-1 w-1 shrink-0 rounded-full bg-brand-500" />
+                Biaya penarikan (admin bank) juga ditampilkan sebelum penarikan dikonfirmasi.
+              </li>
+            </ul>
+
+            <H n="06" t="Pembatalan, pengembalian dana, dan sengketa" />
+            <p className="text-[14.5px] leading-relaxed text-muted">
+              Kalau terjadi sengketa (produk tidak sampai, rusak, atau berbeda pesanan), pembeli dan
+              penjual wajib berdiskusi lebih dulu lewat kontak yang ada di halaman pesanan. Hak konsumen
+              untuk menerima ganti rugi diatur Pasal 4 dan Pasal 19 UU Perlindungan Konsumen. Jika
+              tidak mencapai kesepakatan, penjual wajib mengembalikan dana pembeli; TokoLink dapat
+              membekukan saldo penjual selama proses penyelesaian berlangsung. Keputusan akhir sengketa
+              mengikuti ketentuan hukum di Pasal 10 syarat ini.
+            </p>
+
+            <H n="07" t="Larangan" />
+            <p className="text-[14.5px] leading-relaxed text-muted">
+              Dilarang memakai TokoLink untuk: penipuan atau pemalsuan bukti bayar; penyebaran konten
+              yang melanggar Pasal 27–29 UU ITE (ujian kebencian, pelecehan, asusila); perjudian;
+              promosi obat/produk terlarang; peretasan atau pengujian keamanan tanpa izin; scraping
+              data pengguna lain; atau kegiatan usaha yang wajib punya izin namun dijalankan tanpa
+              izin. Pelanggaran berat membuat akun langsung ditangguhkan dan dana ditahan sampai
+              pemeriksaan selesai.
+            </p>
+
+            <H n="08" t="Pemutusan akun" />
+            <p className="text-[14.5px] leading-relaxed text-muted">
+              Anda bisa menutup akun kapan saja lewat menu pengaturan atau permintaan lewat WhatsApp
+              (data pribadi dihapus sesuai hak Anda dalam UU Nomor 27 Tahun 2022 tentang Perlindungan
+              Data Pribadi — rinciannya di Kebijakan Privasi). TokoLink dapat menangguhkan atau menutup
+              akun yang melanggar syarat ini, dengan pemberitahuan sebisa mungkin melalui email atau
+              WhatsApp. Penjualan yang sudah terjadi tetap dicatat untuk pembukuan.
+            </p>
+
+            <H n="09" t="Batas tanggung jawab TokoLink" />
+            <p className="text-[14.5px] leading-relaxed text-muted">
+              TokoLink adalah penyedia sistem (penyelenggara PMSE menurut PP Nomor 80 Tahun 2019),
+              bukan penjual maupun pembeli. Layanan diberikan sebagaimana adanya. Sejauh diizinkan
+              hukum Indonesia, TokoLink tidak bertanggung jawab atas: kerugian akibat produk yang
+              dijual penjual; kegagalan pembayaran yang terjadi di pihak penyedia QRIS atau bank;
+              atau kerugian tidak langsung yang timbul dari pemakaian layanan. Ketentuan ini tidak
+              menghilangkan hak konsumen berdasarkan UU Perlindungan Konsumen maupun hak pengguna
+              berdasarkan UU Perlindungan Data Pribadi.
+            </p>
+
+            <H n="10" t="Perubahan syarat" />
+            <p className="text-[14.5px] leading-relaxed text-muted">
+              TokoLink dapat memperbarui syarat ini sewaktu-waktu. Perubahan besar akan diumumkan lewat
+              email atau pemberitahuan di dasbor. Pemakaian layanan setelah tanggal berlakunya
+              perubahan berarti Anda menerima versi terbaru. Kalau Anda tidak setuju, hentikan pemakaian
+              dan tutup akun sebelum tanggal berlaku.
+            </p>
+
+            <H n="11" t="Hukum yang berlaku dan penyelesaian sengketa" />
+            <p className="text-[14.5px] leading-relaxed text-muted">
+              Syarat Layanan ini tunduk pada hukum Negara Kesatuan Republik Indonesia, termasuk UUD
+              Negara Republik Indonesia Tahun 1945 (Pasal 28D ayat (1) — hak atas perlindungan dan
+              keadilan yang sama di hadapan hukum), KUHPerdata, UU Perdagangan, UU Perlindungan
+              Konsumen, UU ITE, dan UU Perlindungan Data Pribadi, dan berlaku untuk seluruh wilayah
+              Indonesia. Setiap sengketa yang tidak bisa diselesaikan secara musyawarah akan
+              diselesaikan di Pengadilan Negeri Yogyakarta, dengan tetap menghormati hak konsumen
+              untuk mengadu ke lembaga penyelesaian sengketa konsumen (Badan Penyelesaian Sengketa
+              Konsumen/BPSK) sesuai UU Perlindungan Konsumen.
+            </p>
+
+            <H n="12" t="Kontak" />
+            <p className="text-[14.5px] leading-relaxed text-muted">
+              Pertanyaan soal syarat ini: WhatsApp{" "}
+              <a
+                href="https://wa.me/6285191245042?text=Halo%20TokoLink,%20saya%20butuh%20bantuan."
+                target="_blank"
+                rel="noreferrer"
+                className="font-bold text-brand-700 underline underline-offset-4"
+              >
+                0851-9124-5042
+              </a>{" "}
+              atau email{" "}
+              <a href="mailto:supporttokolink@gmail.com" className="font-bold text-brand-700 underline underline-offset-4">
+                supporttokolink@gmail.com
+              </a>
+              . Kami balas pada jam kerja, 08.00–20.00 WIB.
+            </p>
+          </div>
+
+          <div className="mt-12 border-t border-line pt-6">
+            <Link to="/legal/privacy" className="text-[14px] font-semibold text-brand-700 hover:underline">
+              Baca Kebijakan Privasi →
+            </Link>
+          </div>
+          <div className="mt-6">
             <Link to="/" className="inline-flex items-center gap-1.5 text-[14px] font-semibold text-muted transition-colors hover:text-ink">
               <Icon name="left" size={16} /> Kembali ke beranda
             </Link>

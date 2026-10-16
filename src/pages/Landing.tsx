@@ -286,11 +286,11 @@ function Hero() {
         src="images/hero-poster.jpg"
         alt=""
         aria-hidden="true"
-        className="absolute inset-0 h-full w-full object-cover object-[65%_50%] brightness-[0.62]"
+        className="absolute inset-0 h-full w-full object-cover object-[65%_50%] brightness-[0.78]"
       />
       {videoOk && (
         <video
-          className="absolute inset-0 h-full w-full object-cover object-[65%_50%] brightness-[0.62]"
+          className="absolute inset-0 h-full w-full object-cover object-[65%_50%] brightness-[0.78]"
           poster="images/hero-poster.jpg"
           autoPlay
           muted
@@ -302,12 +302,10 @@ function Hero() {
           {HERO_VIDEO_SRC && <source src={HERO_VIDEO_SRC} />}
         </video>
       )}
-      {/* Redup kuat (rasa section "Mulai hari ini"): filter brightness di
-          media + tumpukan lapisan navy supaya video tetap gerak tapi tidak
-          menyilaukan, dan kontras teks putih tajam. */}
-      <div className="absolute inset-0 bg-navy-900/45" />
-      <div className="absolute inset-0 bg-gradient-to-r from-navy-900/85 via-navy-900/45 to-navy-900/25" />
-      <div className="absolute inset-0 bg-gradient-to-t from-navy-900/75 via-transparent to-navy-900/35" />
+      {/* Redup sedang (permintaan user): brightness 0.78 + gradient kiri
+          cukup kuat buat zona teks — video tetap hidup, teks tetap tajam. */}
+      <div className="absolute inset-0 bg-gradient-to-r from-navy-900/80 via-navy-900/35 to-navy-900/10" />
+      <div className="absolute inset-0 bg-gradient-to-t from-navy-900/65 via-transparent to-transparent" />
 
       <PageShell className="relative">
         <div className="grid items-center gap-10 pb-16 pt-32 lg:min-h-[760px] lg:grid-cols-12 lg:pb-24 lg:pt-36">
@@ -818,12 +816,54 @@ function Analitik() {
 
 /* --------------------------- 07 storefront preview ------------------------ */
 function StorePreview() {
-  const items = [
-    ["Kue Lapis Legit 380g", "Rp85.000", "images/p-lapis.jpg"],
-    ["Sambal Bawang 250ml", "Rp32.000", "images/p-sambal.jpg"],
-    ["Kopi Robusta 200g", "Rp46.000", "images/p-kopi.jpg"],
-    ["Keripik Singkong 200g", "Rp24.000", "images/p-keripik.jpg"],
+  /* Preview toko INTERAKTIF — alur sama seperti toko asli (kategori,
+     cari, detail, keranjang), tapi semuanya lokal di browser: tidak ada
+     query/database, tidak mempengaruhi server. Teks di dalam preview
+     select-none supaya tidak bisa di-copy. */
+  type DemoProduct = { n: string; p: number; c: string; img: string };
+  const products: DemoProduct[] = [
+    { n: "Kue Lapis Legit 380g", p: 85000, c: "Kue & Snack", img: "images/p-lapis.jpg" },
+    { n: "Sambal Bawang 250ml", p: 32000, c: "Sambal", img: "images/p-sambal.jpg" },
+    { n: "Kopi Robusta 200g", p: 46000, c: "Kopi", img: "images/p-kopi.jpg" },
+    { n: "Keripik Singkong 200g", p: 24000, c: "Kue & Snack", img: "images/p-keripik.jpg" },
   ];
+  const cats = ["Semua", "Kue & Snack", "Sambal", "Kopi"];
+  const rp = (n: number) => `Rp${n.toLocaleString("id-ID")}`;
+
+  const [cat, setCat] = useState("Semua");
+  const [q, setQ] = useState("");
+  const [cart, setCart] = useState<Record<number, number>>({});
+  const [detail, setDetail] = useState<number | null>(null);
+  const [detailQty, setDetailQty] = useState(1);
+  const [drawer, setDrawer] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!toast) return;
+    const id = window.setTimeout(() => setToast(null), 2400);
+    return () => window.clearTimeout(id);
+  }, [toast]);
+
+  const notify = (m: string) => setToast(m);
+  const list = products
+    .map((p, i) => ({ ...p, i }))
+    .filter((p) => (cat === "Semua" ? true : p.c === cat))
+    .filter((p) => p.n.toLowerCase().includes(q.toLowerCase()));
+  const count = Object.values(cart).reduce((a, b) => a + b, 0);
+  const total = Object.entries(cart).reduce((s, [i, qty]) => s + products[+i].p * qty, 0);
+  const bump = (i: number, d: number) =>
+    setCart((c) => {
+      const next = Math.max(0, (c[i] ?? 0) + d);
+      const copy = { ...c };
+      if (next === 0) delete copy[i];
+      else copy[i] = next;
+      return copy;
+    });
+  const openDetail = (i: number) => {
+    setDetail(i);
+    setDetailQty(1);
+  };
+
   return (
     <section className="border-b border-line bg-canvas py-16 lg:py-24">
       <PageShell>
@@ -833,7 +873,7 @@ function StorePreview() {
               index="07"
               kicker="Contoh tampilan"
               title="Toko yang enak dilihat di HP pembeli."
-              lead="Sebagian besar pembeli datang dari satu tautan di bio. Maka halaman toko harus ringan, jelas, dan enak digeser."
+              lead="Sebagian besar pembeli datang dari satu tautan di bio. Maka halaman toko harus ringan, jelas, dan enak digeser. Coba klik-klik preview di samping — semuanya berjalan, tapi tidak menyimpan apa pun."
             />
             <div className="mt-7 grid gap-3 sm:grid-cols-2">
               {[
@@ -859,10 +899,8 @@ function StorePreview() {
           </div>
 
           <div className="order-1 flex justify-center lg:order-2 lg:col-span-6">
-            {/* iPhone frame with a faithful miniature of the classic
-                storefront (cover → profile card → kategori → produk →
-                bilah keranjang) — same anatomy as the real /s/{slug}. */}
-            <div className="relative w-full max-w-[300px]">
+            {/* iPhone frame — miniatur interaktif StoreHome klasik. */}
+            <div className="relative w-full max-w-[300px] select-none">
               <div className="relative overflow-hidden rounded-[38px] border-[9px] border-[#14161c] bg-canvas shadow-[0_24px_60px_-18px_rgba(6,27,69,0.45)]">
                 {/* dynamic island */}
                 <div className="absolute left-1/2 top-[9px] z-30 h-[26px] w-[92px] -translate-x-1/2 rounded-full bg-[#14161c]" />
@@ -887,7 +925,7 @@ function StorePreview() {
                   </span>
                 </div>
 
-                {/* mini storefront (mirrors StoreHome klasik) */}
+                {/* mini storefront screen */}
                 <div className="relative h-[520px] overflow-hidden bg-canvas">
                   {/* app bar */}
                   <div className="flex items-center justify-between border-b border-line bg-white px-4 py-2.5">
@@ -895,104 +933,294 @@ function StorePreview() {
                       <LogoMark size={18} />
                       <span className="text-[13px] font-extrabold text-ink">Toko Contoh</span>
                     </span>
-                    <span className="relative text-ink" aria-hidden="true">
+                    <button
+                      type="button"
+                      onClick={() => setDrawer(true)}
+                      className="relative text-ink transition-transform active:scale-90"
+                      aria-label="Buka keranjang"
+                    >
                       <Icon name="box" size={18} />
-                      <span className="absolute -right-1.5 -top-1.5 grid h-4 min-w-4 place-items-center rounded-full bg-brand-600 px-1 text-[9px] font-bold text-white">
-                        2
-                      </span>
-                    </span>
+                      {count > 0 && (
+                        <span className="absolute -right-1.5 -top-1.5 grid h-4 min-w-4 place-items-center rounded-full bg-brand-600 px-1 text-[9px] font-bold text-white">
+                          {count}
+                        </span>
+                      )}
+                    </button>
                   </div>
 
-                  {/* cover */}
-                  <div className="relative h-[104px]">
-                    <img src="images/store-cover.jpg" alt="" className="h-full w-full object-cover" />
-                    <div className="absolute inset-0 bg-gradient-to-t from-navy-900/90 via-navy-900/30 to-navy-900/15" />
-                  </div>
-
-                  {/* profile card (overlaps cover like the real page) */}
-                  <div className="px-3">
-                    <div className="-mt-7 rounded-lg border border-line bg-white p-3 shadow-card">
-                      <div className="flex items-start gap-2.5">
-                        <span className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-md border border-line bg-canvas">
-                          <LogoMark size={28} />
-                        </span>
-                        <div className="min-w-0 flex-1">
-                          <div className="text-[14px] font-extrabold leading-tight text-ink">Toko Contoh</div>
-                          <div className="mt-0.5 flex items-center gap-1 text-[11px] text-muted">
-                            <Icon name="pin" size={11} className="text-faint" /> Bandung · Kuliner rumahan
-                          </div>
-                          <span className="mt-1.5 inline-flex items-center gap-1.5 rounded-sm bg-oksoft px-1.5 py-0.5 text-[10.5px] font-bold text-[#0a7a55]">
-                            <span className="h-1.5 w-1.5 rounded-full bg-ok" /> Buka · 08.00–20.00
-                          </span>
-                        </div>
-                        <span className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md bg-[#0a7a56] px-2.5 text-[11.5px] font-bold text-white">
-                          <Icon name="wa" size={13} /> Chat
-                        </span>
-                      </div>
-                      {/* bio links */}
-                      <div className="mt-2.5 flex gap-1.5 border-t border-linesoft pt-2.5">
-                        {[
-                          ["ig", "Instagram"],
-                          ["wa", "Pesan"],
-                        ].map(([i, l]) => (
-                          <span
-                            key={l}
-                            className="inline-flex items-center gap-1 rounded-md border border-line bg-canvas px-2 py-1 text-[10.5px] font-semibold text-muted"
-                          >
-                            <Icon name={i} size={11} className="text-brand-500" /> {l}
-                          </span>
-                        ))}
-                      </div>
+                  {/* scrollable store content */}
+                  <div className="tl-scroll h-[calc(100%-45px)] overflow-y-auto pb-16">
+                    {/* cover — lega, kartu profil tidak lagi menumpuk */}
+                    <div className="relative h-[116px]">
+                      <img src="images/store-cover.jpg" alt="" className="h-full w-full object-cover" />
+                      <div className="absolute inset-0 bg-gradient-to-t from-navy-900/85 via-navy-900/25 to-navy-900/10" />
                     </div>
 
-                    {/* kategori + cari */}
-                    <div className="mt-2.5 flex items-center gap-1.5">
-                      {["Semua", "Kue", "Sambal", "Kopi"].map((c, i) => (
-                        <span
-                          key={c}
-                          className={cx(
-                            "whitespace-nowrap rounded-sm px-2 py-[3px] text-[10.5px] font-semibold",
-                            i === 0 ? "bg-navy-800 text-white" : "border border-line bg-white text-muted",
-                          )}
-                        >
-                          {c}
-                        </span>
-                      ))}
-                      <span className="ml-auto flex h-6 w-6 items-center justify-center rounded-md border border-line bg-white text-faint">
-                        <Icon name="search" size={12} />
-                      </span>
-                    </div>
-
-                    {/* produk */}
-                    <div className="mt-2 grid grid-cols-2 gap-2">
-                      {items.map(([t, p, src]) => (
-                        <div key={t} className="overflow-hidden rounded-md border border-line bg-white">
-                          <img src={src} alt="" className="aspect-[4/3] w-full object-cover" loading="lazy" />
-                          <div className="p-2">
-                            <div className="truncate text-[10.5px] font-semibold text-ink">{t}</div>
-                            <div className="mt-0.5 flex items-center justify-between">
-                              <span className="tnum text-[11px] font-bold text-brand-700">{p}</span>
-                              <span className="grid h-5 w-5 place-items-center rounded-md bg-brand-600 text-white" aria-hidden="true">
-                                <Icon name="plus" size={11} strokeWidth={3} />
-                              </span>
+                    {/* profile card */}
+                    <div className="px-3">
+                      <div className="-mt-5 rounded-lg border border-line bg-white p-3 shadow-card">
+                        <div className="flex items-start gap-2.5">
+                          <span className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-md border border-line bg-canvas">
+                            <LogoMark size={28} />
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <div className="text-[14px] font-extrabold leading-tight text-ink">Toko Contoh</div>
+                            <div className="mt-0.5 flex items-center gap-1 text-[11px] text-muted">
+                              <Icon name="pin" size={11} className="text-faint" /> Bandung · Kuliner rumahan
                             </div>
+                            <span className="mt-1.5 inline-flex items-center gap-1.5 rounded-sm bg-oksoft px-1.5 py-0.5 text-[10.5px] font-bold text-[#0a7a55]">
+                              <span className="h-1.5 w-1.5 rounded-full bg-ok" /> Buka · 08.00–20.00
+                            </span>
                           </div>
+                          <button
+                            type="button"
+                            onClick={() => notify("Preview demo — di toko asli, tombol ini membuka chat WhatsApp.")}
+                            className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md bg-[#0a7a56] px-2.5 text-[11.5px] font-bold text-white transition-opacity hover:opacity-90 active:opacity-75"
+                          >
+                            <Icon name="wa" size={13} /> Chat
+                          </button>
                         </div>
-                      ))}
+                        <div className="mt-2.5 flex gap-1.5 border-t border-linesoft pt-2.5">
+                          {([
+                            ["ig", "Instagram"],
+                            ["qr", "QR toko"],
+                          ] as const).map(([i, l]) => (
+                            <button
+                              key={l}
+                              type="button"
+                              onClick={() => notify("Preview demo — link ini aktif di toko asli.")}
+                              className="inline-flex items-center gap-1 rounded-md border border-line bg-canvas px-2 py-1 text-[10.5px] font-semibold text-muted transition-colors hover:border-brand-300 hover:text-brand-700"
+                            >
+                              <Icon name={i} size={11} className="text-brand-500" /> {l}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* kategori + cari */}
+                      <div className="mt-3 flex items-center gap-1.5">
+                        <div className="tl-scroll flex gap-1.5 overflow-x-auto">
+                          {cats.map((c) => (
+                            <button
+                              key={c}
+                              type="button"
+                              onClick={() => setCat(c)}
+                              className={cx(
+                                "whitespace-nowrap rounded-sm px-2 py-[3px] text-[10.5px] font-semibold transition-colors",
+                                cat === c ? "bg-navy-800 text-white" : "border border-line bg-white text-muted hover:border-brand-300",
+                              )}
+                            >
+                              {c}
+                            </button>
+                          ))}
+                        </div>
+                        <span className="relative ml-auto">
+                          <Icon name="search" size={11} className="absolute left-1.5 top-1/2 -translate-y-1/2 text-faint" />
+                          <input
+                            value={q}
+                            onChange={(e) => setQ(e.target.value)}
+                            placeholder="Cari"
+                            aria-label="Cari produk di preview"
+                            className="h-6 w-[64px] rounded-md border border-line bg-white pl-5 pr-1.5 text-[10.5px] text-ink outline-none placeholder:text-faint focus:border-brand-400"
+                          />
+                        </span>
+                      </div>
+
+                      {/* produk */}
+                      <div className="mt-2.5 grid grid-cols-2 gap-2">
+                        {list.map((p) => (
+                          <button
+                            key={p.n}
+                            type="button"
+                            onClick={() => openDetail(p.i)}
+                            className="overflow-hidden rounded-md border border-line bg-white text-left transition-[border-color,transform] hover:-translate-y-0.5 hover:border-brand-300 active:translate-y-0"
+                          >
+                            <img src={p.img} alt="" className="aspect-[4/3] w-full object-cover" loading="lazy" />
+                            <div className="p-2">
+                              <div className="truncate text-[10.5px] font-semibold text-ink">{p.n}</div>
+                              <div className="mt-0.5 flex items-center justify-between">
+                                <span className="tnum text-[11px] font-bold text-brand-700">{rp(p.p)}</span>
+                                <span className="grid h-5 w-5 place-items-center rounded-md bg-brand-600 text-white" aria-hidden="true">
+                                  <Icon name="plus" size={11} strokeWidth={3} />
+                                </span>
+                              </div>
+                            </div>
+                          </button>
+                        ))}
+                        {list.length === 0 && (
+                          <div className="col-span-2 rounded-md border border-dashed border-line bg-white px-3 py-5 text-center">
+                            <div className="text-[11px] font-bold text-ink">Produk tidak ditemukan</div>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setQ("");
+                                setCat("Semua");
+                              }}
+                              className="mt-1 text-[10.5px] font-semibold text-brand-700 underline underline-offset-2"
+                            >
+                              Tampilkan semua
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
 
                   {/* cart bar */}
-                  <div className="absolute inset-x-3 bottom-3">
-                    <div className="flex items-center justify-between rounded-lg bg-navy-900 px-3.5 py-2.5 shadow-lift">
+                  {count > 0 && !detail && (
+                    <button
+                      type="button"
+                      onClick={() => setDrawer(true)}
+                      className="absolute inset-x-3 bottom-3 z-30 flex items-center justify-between rounded-lg bg-navy-900 px-3.5 py-2.5 shadow-lift transition-transform active:scale-[0.98]"
+                    >
                       <span className="text-[11.5px] font-semibold text-white/85">
-                        <span className="tnum font-bold text-white">2 barang</span> · Rp117.000
+                        <span className="tnum font-bold text-white">{count} barang</span> · {rp(total)}
                       </span>
                       <span className="rounded-md bg-brand-500 px-2.5 py-1 text-[11px] font-bold text-navy-900">
                         Lihat keranjang
                       </span>
+                    </button>
+                  )}
+
+                  {/* demo toast */}
+                  {toast && (
+                    <div className="fade absolute inset-x-3 top-2 z-50 rounded-md border border-brand-200 bg-brand-50 px-3 py-2 text-center text-[10.5px] font-semibold leading-snug text-brand-700 shadow-card">
+                      {toast}
                     </div>
-                  </div>
+                  )}
+
+                  {/* detail produk */}
+                  {detail !== null && (
+                    <div className="fade absolute inset-0 z-40 flex flex-col bg-white">
+                      <div className="flex items-center justify-between border-b border-line px-3 py-2">
+                        <button
+                          type="button"
+                          onClick={() => setDetail(null)}
+                          className="flex items-center gap-1 text-[12px] font-bold text-ink"
+                        >
+                          <Icon name="left" size={15} /> Kembali
+                        </button>
+                        <span className="micro text-faint">Detail produk</span>
+                      </div>
+                      <div className="flex-1 overflow-y-auto tl-scroll">
+                        <img src={products[detail].img} alt="" className="aspect-[4/3] w-full object-cover" />
+                        <div className="p-3">
+                          <div className="text-[14px] font-extrabold leading-snug text-ink">{products[detail].n}</div>
+                          <div className="tnum mt-1 text-[15px] font-bold text-brand-700">{rp(products[detail].p)}</div>
+                          <div className="mt-1.5 flex items-center gap-1 text-[10.5px] font-semibold text-[#0a7a55]">
+                            <span className="h-1.5 w-1.5 rounded-full bg-ok" /> Stok tersedia
+                          </div>
+                          <p className="mt-2 text-[11.5px] leading-relaxed text-muted">
+                            Dibuat segar tiap hari, dikemas aman untuk pengiriman luar kota. Tanya stok lewat
+                            tombol WhatsApp kalau pesanan mendesak.
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 border-t border-line bg-white px-3 py-2.5">
+                        <div className="flex items-center gap-1.5 rounded-md border border-line px-1.5 py-1">
+                          <button
+                            type="button"
+                            onClick={() => setDetailQty((v) => Math.max(1, v - 1))}
+                            className="grid h-6 w-6 place-items-center rounded text-ink hover:bg-canvas"
+                            aria-label="Kurangi jumlah"
+                          >
+                            <Icon name="minus" size={12} strokeWidth={3} />
+                          </button>
+                          <span className="tnum w-5 text-center text-[12px] font-bold text-ink">{detailQty}</span>
+                          <button
+                            type="button"
+                            onClick={() => setDetailQty((v) => v + 1)}
+                            className="grid h-6 w-6 place-items-center rounded text-ink hover:bg-canvas"
+                            aria-label="Tambah jumlah"
+                          >
+                            <Icon name="plus" size={12} strokeWidth={3} />
+                          </button>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setCart((c) => ({ ...c, [detail]: (c[detail] ?? 0) + detailQty }));
+                            setDetail(null);
+                            notify("Masuk keranjang (demo — tidak disimpan).");
+                          }}
+                          className="flex-1 rounded-md bg-brand-600 py-2 text-[12px] font-bold text-white transition-colors hover:bg-brand-700 active:bg-brand-800"
+                        >
+                          Masukkan keranjang
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* keranjang drawer */}
+                  {drawer && (
+                    <>
+                      <button
+                        type="button"
+                        aria-label="Tutup keranjang"
+                        onClick={() => setDrawer(false)}
+                        className="absolute inset-0 z-40 bg-navy-900/40"
+                      />
+                      <div className="fade absolute inset-x-0 bottom-0 z-50 max-h-[75%] overflow-y-auto tl-scroll rounded-t-xl border-t border-line bg-white p-3">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[13px] font-extrabold text-ink">Keranjang</span>
+                          <button type="button" onClick={() => setDrawer(false)} className="text-muted" aria-label="Tutup">
+                            <Icon name="x" size={16} />
+                          </button>
+                        </div>
+                        {count === 0 ? (
+                          <div className="py-6 text-center">
+                            <div className="text-[12px] font-bold text-ink">Keranjang masih kosong</div>
+                            <p className="mt-1 text-[11px] text-muted">Tap produk untuk melihat detail.</p>
+                          </div>
+                        ) : (
+                          <>
+                            <div className="mt-2.5 space-y-2">
+                              {Object.entries(cart).map(([idx, qty]) => (
+                                <div key={idx} className="flex items-center gap-2">
+                                  <img src={products[+idx].img} alt="" className="h-9 w-9 rounded-md border border-line object-cover" />
+                                  <div className="min-w-0 flex-1">
+                                    <div className="truncate text-[11px] font-semibold text-ink">{products[+idx].n}</div>
+                                    <div className="tnum text-[11px] font-bold text-brand-700">{rp(products[+idx].p * qty)}</div>
+                                  </div>
+                                  <div className="flex items-center gap-1">
+                                    <button
+                                      type="button"
+                                      onClick={() => bump(+idx, -1)}
+                                      className="grid h-6 w-6 place-items-center rounded border border-line text-ink hover:bg-canvas"
+                                      aria-label="Kurangi"
+                                    >
+                                      <Icon name="minus" size={11} strokeWidth={3} />
+                                    </button>
+                                    <span className="tnum w-4 text-center text-[11px] font-bold">{qty}</span>
+                                    <button
+                                      type="button"
+                                      onClick={() => bump(+idx, 1)}
+                                      className="grid h-6 w-6 place-items-center rounded border border-line text-ink hover:bg-canvas"
+                                      aria-label="Tambah"
+                                    >
+                                      <Icon name="plus" size={11} strokeWidth={3} />
+                                    </button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                            <div className="mt-3 flex items-center justify-between border-t border-linesoft pt-2.5">
+                              <span className="text-[11.5px] font-semibold text-muted">Total</span>
+                              <span className="tnum text-[13px] font-extrabold text-ink">{rp(total)}</span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => notify("Preview demo — di toko asli, lanjut ke bayar QRIS.")}
+                              className="mt-2.5 w-full rounded-md bg-brand-600 py-2.5 text-[12.5px] font-bold text-white transition-colors hover:bg-brand-700 active:bg-brand-800"
+                            >
+                              Lanjut bayar
+                            </button>
+                            <p className="mt-1.5 text-center text-[10px] text-faint">Preview demo — tidak ada transaksi nyata</p>
+                          </>
+                        )}
+                      </div>
+                    </>
+                  )}
                 </div>
 
                 {/* home indicator */}
@@ -1301,6 +1529,7 @@ function Footer() {
       t: "Bantuan",
       links: [
         { l: "Chat WhatsApp", href: "https://wa.me/6285191245042?text=Halo%20TokoLink,%20saya%20butuh%20bantuan." },
+        { l: "Syarat layanan", to: "/legal/terms" },
         { l: "Kebijakan privasi", to: "/legal/privacy" },
       ],
     },
@@ -1359,9 +1588,14 @@ function Footer() {
         <div className="border-t border-white/12 py-5">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <span className="micro text-white/60">© 2026 TokoLink · tokolink.store</span>
-            <Link to="/legal/privacy" className="micro text-white/45 transition-colors hover:text-white/80">
-              Kebijakan privasi
-            </Link>
+            <span className="flex items-center gap-4">
+              <Link to="/legal/terms" className="micro text-white/45 transition-colors hover:text-white/80">
+                Syarat layanan
+              </Link>
+              <Link to="/legal/privacy" className="micro text-white/45 transition-colors hover:text-white/80">
+                Kebijakan privasi
+              </Link>
+            </span>
           </div>
         </div>
       </PageShell>

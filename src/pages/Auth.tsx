@@ -402,12 +402,16 @@ export function Register() {
           />
         </Field>
 
-        <div className="notch-sm flex items-center justify-between gap-3 bg-brand-50 px-3.5 py-2.5">
-          <span className="micro text-brand-700">Alamat tautan</span>
-          <span className="tnum truncate text-[13px] font-semibold text-navy-800">tokolink.store/{slug}</span>
-        </div>
-
-        <Field label="Email aktif" error={err.contact} required>
+        <Field
+          label="Email"
+          error={err.contact}
+          required
+          hint={
+            /^(\+?62|0)8\d/.test(contact.replace(/[\s-]/g, ""))
+              ? undefined
+              : "Dipakai untuk masuk dan notifikasi pesanan."
+          }
+        >
           <Input
             value={contact}
             invalid={!!err.contact}
@@ -418,8 +422,17 @@ export function Register() {
             placeholder="nama@contoh.com"
           />
         </Field>
+        {/* Anti-bingung: orang awam sering menulis nomor WA di kolom email.
+            Deteksi sejak diketik, bukan error merah setelah submit. */}
+        {/^(\+?62|0)8\d/.test(contact.replace(/[\s-]/g, "")) && !err.contact && (
+          <div className="flex items-start gap-2.5 rounded-md border border-brand-200 bg-brand-50 px-3.5 py-2.5 text-[13px] leading-relaxed text-brand-700">
+            <Icon name="info" size={15} className="mt-0.5 shrink-0" />
+            Kolom ini diisi <b>email</b> (contoh: nama@gmail.com). Nomor WhatsApp bisa ditambahkan
+            nanti di pengaturan toko.
+          </div>
+        )}
 
-        <Field label="Kata sandi" error={err.pass} required hint="Minimal 8 karakter, campur angka dan huruf.">
+        <Field label="Kata sandi" error={err.pass} required hint="Minimal 8 karakter, yang mudah Anda ingat.">
           <div className="relative">
             <Input
               type={showPass ? "text" : "password"}
@@ -439,7 +452,27 @@ export function Register() {
 
         <div className={cx("rounded-md p-1", err.agree && "bg-badsoft")}>
           <Checkbox checked={agree} onChange={(v) => { setAgree(v); setErr((x) => ({ ...x, agree: "" })); }}>
-            Saya setuju dengan Syarat Layanan dan Kebijakan Privasi TokoLink.
+            Saya setuju dengan{" "}
+            <a
+              href="/legal/terms"
+              target="_blank"
+              rel="noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="font-semibold text-brand-700 underline underline-offset-4"
+            >
+              Syarat Layanan
+            </a>{" "}
+            dan{" "}
+            <a
+              href="/legal/privacy"
+              target="_blank"
+              rel="noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="font-semibold text-brand-700 underline underline-offset-4"
+            >
+              Kebijakan Privasi
+            </a>{" "}
+            TokoLink.
           </Checkbox>
           {err.agree && <div className="mt-1.5 pl-[28px] text-[12.5px] text-bad">{err.agree}</div>}
         </div>
