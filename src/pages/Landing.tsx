@@ -281,10 +281,11 @@ function Hero() {
   const [videoOk, setVideoOk] = useState(true);
   return (
     <section className="relative isolate min-h-[640px] overflow-hidden bg-navy-900 lg:min-h-[760px]">
-      {/* Konten di atas (z-10); di HP teks berdiri di latar solid, video
-          menyusul utuh 16:9 di bawah — desktop tetap video jadi latar. */}
+      {/* Opsi 2 (permintaan user): video jadi latar penuh di semua device,
+          crop HP diarahkan ke ilustrasi + overlay HP diperkuat biar teks
+          tetap terbaca di atas latar yang terang. */}
       <PageShell className="relative z-10">
-        <div className="grid items-center gap-10 pb-16 pt-32 lg:min-h-[760px] lg:grid-cols-12 lg:pb-24 lg:pt-36">
+        <div className="grid items-center gap-10 pb-12 pt-28 lg:min-h-[760px] lg:grid-cols-12 lg:pb-24 lg:pt-36">
           <div className="lg:col-span-7">
             <TagChip tone="white">
               <span className="text-brand-400">01</span> Untuk UMKM Indonesia
@@ -359,23 +360,26 @@ function Hero() {
         </div>
       </PageShell>
 
-      {/* Redup sedang — desktop saja (mobile tidak butuh, teks di latar solid):
-          brightness 0.78 + gradient kiri cukup kuat buat zona teks. */}
-      <div className="pointer-events-none absolute inset-0 z-[1] hidden bg-gradient-to-r from-navy-900/80 via-navy-900/35 to-navy-900/10 lg:block" />
-      <div className="pointer-events-none absolute inset-0 z-[1] hidden bg-gradient-to-t from-navy-900/65 via-transparent to-transparent lg:block" />
+      {/* Overlay — gradient sama persis dengan desktop, plus lapis navy
+          ekstra khusus HP (ilustrasi vidionya terang, teks putih wajib
+          tetap terbaca). */}
+      <div className="pointer-events-none absolute inset-0 z-[1] bg-gradient-to-r from-navy-900/80 via-navy-900/35 to-navy-900/10" />
+      <div className="pointer-events-none absolute inset-0 z-[1] bg-gradient-to-t from-navy-900/65 via-transparent to-transparent" />
+      <div className="pointer-events-none absolute inset-0 z-[1] bg-navy-900/40 lg:hidden" />
 
-      {/* Poster diam — latar desktop sekalian pengganti kalau video gagal */}
+      {/* Poster diam di belakang video — tampil langsung saat loading dan
+          jadi pengganti kalau video gagal dimuat. */}
       <img
         src="images/hero-poster.jpg"
         alt=""
         aria-hidden="true"
-        className="hidden brightness-[0.78] lg:absolute lg:inset-0 lg:z-0 lg:block lg:h-full lg:w-full lg:object-cover lg:object-[65%_50%]"
+        className="absolute inset-0 z-0 h-full w-full object-cover object-[72%_50%] brightness-[0.78] lg:object-[65%_50%]"
       />
-      {/* Video: HP = strip 16:9 UTUH di bawah teks (tanpa crop, tanpa redup);
-          desktop = latar penuh seperti sebelumnya. */}
-      {videoOk ? (
+      {/* Video latar penuh semua device; fokus crop HP diarahkan ke pusat
+          ilustrasi (tengah-kanan), desktop dibiarkan seperti semula. */}
+      {videoOk && (
         <video
-          className="relative z-0 aspect-video w-full border-t border-white/12 object-cover lg:absolute lg:inset-0 lg:z-0 lg:h-full lg:w-full lg:border-t-0 lg:brightness-[0.78] lg:object-[65%_50%]"
+          className="absolute inset-0 z-0 h-full w-full object-cover object-[72%_50%] brightness-[0.78] lg:object-[65%_50%]"
           poster="images/hero-poster.jpg"
           autoPlay
           muted
@@ -386,13 +390,6 @@ function Hero() {
         >
           {HERO_VIDEO_SRC && <source src={HERO_VIDEO_SRC} />}
         </video>
-      ) : (
-        <img
-          src="images/hero-poster.jpg"
-          alt=""
-          aria-hidden="true"
-          className="relative z-0 aspect-video w-full border-t border-white/12 object-cover lg:hidden"
-        />
       )}
     </section>
   );
