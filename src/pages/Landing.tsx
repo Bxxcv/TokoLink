@@ -91,9 +91,15 @@ function Header() {
   const active = useScrollspy(SECTIONS.map((s) => s.id));
   const [open, setOpen] = useState(false);
   const [solid, setSolid] = useState(false);
+  const [progress, setProgress] = useState(0);
 
   useEffect(() => {
-    const onScroll = () => setSolid(window.scrollY > 24);
+    const onScroll = () => {
+      setSolid(window.scrollY > 24);
+      const doc = document.documentElement;
+      const max = doc.scrollHeight - doc.clientHeight;
+      setProgress(max > 0 ? doc.scrollTop / max : 0);
+    };
     onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
@@ -205,7 +211,69 @@ function Header() {
           </div>
         )}
       </PageShell>
+      {/* reading progress — thin brand line pinned to the header's bottom edge */}
+      <div className="absolute inset-x-0 bottom-0 h-[2px]" aria-hidden="true">
+        <div
+          className="h-full origin-left bg-brand-500 transition-transform duration-150 ease-out"
+          style={{ transform: `scaleX(${progress})` }}
+        />
+      </div>
     </header>
+  );
+}
+
+/* Desktop-only live order strip: the status badge cycles Menunggu → Lunas
+   so the hero feels alive. Pauses entirely when the visitor prefers reduced
+   motion (stays on "Menunggu bayar"). */
+function LiveOrderCard() {
+  const [paid, setPaid] = useState(false);
+  useEffect(() => {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const id = window.setInterval(() => setPaid((p) => !p), 3600);
+    return () => window.clearInterval(id);
+  }, []);
+  return (
+    <div className="notch ml-auto max-w-[330px] border border-white/15 bg-white/10 p-5 backdrop-blur-md">
+      <div className="micro flex items-center justify-between text-brand-300">
+        <span>Contoh tampilan pesanan</span>
+      </div>
+      <div className="mt-3 rounded-md bg-white p-3.5">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <div className="tnum text-[13px] font-bold text-navy-800">TL-2502-0192</div>
+            <div className="mt-0.5 text-[13px] text-muted">Rizky Maulana · Bandung</div>
+          </div>
+          <Badge tone={paid ? "green" : "blue"} dot>
+            <span className="transition-all duration-500">{paid ? "Lunas" : "Menunggu bayar"}</span>
+          </Badge>
+        </div>
+        <div className="mt-3 flex items-center justify-between border-t border-linesoft pt-3">
+          <span className="text-[12.5px] text-faint">2 × Kue Lapis Legit</span>
+          <span className="tnum text-[15px] font-bold text-ink">Rp170.000</span>
+        </div>
+        <div
+          className={cx(
+            "grid overflow-hidden transition-[grid-template-rows,opacity] duration-500 ease-out",
+            paid ? "mt-2.5 grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0",
+          )}
+        >
+          <div className="overflow-hidden">
+            <div className="flex items-start gap-1.5 text-[12px] font-semibold text-[#0a7a55]">
+              <Icon name="check" size={13} strokeWidth={2.8} className="mt-px shrink-0" />
+              QRIS diterima otomatis — pesanan masuk antrean kemas
+            </div>
+          </div>
+        </div>
+      </div>
+      <ul className="mt-3 space-y-2 text-[13px] text-white/80">
+        {["Pembayaran QRIS diterima otomatis", "Status pesanan terpantau penjual"].map((t) => (
+          <li key={t} className="flex items-start gap-2">
+            <Icon name="check" size={15} className="mt-0.5 shrink-0 text-brand-400" strokeWidth={2.4} />
+            {t}
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 
@@ -300,34 +368,7 @@ function Hero() {
 
           {/* floating live-order strip */}
           <div className="hidden lg:col-span-5 lg:block">
-            <div className="notch ml-auto max-w-[330px] border border-white/15 bg-white/10 p-5 backdrop-blur-md">
-              <div className="micro flex items-center justify-between text-brand-300">
-                <span>Contoh tampilan pesanan</span>
-              </div>
-              <div className="mt-3 rounded-md bg-white p-3.5">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <div className="tnum text-[13px] font-bold text-navy-800">TL-2502-0192</div>
-                    <div className="mt-0.5 text-[13px] text-muted">Rizky Maulana · Bandung</div>
-                  </div>
-                  <Badge tone="blue" dot>
-                    Menunggu bayar
-                  </Badge>
-                </div>
-                <div className="mt-3 flex items-center justify-between border-t border-linesoft pt-3">
-                  <span className="text-[12.5px] text-faint">2 × Kue Lapis Legit</span>
-                  <span className="tnum text-[15px] font-bold text-ink">Rp170.000</span>
-                </div>
-              </div>
-              <ul className="mt-3 space-y-2 text-[13px] text-white/80">
-                {["Pembayaran QRIS diterima otomatis", "Status pesanan terpantau penjual"].map((t) => (
-                  <li key={t} className="flex items-start gap-2">
-                    <Icon name="check" size={15} className="mt-0.5 shrink-0 text-brand-400" strokeWidth={2.4} />
-                    {t}
-                  </li>
-                ))}
-              </ul>
-            </div>
+            <LiveOrderCard />
           </div>
         </div>
 
@@ -463,8 +504,9 @@ function CaraKerja() {
     { n: "04", t: "Terima pesanan", d: "Notifikasi masuk, pembayaran tercatat, barang dikirim, dana bisa ditarik.", time: "harian" },
   ];
   return (
-    <section id="cara-kerja" className="border-b border-line bg-canvas py-20 lg:py-28">
-      <PageShell>
+    <section id="cara-kerja" className="relative border-b border-line bg-canvas py-24 lg:py-32">
+      <div className="blueprint-light absolute inset-0" aria-hidden="true" />
+      <PageShell className="relative">
         <SectionHead
           index="03"
           kicker="Cara kerja"
@@ -477,10 +519,10 @@ function CaraKerja() {
           <div className="absolute left-[26px] top-2 hidden h-[calc(100%-32px)] w-px bg-line sm:block lg:left-0 lg:top-[26px] lg:h-px lg:w-full" />
           <ol className="grid gap-8 sm:grid-cols-2 lg:grid-cols-4 lg:gap-6">
             {steps.map((s) => (
-              <li key={s.n} className="relative flex gap-4 lg:block">
-                <div className="relative z-10 flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-full border-2 border-navy-800 bg-white">
-                  <span className="tnum text-[15px] font-bold text-navy-800">{s.n}</span>
-                  <span className="absolute -right-1 -top-1 h-3 w-3 rounded-full border-2 border-canvas bg-brand-500" />
+              <li key={s.n} className="group relative flex gap-4 lg:block">
+                <div className="relative z-10 flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-full border-2 border-navy-800 bg-white transition-colors duration-200 group-hover:border-brand-600">
+                  <span className="tnum text-[15px] font-bold text-navy-800 transition-colors duration-200 group-hover:text-brand-700">{s.n}</span>
+                  <span className="absolute -right-1 -top-1 h-3 w-3 rounded-full border-2 border-canvas bg-brand-500 transition-transform duration-200 group-hover:scale-125" />
                 </div>
                 <div className="lg:mt-5">
                   <div className="flex items-center gap-2">
@@ -521,7 +563,7 @@ function Fitur() {
   ];
 
   return (
-    <section id="fitur" className="border-b border-line bg-white py-20 lg:py-28">
+    <section id="fitur" className="border-b border-line bg-white py-16 lg:py-24">
       <PageShell>
         <div className="flex flex-wrap items-end justify-between gap-6">
           <SectionHead
@@ -628,7 +670,7 @@ function Manfaat() {
     ["Rp0", "mulai gratis, naik Premium bila perlu"],
   ];
   return (
-    <section id="manfaat" className="relative overflow-hidden bg-navy-900 py-20 lg:py-28">
+    <section id="manfaat" className="relative overflow-hidden bg-navy-900 py-24 lg:py-32">
       <div className="blueprint absolute inset-0 opacity-60" />
       <PageShell className="relative">
         <div className="grid gap-10 lg:grid-cols-12 lg:gap-14">
@@ -682,7 +724,7 @@ function Analitik() {
   const [period, setPeriod] = useState("30 hari");
   const data = period === "7 hari" ? SALES_30.slice(-7) : SALES_30;
   return (
-    <section id="analitik" className="border-b border-line bg-white py-20 lg:py-28">
+    <section id="analitik" className="border-b border-line bg-white py-24 lg:py-32">
       <PageShell>
         <div className="grid gap-10 lg:grid-cols-12 lg:gap-12">
           <div className="lg:col-span-4">
@@ -782,7 +824,7 @@ function StorePreview() {
     ["Keripik Singkong 200g", "Rp24.000", "images/p-keripik.jpg"],
   ];
   return (
-    <section className="border-b border-line bg-canvas py-20 lg:py-28">
+    <section className="border-b border-line bg-canvas py-16 lg:py-24">
       <PageShell>
         <div className="grid items-center gap-12 lg:grid-cols-12">
           <div className="order-2 lg:order-1 lg:col-span-6">
@@ -1033,7 +1075,7 @@ function ToggleLike({ on, onChange }: { on: boolean; onChange: (v: boolean) => v
 function Faq() {
   const [open, setOpen] = useState<number | null>(0);
   return (
-    <section id="faq" className="border-b border-line bg-canvas py-20 lg:py-28">
+    <section id="faq" className="border-b border-line bg-canvas py-24 lg:py-32">
       <PageShell>
         <div className="grid gap-10 lg:grid-cols-12">
           <div className="lg:col-span-4">
@@ -1148,19 +1190,45 @@ function CtaBand() {
 
 /* --------------------------------- footer --------------------------------- */
 function Footer() {
-  const cols = [
-    { t: "Produk", l: ["Halaman toko", "Keranjang & checkout", "QRIS", "Laporan jualan", "Kode promo"] },
-    { t: "Penjual", l: ["Buka toko gratis", "Panduan UMKM", "Contoh toko", "Biaya & penarikan", "Status layanan"] },
-    { t: "Bantuan", l: ["Pusat bantuan", "Panduan QRIS", "Hubungi WhatsApp", "Syarat layanan", "Kebijakan privasi"] },
-    { t: "Perusahaan", l: ["Tentang TokoLink", "Karier", "Blog", "Mitra agen", "Kontak"] },
+  /* Only real destinations: landing anchors + pages that actually exist.
+     No placeholder columns (Karier/Blog/Mitra) — they read as fake. */
+  type FootLink = { l: string; to?: string; href?: string; anchor?: boolean };
+  const cols: { t: string; links: FootLink[] }[] = [
+    {
+      t: "Jelajahi",
+      links: [
+        { l: "Cara kerja", to: "cara-kerja", anchor: true },
+        { l: "Fitur", to: "fitur", anchor: true },
+        { l: "Laporan jualan", to: "analitik", anchor: true },
+        { l: "Harga", to: "harga", anchor: true },
+        { l: "Pertanyaan umum", to: "faq", anchor: true },
+      ],
+    },
+    {
+      t: "Penjual",
+      links: [
+        { l: "Buka toko gratis", to: "/register" },
+        { l: "Masuk dashboard", to: "/login" },
+        { l: "Contoh toko", to: "/demo-account" },
+      ],
+    },
+    {
+      t: "Bantuan",
+      links: [
+        { l: "Chat WhatsApp", href: "https://wa.me/6285191245042?text=Halo%20TokoLink,%20saya%20butuh%20bantuan." },
+        { l: "Kebijakan privasi", to: "/legal/privacy" },
+      ],
+    },
   ];
+  const linkClass =
+    "text-left text-[14px] text-white/65 transition-colors duration-150 hover:text-white";
   return (
     <footer className="bg-navy-900 pt-12">
       <PageShell>
         <div className="grid gap-8 pb-10 lg:grid-cols-12">
-          <div className="lg:col-span-4">
+          <div className="lg:col-span-5">
             <Logo size={32} tone="dark" wordClass="text-brand-500" />
-            <p className="mt-4 max-w-xs text-[14px] leading-relaxed text-white/60">
+            <p className="mt-4 max-w-sm text-[14px] leading-relaxed text-white/60">
               Satu tautan untuk semua jualanmu. Dibuat untuk penjual kecil di Indonesia yang ingin
               terlihat rapi tanpa repot.
             </p>
@@ -1180,35 +1248,20 @@ function Footer() {
             <div key={c.t} className="lg:col-span-2">
               <div className="micro mb-4 text-brand-400">{c.t}</div>
               <ul className="space-y-2.5">
-                {c.l.map((l) => (
-                  <li key={l}>
-                    {l === "Hubungi WhatsApp" ? (
-                      <a
-                        href="https://wa.me/6285191245042?text=Halo%20TokoLink,%20saya%20butuh%20bantuan."
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-left text-[14px] text-white/65 transition-colors duration-150 hover:text-white"
-                      >
-                        {l}
+                {c.links.map((link) => (
+                  <li key={link.l}>
+                    {link.href ? (
+                      <a href={link.href} target="_blank" rel="noreferrer" className={linkClass}>
+                        {link.l}
                       </a>
-                    ) : l === "Syarat layanan" || l === "Kebijakan privasi" ? (
-                      <Link
-                        to="/legal/privacy"
-                        className="text-left text-[14px] text-white/65 transition-colors duration-150 hover:text-white"
-                      >
-                        {l}
-                      </Link>
-                    ) : l === "Contoh toko" ? (
-                      <Link
-                        to="/demo-account"
-                        className="text-left text-[14px] text-white/65 transition-colors duration-150 hover:text-white"
-                      >
-                        {l}
-                      </Link>
+                    ) : link.anchor && link.to ? (
+                      <button onClick={() => goTo(link.to!)} className={linkClass}>
+                        {link.l}
+                      </button>
                     ) : (
-                      <span className="text-left text-[14px] text-white/35">
-                        {l}
-                      </span>
+                      <Link to={link.to ?? "/"} className={linkClass}>
+                        {link.l}
+                      </Link>
                     )}
                   </li>
                 ))}
@@ -1216,8 +1269,22 @@ function Footer() {
             </div>
           ))}
         </div>
-        <div className="border-t border-white/12 py-5">
-          <span className="micro text-white/60">© 2026 TokoLink · All rights reserved</span>
+        {/* SEO paragraph — natural keyword-rich summary read by search &
+            AI crawlers. Plain text, one short block, no stuffing. */}
+        <div className="border-t border-white/12 py-8">
+          <p className="max-w-3xl text-[13px] leading-relaxed text-white/45">
+            TokoLink adalah platform toko online dan link-in-bio untuk UMKM Indonesia: buat halaman
+            toko sendiri, unggah katalog produk, terima pembayaran QRIS, dan kelola pesanan dari satu
+            dasbor. Cocok untuk penjual kuliner rumahan, kerajinan, fashion, dan usaha kecil yang
+            ingin jualan lewat WhatsApp, Instagram, atau QR cetak tanpa biaya langganan di paket
+            Gratis.
+          </p>
+          <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1">
+            <span className="micro text-white/60">© 2026 TokoLink · tokolink.store</span>
+            <Link to="/legal/privacy" className="micro text-white/45 transition-colors hover:text-white/80">
+              Kebijakan privasi
+            </Link>
+          </div>
         </div>
       </PageShell>
     </footer>
