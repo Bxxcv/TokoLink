@@ -1990,7 +1990,7 @@ function useCartStore(items: { sellerId: string }[]) {
       // BUG-004: keranjang hanya butuh identitas publik toko, via view tanpa PII.
       const { data } = await supabase
         .from("public_stores")
-        .select("id,store_name,store_slug,city")
+        .select("id,store_name,store_slug,city,avatar_url")
         .eq("id", sellerId)
         .maybeSingle();
       const resolved = (data as StoreProfile | null) ?? null;
