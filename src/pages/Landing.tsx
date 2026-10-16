@@ -281,11 +281,34 @@ function Hero() {
   const [videoOk, setVideoOk] = useState(true);
   return (
     <section className="relative isolate min-h-[640px] overflow-hidden bg-navy-900 lg:min-h-[760px]">
-      {/* Opsi 2 (permintaan user): video jadi latar penuh di semua device,
-          crop HP diarahkan ke ilustrasi + overlay HP diperkuat biar teks
-          tetap terbaca di atas latar yang terang. */}
-      <PageShell className="relative z-10">
-        <div className="grid items-center gap-10 pb-12 pt-28 lg:min-h-[760px] lg:grid-cols-12 lg:pb-24 lg:pt-36">
+      {/* ---- video area (final file goes here) ---- */}
+      <img
+        src="images/hero-poster.jpg"
+        alt=""
+        aria-hidden="true"
+        className="absolute inset-0 h-full w-full object-cover object-[65%_50%] brightness-[0.78]"
+      />
+      {videoOk && (
+        <video
+          className="absolute inset-0 h-full w-full object-cover object-[65%_50%] brightness-[0.78]"
+          poster="images/hero-poster.jpg"
+          autoPlay
+          muted
+          loop
+          playsInline
+          onError={() => setVideoOk(false)}
+          aria-hidden="true"
+        >
+          {HERO_VIDEO_SRC && <source src={HERO_VIDEO_SRC} />}
+        </video>
+      )}
+      {/* Redup sedang (permintaan user): brightness 0.78 + gradient kiri
+          cukup kuat buat zona teks — video tetap hidup, teks tetap tajam. */}
+      <div className="absolute inset-0 bg-gradient-to-r from-navy-900/80 via-navy-900/35 to-navy-900/10" />
+      <div className="absolute inset-0 bg-gradient-to-t from-navy-900/65 via-transparent to-transparent" />
+
+      <PageShell className="relative">
+        <div className="grid items-center gap-10 pb-16 pt-32 lg:min-h-[760px] lg:grid-cols-12 lg:pb-24 lg:pt-36">
           <div className="lg:col-span-7">
             <TagChip tone="white">
               <span className="text-brand-400">01</span> Untuk UMKM Indonesia
@@ -359,38 +382,6 @@ function Hero() {
           ))}
         </div>
       </PageShell>
-
-      {/* Overlay — gradient sama persis dengan desktop, plus lapis navy
-          ekstra khusus HP (ilustrasi vidionya terang, teks putih wajib
-          tetap terbaca). */}
-      <div className="pointer-events-none absolute inset-0 z-[1] bg-gradient-to-r from-navy-900/80 via-navy-900/35 to-navy-900/10" />
-      <div className="pointer-events-none absolute inset-0 z-[1] bg-gradient-to-t from-navy-900/65 via-transparent to-transparent" />
-      <div className="pointer-events-none absolute inset-0 z-[1] bg-navy-900/40 lg:hidden" />
-
-      {/* Poster diam di belakang video — tampil langsung saat loading dan
-          jadi pengganti kalau video gagal dimuat. */}
-      <img
-        src="images/hero-poster.jpg"
-        alt=""
-        aria-hidden="true"
-        className="absolute inset-0 z-0 h-full w-full object-cover object-[72%_50%] brightness-[0.78] lg:object-[65%_50%]"
-      />
-      {/* Video latar penuh semua device; fokus crop HP diarahkan ke pusat
-          ilustrasi (tengah-kanan), desktop dibiarkan seperti semula. */}
-      {videoOk && (
-        <video
-          className="absolute inset-0 z-0 h-full w-full object-cover object-[72%_50%] brightness-[0.78] lg:object-[65%_50%]"
-          poster="images/hero-poster.jpg"
-          autoPlay
-          muted
-          loop
-          playsInline
-          onError={() => setVideoOk(false)}
-          aria-hidden="true"
-        >
-          {HERO_VIDEO_SRC && <source src={HERO_VIDEO_SRC} />}
-        </video>
-      )}
     </section>
   );
 }
