@@ -286,11 +286,11 @@ function Hero() {
         src="images/hero-poster.jpg"
         alt=""
         aria-hidden="true"
-        className="absolute inset-0 h-full w-full object-cover object-[65%_50%]"
+        className="absolute inset-0 h-full w-full object-cover object-[65%_50%] brightness-[0.62]"
       />
       {videoOk && (
         <video
-          className="absolute inset-0 h-full w-full object-cover object-[65%_50%]"
+          className="absolute inset-0 h-full w-full object-cover object-[65%_50%] brightness-[0.62]"
           poster="images/hero-poster.jpg"
           autoPlay
           muted
@@ -302,11 +302,12 @@ function Hero() {
           {HERO_VIDEO_SRC && <source src={HERO_VIDEO_SRC} />}
         </video>
       )}
-      {/* Keseimbangan akhir: video tetap dominan terlihat, tetapi zona teks
-          kiri diberi kanvas gelap yang cukup agar kontras terbaca. */}
-      <div className="absolute inset-0 bg-navy-900/10" />
-      <div className="absolute inset-0 bg-gradient-to-r from-navy-900/80 via-navy-900/35 to-transparent" />
-      <div className="absolute inset-0 bg-gradient-to-t from-navy-900/60 via-transparent to-transparent" />
+      {/* Redup kuat (rasa section "Mulai hari ini"): filter brightness di
+          media + tumpukan lapisan navy supaya video tetap gerak tapi tidak
+          menyilaukan, dan kontras teks putih tajam. */}
+      <div className="absolute inset-0 bg-navy-900/45" />
+      <div className="absolute inset-0 bg-gradient-to-r from-navy-900/85 via-navy-900/45 to-navy-900/25" />
+      <div className="absolute inset-0 bg-gradient-to-t from-navy-900/75 via-transparent to-navy-900/35" />
 
       <PageShell className="relative">
         <div className="grid items-center gap-10 pb-16 pt-32 lg:min-h-[760px] lg:grid-cols-12 lg:pb-24 lg:pt-36">
@@ -858,61 +859,145 @@ function StorePreview() {
           </div>
 
           <div className="order-1 flex justify-center lg:order-2 lg:col-span-6">
-            <div className="relative w-full max-w-[330px]">
-              <div className="absolute -inset-4 -z-10 rounded-[42px] border border-line" />
-              <div className="overflow-hidden rounded-[34px] border-[7px] border-navy-900 bg-white shadow-lift">
-                <div className="relative h-[190px]">
-                  <img src="images/store-cover.jpg" alt="" className="h-full w-full object-cover" />
-                  <div className="absolute inset-0 bg-gradient-to-t from-navy-900/85 to-transparent" />
-                  <div className="absolute inset-x-0 bottom-0 p-3.5">
-                    <div className="flex items-center gap-2.5">
-                      <span className="flex h-10 w-10 items-center justify-center rounded-md bg-white text-navy-800">
-                        <LogoMark size={26} />
+            {/* iPhone frame with a faithful miniature of the classic
+                storefront (cover → profile card → kategori → produk →
+                bilah keranjang) — same anatomy as the real /s/{slug}. */}
+            <div className="relative w-full max-w-[300px]">
+              <div className="relative overflow-hidden rounded-[38px] border-[9px] border-[#14161c] bg-canvas shadow-[0_24px_60px_-18px_rgba(6,27,69,0.45)]">
+                {/* dynamic island */}
+                <div className="absolute left-1/2 top-[9px] z-30 h-[26px] w-[92px] -translate-x-1/2 rounded-full bg-[#14161c]" />
+                {/* status bar */}
+                <div className="relative z-20 flex h-[46px] items-center justify-between bg-white px-6 pb-1 pt-2.5">
+                  <span className="tnum text-[12.5px] font-bold text-ink">09.41</span>
+                  <span className="flex items-center gap-1.5 text-ink" aria-hidden="true">
+                    <svg width="16" height="11" viewBox="0 0 16 11" fill="currentColor">
+                      <rect x="0" y="7" width="3" height="4" rx="0.8" />
+                      <rect x="4.3" y="5" width="3" height="6" rx="0.8" />
+                      <rect x="8.6" y="2.5" width="3" height="8.5" rx="0.8" />
+                      <rect x="12.9" y="0" width="3" height="11" rx="0.8" opacity="0.3" />
+                    </svg>
+                    <svg width="15" height="11" viewBox="0 0 15 11" fill="currentColor">
+                      <path d="M7.5 10.5 5.2 8.1a3.4 3.4 0 0 1 4.6 0L7.5 10.5Zm-4.1-4.2L1.3 4.1a9 9 0 0 1 12.4 0l-2.1 2.2a6 6 0 0 0-8.2 0Z" />
+                    </svg>
+                    <svg width="24" height="11" viewBox="0 0 24 11" fill="none">
+                      <rect x="0.5" y="0.5" width="20" height="10" rx="3" stroke="currentColor" opacity="0.4" />
+                      <rect x="2" y="2" width="14" height="7" rx="1.6" fill="currentColor" />
+                      <path d="M22 4v3a2 2 0 0 0 0-3Z" fill="currentColor" opacity="0.4" />
+                    </svg>
+                  </span>
+                </div>
+
+                {/* mini storefront (mirrors StoreHome klasik) */}
+                <div className="relative h-[520px] overflow-hidden bg-canvas">
+                  {/* app bar */}
+                  <div className="flex items-center justify-between border-b border-line bg-white px-4 py-2.5">
+                    <span className="flex items-center gap-2">
+                      <LogoMark size={18} />
+                      <span className="text-[13px] font-extrabold text-ink">Toko Contoh</span>
+                    </span>
+                    <span className="relative text-ink" aria-hidden="true">
+                      <Icon name="box" size={18} />
+                      <span className="absolute -right-1.5 -top-1.5 grid h-4 min-w-4 place-items-center rounded-full bg-brand-600 px-1 text-[9px] font-bold text-white">
+                        2
                       </span>
-                      <div className="leading-tight">
-                        <div className="text-[15px] font-extrabold text-white">Toko Contoh</div>
-                        <div className="text-[11.5px] text-white/75">Bandung · Kuliner rumahan</div>
+                    </span>
+                  </div>
+
+                  {/* cover */}
+                  <div className="relative h-[104px]">
+                    <img src="images/store-cover.jpg" alt="" className="h-full w-full object-cover" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-navy-900/90 via-navy-900/30 to-navy-900/15" />
+                  </div>
+
+                  {/* profile card (overlaps cover like the real page) */}
+                  <div className="px-3">
+                    <div className="-mt-7 rounded-lg border border-line bg-white p-3 shadow-card">
+                      <div className="flex items-start gap-2.5">
+                        <span className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-md border border-line bg-canvas">
+                          <LogoMark size={28} />
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <div className="text-[14px] font-extrabold leading-tight text-ink">Toko Contoh</div>
+                          <div className="mt-0.5 flex items-center gap-1 text-[11px] text-muted">
+                            <Icon name="pin" size={11} className="text-faint" /> Bandung · Kuliner rumahan
+                          </div>
+                          <span className="mt-1.5 inline-flex items-center gap-1.5 rounded-sm bg-oksoft px-1.5 py-0.5 text-[10.5px] font-bold text-[#0a7a55]">
+                            <span className="h-1.5 w-1.5 rounded-full bg-ok" /> Buka · 08.00–20.00
+                          </span>
+                        </div>
+                        <span className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md bg-[#0a7a56] px-2.5 text-[11.5px] font-bold text-white">
+                          <Icon name="wa" size={13} /> Chat
+                        </span>
                       </div>
+                      {/* bio links */}
+                      <div className="mt-2.5 flex gap-1.5 border-t border-linesoft pt-2.5">
+                        {[
+                          ["ig", "Instagram"],
+                          ["wa", "Pesan"],
+                        ].map(([i, l]) => (
+                          <span
+                            key={l}
+                            className="inline-flex items-center gap-1 rounded-md border border-line bg-canvas px-2 py-1 text-[10.5px] font-semibold text-muted"
+                          >
+                            <Icon name={i} size={11} className="text-brand-500" /> {l}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* kategori + cari */}
+                    <div className="mt-2.5 flex items-center gap-1.5">
+                      {["Semua", "Kue", "Sambal", "Kopi"].map((c, i) => (
+                        <span
+                          key={c}
+                          className={cx(
+                            "whitespace-nowrap rounded-sm px-2 py-[3px] text-[10.5px] font-semibold",
+                            i === 0 ? "bg-navy-800 text-white" : "border border-line bg-white text-muted",
+                          )}
+                        >
+                          {c}
+                        </span>
+                      ))}
+                      <span className="ml-auto flex h-6 w-6 items-center justify-center rounded-md border border-line bg-white text-faint">
+                        <Icon name="search" size={12} />
+                      </span>
+                    </div>
+
+                    {/* produk */}
+                    <div className="mt-2 grid grid-cols-2 gap-2">
+                      {items.map(([t, p, src]) => (
+                        <div key={t} className="overflow-hidden rounded-md border border-line bg-white">
+                          <img src={src} alt="" className="aspect-[4/3] w-full object-cover" loading="lazy" />
+                          <div className="p-2">
+                            <div className="truncate text-[10.5px] font-semibold text-ink">{t}</div>
+                            <div className="mt-0.5 flex items-center justify-between">
+                              <span className="tnum text-[11px] font-bold text-brand-700">{p}</span>
+                              <span className="grid h-5 w-5 place-items-center rounded-md bg-brand-600 text-white" aria-hidden="true">
+                                <Icon name="plus" size={11} strokeWidth={3} />
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* cart bar */}
+                  <div className="absolute inset-x-3 bottom-3">
+                    <div className="flex items-center justify-between rounded-lg bg-navy-900 px-3.5 py-2.5 shadow-lift">
+                      <span className="text-[11.5px] font-semibold text-white/85">
+                        <span className="tnum font-bold text-white">2 barang</span> · Rp117.000
+                      </span>
+                      <span className="rounded-md bg-brand-500 px-2.5 py-1 text-[11px] font-bold text-navy-900">
+                        Lihat keranjang
+                      </span>
                     </div>
                   </div>
                 </div>
-                <div className="px-3.5 py-3">
-                  <div className="flex items-center justify-between">
-                    <span className="inline-flex items-center gap-1.5 rounded-sm bg-oksoft px-2 py-1 text-[11px] font-bold text-[#0a7a55]">
-                      <span className="h-1.5 w-1.5 rounded-full bg-ok" /> Buka sampai 20.00
-                    </span>
-                    <span className="text-[11.5px] font-semibold text-brand-700">WhatsApp</span>
-                  </div>
-                  <div className="tl-scroll mt-3 flex gap-1.5 overflow-x-auto pb-1">
-                    {["Semua", "Kue & Snack", "Sambal", "Kopi"].map((c, i) => (
-                      <span
-                        key={c}
-                        className={cx(
-                          "whitespace-nowrap rounded-sm px-2.5 py-1 text-[11.5px] font-semibold",
-                          i === 0 ? "bg-navy-800 text-white" : "border border-line text-muted",
-                        )}
-                      >
-                        {c}
-                      </span>
-                    ))}
-                  </div>
-                  <div className="mt-3 grid grid-cols-2 gap-2.5">
-                    {items.map(([t, p, src]) => (
-                      <div key={t} className="overflow-hidden rounded-md border border-line">
-                        <img src={src} alt="" className="aspect-[4/3] w-full object-cover" loading="lazy" />
-                        <div className="p-2">
-                          <div className="truncate text-[11.5px] font-semibold text-ink">{t}</div>
-                          <div className="tnum mt-0.5 text-[12px] font-bold text-brand-700">{p}</div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="mt-3 rounded-md bg-canvas p-2.5 text-center">
-                    <div className="micro text-faint">Pindai untuk buka toko</div>
-                    <div className="mt-1.5 flex justify-center">
-                      <QRMark size={54} />
-                    </div>
-                  </div>
+
+                {/* home indicator */}
+                <div className="flex h-[22px] items-center justify-center bg-canvas">
+                  <span className="h-[4px] w-[110px] rounded-full bg-ink/25" />
                 </div>
               </div>
             </div>
@@ -1269,17 +1354,10 @@ function Footer() {
             </div>
           ))}
         </div>
-        {/* SEO paragraph — natural keyword-rich summary read by search &
-            AI crawlers. Plain text, one short block, no stuffing. */}
-        <div className="border-t border-white/12 py-8">
-          <p className="max-w-3xl text-[13px] leading-relaxed text-white/45">
-            TokoLink adalah platform toko online dan link-in-bio untuk UMKM Indonesia: buat halaman
-            toko sendiri, unggah katalog produk, terima pembayaran QRIS, dan kelola pesanan dari satu
-            dasbor. Cocok untuk penjual kuliner rumahan, kerajinan, fashion, dan usaha kecil yang
-            ingin jualan lewat WhatsApp, Instagram, atau QR cetak tanpa biaya langganan di paket
-            Gratis.
-          </p>
-          <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1">
+        {/* SEO paragraph removed at user request (made the footer feel
+            stuffed) — JSON-LD in index.html carries the search signal. */}
+        <div className="border-t border-white/12 py-5">
+          <div className="flex flex-wrap items-center justify-between gap-2">
             <span className="micro text-white/60">© 2026 TokoLink · tokolink.store</span>
             <Link to="/legal/privacy" className="micro text-white/45 transition-colors hover:text-white/80">
               Kebijakan privasi

@@ -373,45 +373,156 @@ function ProductCard({ p, slug, accent, hideAdd, className = "", onAdd }: { p: P
 
 /* ------------------------------- store home ------------------------------- */
 export function LegalPrivacy() {
+  /* Dibuat ulang gaya landing (Okt 2026, permintaan user): header/footer
+     TokoLink sendiri, bukan chrome toko. Isi lengkap — penjual & pembeli,
+     cookies, QRIS/BuatQris, hak pengguna. */
   return (
-    <div className="min-h-screen bg-canvas pb-24">
-      <StoreHeader crumb="Syarat & Privasi" />
-      <PageShell className="py-10">
-        <div className="mx-auto max-w-[640px] rounded-lg border border-line bg-white p-6 sm:p-8">
-          <h1 className="text-[22px] font-extrabold text-ink">Syarat &amp; Kebijakan Privasi</h1>
-          <p className="mt-1 text-[13px] text-faint">
-            Aturan main TokoLink untuk pembeli dan penjual. Terakhir diperbarui Oktober 2026.
-          </p>
-          <div className="mt-6 space-y-5 text-[14px] leading-relaxed text-muted">
+    <div className="min-h-screen bg-canvas">
+      <header className="border-b border-line bg-white">
+        <PageShell>
+          <div className="flex h-[68px] items-center justify-between">
+            <Link to="/" aria-label="TokoLink beranda">
+              <Logo size={28} tone="light" wordClass="text-navy-800" />
+            </Link>
+            <div className="flex items-center gap-2">
+              <Link
+                to="/login"
+                className="rounded-md px-3 py-2 text-[14px] font-semibold text-muted transition-colors hover:text-brand-700"
+              >
+                Masuk
+              </Link>
+              <ButtonLink to="/register" size="sm">
+                Buka toko gratis
+              </ButtonLink>
+            </div>
+          </div>
+        </PageShell>
+      </header>
+
+      <PageShell className="py-12 lg:py-16">
+        <div className="mx-auto max-w-[680px]">
+          <div className="micro flex items-center gap-2.5 text-brand-600">
+            <span className="text-ink">01</span>
+            <span className="h-px w-6 bg-brand-300" />
+            <span>Legal</span>
+          </div>
+          <h1 className="mt-4 text-[30px] font-extrabold leading-[1.1] tracking-[-0.03em] text-ink sm:text-[38px]">
+            Kebijakan Privasi
+          </h1>
+          <p className="mt-3 text-[14px] text-faint">Terakhir diperbarui Oktober 2026.</p>
+
+          <div className="mt-10 space-y-8">
             <section>
-              <h2 className="text-[15px] font-bold text-ink">Data yang dikumpulkan</h2>
-              <p className="mt-1">
-                Nama, nomor WhatsApp, dan alamat yang kamu isi saat checkout dipakai seller
-                untuk memproses pesananmu. Data pembayaran diproses oleh penyedia QRIS
-                (BuatQris). Nomor rekening seller disimpan untuk keperluan penarikan dana
-                dan hanya dibuka admin saat transfer.
+              <h2 className="text-[18px] font-extrabold text-ink">Ringkasan singkat</h2>
+              <p className="mt-2 text-[14.5px] leading-relaxed text-muted">
+                TokoLink hanya meminta data yang dibutuhkan untuk menjalankan jual-beli: akun
+                penjual, katalog, pesanan pembeli, dan pembayaran lewat QRIS. Data tidak dijual ke
+                pihak ketiga. Penjual bisa meminta penghapusan akun beserta datanya kapan saja lewat
+                WhatsApp.
               </p>
             </section>
+
             <section>
-              <h2 className="text-[15px] font-bold text-ink">Penggunaan data</h2>
-              <p className="mt-1">
-                Data pesanan hanya dibagikan ke seller terkait untuk keperluan pengiriman
-                dan layanan pelanggan — tidak dijual ke pihak ketiga.
+              <h2 className="text-[18px] font-extrabold text-ink">Untuk penjual</h2>
+              <p className="mt-2 text-[14.5px] leading-relaxed text-muted">
+                Saat mendaftar, kami menyimpan alamat email, nama, dan nomor WhatsApp untuk login
+                dan komunikasi. Di dasbor, Anda mengisi nama toko, kota, alamat, foto produk, dan
+                nomor rekening penarikan saldo. Nomor rekening disimpan terenkripsi di database,
+                ditampilkan tersamar di dasbor, dan hanya dibuka khusus admin saat memproses
+                transfer — tidak pernah ditampilkan ke publik.
               </p>
             </section>
+
             <section>
-              <h2 className="text-[15px] font-bold text-ink">Kontak</h2>
-              <p className="mt-1">
-                Pertanyaan soal privasi atau data kamu: WhatsApp 085191245042
-                atau email supporttokolink@gmail.com.
+              <h2 className="text-[18px] font-extrabold text-ink">Untuk pembeli</h2>
+              <p className="mt-2 text-[14.5px] leading-relaxed text-muted">
+                Saat checkout, Anda mengisi nama, nomor WhatsApp, kota, dan alamat pengiriman. Data
+                itu hanya diteruskan ke penjual toko terkait untuk memproses pesanan Anda, plus
+                tautan cek status pesanan yang aman (hanya Anda yang membukanya yang bisa melihat
+                pesanan itu). Anda tidak perlu membuat akun.
+              </p>
+            </section>
+
+            <section>
+              <h2 className="text-[18px] font-extrabold text-ink">Pembayaran (QRIS)</h2>
+              <p className="mt-2 text-[14.5px] leading-relaxed text-muted">
+                Pemrosesan QRIS dilakukan oleh penyedia layanan kami, BuatQris. Nomor rekening atau
+                identitas akun e-wallet Anda tidak disimpan di server TokoLink — kami hanya menerima
+                pemberitahuan berhasil/tidaknya pembayaran beserta jumlahnya.
+              </p>
+            </section>
+
+            <section>
+              <h2 className="text-[18px] font-extrabold text-ink">Penyimpanan & keamanan</h2>
+              <p className="mt-2 text-[14.5px] leading-relaxed text-muted">
+                Data disimpan di server Supabase dengan aturan akses ketat (row-level security):
+                penjual hanya melihat datanya sendiri, pembeli hanya bisa melihat pesanannya lewat
+                tautan khusus, dan admin hanya untuk pengelolaan platform. Foto produk disimpan di
+                penyimpanan cloud terenkripsi.
+              </p>
+            </section>
+
+            <section>
+              <h2 className="text-[18px] font-extrabold text-ink">Cookies</h2>
+              <p className="mt-2 text-[14.5px] leading-relaxed text-muted">
+                TokoLink memakai cookie seperlunya untuk menjaga Anda tetap masuk (sesi login) dan
+                mengingat isi keranjang belanja. Tidak ada cookie iklan pihak ketiga.
+              </p>
+            </section>
+
+            <section>
+              <h2 className="text-[18px] font-extrabold text-ink">Hak Anda</h2>
+              <ul className="mt-2 space-y-2 text-[14.5px] leading-relaxed text-muted">
+                <li className="flex gap-2.5">
+                  <Icon name="check" size={16} className="mt-1 shrink-0 text-brand-600" strokeWidth={2.6} />
+                  Meminta salinan data yang kami simpan tentang Anda.
+                </li>
+                <li className="flex gap-2.5">
+                  <Icon name="check" size={16} className="mt-1 shrink-0 text-brand-600" strokeWidth={2.6} />
+                  Meminta koreksi data yang keliru.
+                </li>
+                <li className="flex gap-2.5">
+                  <Icon name="check" size={16} className="mt-1 shrink-0 text-brand-600" strokeWidth={2.6} />
+                  Menghapus akun beserta data toko (pesanan lama tetap dicatat untuk pembukuan
+                  transaksi yang sudah terjadi).
+                </li>
+              </ul>
+            </section>
+
+            <section>
+              <h2 className="text-[18px] font-extrabold text-ink">Kontak</h2>
+              <p className="mt-2 text-[14.5px] leading-relaxed text-muted">
+                Pertanyaan soal privasi atau data Anda: WhatsApp{" "}
+                <a
+                  href="https://wa.me/6285191245042?text=Halo%20TokoLink,%20saya%20butuh%20bantuan."
+                  target="_blank"
+                  rel="noreferrer"
+                  className="font-bold text-brand-700 underline underline-offset-4"
+                >
+                  0851-9124-5042
+                </a>{" "}
+                atau email{" "}
+                <a href="mailto:supporttokolink@gmail.com" className="font-bold text-brand-700 underline underline-offset-4">
+                  supporttokolink@gmail.com
+                </a>
+                . Kami balas pada jam kerja, 08.00–20.00 WIB.
               </p>
             </section>
           </div>
+
+          <div className="mt-12 border-t border-line pt-6">
+            <Link to="/" className="inline-flex items-center gap-1.5 text-[14px] font-semibold text-muted transition-colors hover:text-ink">
+              <Icon name="left" size={16} /> Kembali ke beranda
+            </Link>
+          </div>
         </div>
       </PageShell>
-      <div className="mt-10">
-        <StoreFooter />
-      </div>
+
+      <footer className="border-t border-line bg-white py-6">
+        <PageShell>
+          <span className="micro text-faint">© 2026 TokoLink · tokolink.store</span>
+        </PageShell>
+      </footer>
     </div>
   );
 }
