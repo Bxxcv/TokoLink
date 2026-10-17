@@ -3358,3 +3358,113 @@ export function OrderTracking({ id }: { id: string }) {
     </div>
   );
 }
+
+export function About() {
+  return (
+    <div className="min-h-screen bg-canvas">
+      <header className="sticky top-0 z-40 border-b border-line bg-white/95 backdrop-blur-sm">
+        <PageShell>
+          <div className="flex h-[68px] items-center justify-between">
+            <Link to="/" aria-label="TokoLink beranda">
+              <Logo size={28} tone="light" wordClass="text-navy-800" />
+            </Link>
+            <div className="flex items-center gap-2">
+              <Link to="/login" className="rounded-md px-3 py-2 text-[14px] font-semibold text-muted transition-colors hover:text-brand-700">Masuk</Link>
+              <ButtonLink to="/register" size="sm">Buka toko gratis</ButtonLink>
+            </div>
+          </div>
+        </PageShell>
+      </header>
+
+      <PageShell className="py-12 lg:py-16">
+        <div className="mx-auto max-w-[680px]">
+          <div className="micro flex items-center gap-2.5 text-brand-600">
+            <span className="text-ink">01</span>
+            <span className="h-px w-6 bg-brand-300" />
+            <span>Tentang</span>
+          </div>
+          <h1 className="mt-4 text-[30px] font-extrabold leading-[1.1] tracking-[-0.03em] text-ink sm:text-[38px]">
+            Tentang TokoLink
+          </h1>
+          <p className="mt-3 text-[14.5px] leading-relaxed text-muted">
+            TokoLink adalah layanan "satu tautan untuk semua jualan" untuk UMKM Indonesia: halaman
+            toko + katalog produk + checkout QRIS, yang bisa dibagikan lewat WhatsApp/Instagram
+            tanpa perlu bikin website sendiri.
+          </p>
+
+          <div className="mt-10 space-y-8">
+            <section>
+              <h2 className="text-[18px] font-extrabold text-ink">Siapa yang mengelola</h2>
+              <p className="mt-2 text-[14.5px] leading-relaxed text-muted">
+                TokoLink dikelola perorangan oleh <strong>Muhammad Farid</strong>, berdomisili di
+                Yogyakarta, Indonesia. Layanan ini bukan badan hukum (PT/CV) — untuk keperluan
+                bisnis formal, silakan hubungi kami lewat kontak di bawah.
+              </p>
+            </section>
+
+            <section>
+              <h2 className="text-[18px] font-extrabold text-ink">Model bisnis (jujur)</h2>
+              <ul className="mt-2 space-y-2 text-[14.5px] leading-relaxed text-muted">
+                <li className="flex gap-2.5"><Icon name="check" size={16} className="mt-1 shrink-0 text-brand-600" strokeWidth={2.6} /> Buka toko dasar <strong>gratis</strong>, selamanya, tanpa biaya pendaftaran.</li>
+                <li className="flex gap-2.5"><Icon name="check" size={16} className="mt-1 shrink-0 text-brand-600" strokeWidth={2.6} /> Paket Premium (Rp59.000/bulan atau Rp588.000/tahun) menambah produk tanpa batas, 8 tema etalase, tautan bio tanpa batas, analitik + traffic + unduh CSV.</li>
+                <li className="flex gap-2.5"><Icon name="check" size={16} className="mt-1 shrink-0 text-brand-600" strokeWidth={2.6} /> Komisi platform 2% dari setiap penjualan, <strong>dipotong dari saldo penjual</strong> — tidak menambah tagihan pembeli. Nominal % bisa berubah dan disimpan di pengaturan platform (bisa diubah admin tanpa deploy ulang).</li>
+                <li className="flex gap-2.5"><Icon name="check" size={16} className="mt-1 shrink-0 text-brand-600" strokeWidth={2.6} /> Biaya kanal pembayaran (QRIS/BuatQris) ditanggung penjual sesuai ketentuan gateway; TokoLink tidak menambah fee tersembunyi.</li>
+              </ul>
+            </section>
+
+            <section>
+              <h2 className="text-[18px] font-extrabold text-ink">Pembayaran QRIS & keamanan</h2>
+              <p className="mt-2 text-[14.5px] leading-relaxed text-muted">
+                Checkout dihitung ulang di server dari harga produk asli di database — angka dari
+                browser tidak dipercaya. Status "sudah bayar" hanya berubah lewat webhook bertanda
+                tangan (HMAC SHA256) dari gateway, dan dirancang idempoten (webhook yang sama
+                dikirim dua kali tidak menambah saldo dua kali). Sandbox terpisah dari saldo dan
+                payout nyata. Nomor rekening penarikan disimpan tersamar dan hanya dibuka admin saat
+                transfer.
+              </p>
+            </section>
+
+            <section>
+              <h2 className="text-[18px] font-extrabold text-ink">Kontak & dukungan</h2>
+              <p className="mt-2 text-[14.5px] leading-relaxed text-muted">
+                WhatsApp:{" "}
+                <a href="https://wa.me/6285191245042?text=Halo%20TokoLink,%20saya%20butuh%20bantuan." target="_blank" rel="noreferrer" className="font-bold text-brand-700 underline underline-offset-4">0851-9124-5042</a>
+                {" "}· Email:{" "}
+                <a href="mailto:supporttokolink@gmail.com" className="font-bold text-brand-700 underline underline-offset-4">supporttokolink@gmail.com</a>
+              </p>
+              <p className="mt-2 text-[14.5px] leading-relaxed text-muted">
+                Jam layanan: Senin–Sabtu, 09.00–17.00 WIB. Di luar jam layanan, pesan tetap diterima
+                dan dibalas pada hari kerja berikutnya.
+              </p>
+            </section>
+
+            <section>
+              <h2 className="text-[18px] font-extrabold text-ink">Nama brand</h2>
+              <p className="mt-2 text-[14.5px] leading-relaxed text-muted">
+                "TokoLink" dipakai untuk layanan ini. Pemilik sedang memeriksa ketersediaan merek di
+                DJKI sebelum pemasaran besar; jika ada sengketa, nama dapat berubah dan pengguna akan
+                diberi tahu lewat kanal resmi.
+              </p>
+            </section>
+          </div>
+
+          <div className="mt-12 flex flex-wrap gap-3">
+            <Link to="/legal/terms" className="text-[14px] font-semibold text-brand-700 hover:underline">Syarat Layanan →</Link>
+            <Link to="/legal/privacy" className="text-[14px] font-semibold text-brand-700 hover:underline">Kebijakan Privasi →</Link>
+          </div>
+          <div className="mt-6">
+            <Link to="/" className="inline-flex items-center gap-1.5 text-[14px] font-semibold text-muted transition-colors hover:text-ink">
+              <Icon name="left" size={16} /> Kembali ke beranda
+            </Link>
+          </div>
+        </div>
+      </PageShell>
+
+      <footer className="border-t border-line bg-white py-6">
+        <PageShell>
+          <span className="micro text-faint">© 2026 TokoLink · tokolink.store</span>
+        </PageShell>
+      </footer>
+    </div>
+  );
+}

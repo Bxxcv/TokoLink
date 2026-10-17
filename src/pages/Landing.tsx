@@ -1531,6 +1531,7 @@ function Footer() {
         { l: "Chat WhatsApp", href: "https://wa.me/6285191245042?text=Halo%20TokoLink,%20saya%20butuh%20bantuan." },
         { l: "Syarat layanan", to: "/legal/terms" },
         { l: "Kebijakan privasi", to: "/legal/privacy" },
+        { l: "Tentang & kontak", to: "/tentang" },
       ],
     },
   ];
