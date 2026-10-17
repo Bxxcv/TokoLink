@@ -60,7 +60,10 @@ function useStoreContact(storeId: string | null | undefined) {
     let alive = true;
     (async () => {
       try {
-        const { data } = await supabase.rpc("store_contact_link", { p_store_id: storeId });
+        // Catatan: nama argumen RPC ikut definisi fungsi di database
+        // (p_seller_id), NILAI-nya id toko — fungsi memetakan id toko
+        // maupun id pemilik. Jangan diubah tanpa ubah definisi SQL.
+        const { data } = await supabase.rpc("store_contact_link", { p_seller_id: storeId });
         if (!alive) return;
         setWaUrl((data as { wa_url: string | null } | null)?.wa_url ?? null);
       } catch {

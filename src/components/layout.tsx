@@ -204,6 +204,9 @@ export function AppShell({
   const [sheet, setSheet] = useState(false);
   const { toast } = useApp();
   const { user, profile } = useAuth();
+  // Dipakai di efek badge "Pesanan", `storeSlug`, dan pemilih toko di
+  // drawer mobile — jadi dipanggil sekali di sini (jangan dobel).
+  const { stores: myStores, active: activeStore, setActiveId } = useStores();
 
   // Posisi scroll drawer diingat (modul-level: tetap walau pindah halaman),
   // dan halaman belakang dikunci saat drawer terbuka.
@@ -234,14 +237,14 @@ export function AppShell({
   const [pendingPremium, setPendingPremium] = useState(0);
   const [pendingWithdraw, setPendingWithdraw] = useState(0);
   useEffect(() => {
-    if (admin || !user) return;
+    if (admin || !user || !activeStore?.id) return;
     let cancelled = false;
     (async () => {
       const [{ count }, unread] = await Promise.all([
         supabase
           .from("orders")
           .select("id", { count: "exact", head: true })
-          .eq("seller_id", user.id)
+          .eq("store_id", activeStore.id)
           .eq("status", "menunggu"),
         countUnread(user.id),
       ]);
@@ -252,7 +255,7 @@ export function AppShell({
     return () => {
       cancelled = true;
     };
-  }, [admin, user?.id]);
+  }, [admin, user?.id, activeStore?.id]);
 
   // Badge antrean admin: hitung asli (premium + withdrawal menunggu).
   useEffect(() => {
@@ -291,7 +294,6 @@ export function AppShell({
       }));
   // Nama & toko ikut profil yang login; admin tetap pakai label mock sampai Fase 6.
   const sellerName = profile?.owner_name || "";
-  const { active: activeStore } = useStores();
   const storeSlug = activeStore?.store_slug || profile?.store_slug || "";
   // Admin belum ada halaman profil sendiri (Fase 6, AdminUsers) — sementara
   // pakai nama akun yang login kalau ada, jangan nama orang yang dikarang.
@@ -538,6 +540,38 @@ export function AppShell({
             <div className="micro flex items-center gap-2 bg-navy-900 px-5 py-2 text-brand-300">
               <span className="h-1.5 w-1.5 rounded-full bg-brand-500" />
               Admin Master
+            </div>
+          )}
+          {!admin && myStores.length > 1 && (
+            <div className="shrink-0 border-b border-line">
+              <div className="micro px-5 pt-3 text-faint">Toko aktif</div>
+              <div className="space-y-1.5 px-5 pb-3 pt-2">
+                {myStores.map((s) => {
+                  const isActive = s.id === activeStore?.id;
+                  const name = s.store_name || "Toko";
+                  return (
+                    <button
+                      key={s.id}
+                      type="button"
+                      onClick={() => {
+                        setActiveId(s.id);
+                        setSheet(false);
+                      }}
+                      aria-label={`Pindah ke toko ${name}${isActive ? " (aktif)" : ""}`}
+                      aria-current={isActive ? "true" : undefined}
+                      className={cx(
+                        "flex min-h-[44px] w-full items-center justify-between gap-2 rounded-md border px-5 py-2.5 text-left text-[14px] transition-colors duration-150",
+                        isActive
+                          ? "border-brand-500 bg-brand-50 font-bold text-navy-800"
+                          : "border-line bg-white font-medium text-muted hover:bg-canvas hover:text-ink",
+                      )}
+                    >
+                      <span className="truncate">{name}</span>
+                      {isActive && <Icon name="check" size={16} className="shrink-0 text-brand-600" />}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           )}
           <div

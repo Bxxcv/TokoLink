@@ -346,6 +346,7 @@ export function Withdraw() {
   const [bankName, setBankName] = useState("BCA");
   const [acctNum, setAcctNum] = useState("");
   const [acctName, setAcctName] = useState("");
+  const [note, setNote] = useState("");
   const [err, setErr] = useState("");
   const [fieldErr, setFieldErr] = useState("");
   const [loading, setLoading] = useState(false);
@@ -423,6 +424,7 @@ export function Withdraw() {
         p_bank: bankName,
         p_account_number: digitsOnly(acctNum),
         p_amount: value,
+        p_note: note.trim() || null,
       });
       if (error) {
         const msg = (error.message ?? "").toUpperCase();
@@ -430,9 +432,11 @@ export function Withdraw() {
         else if (msg.includes("MINIMAL_PENARIKAN")) toast("Penarikan minimal Rp50.000.", "bad");
         else if (msg.includes("AKUN_NONAKTIF")) toast("Akun Anda sedang nonaktif. Hubungi admin.", "bad");
         else if (msg.includes("REKENING_TIDAK_VALID")) toast("Nomor rekening belum benar (minimal 9 digit).", "bad");
+        else if (msg.includes("CATATAN_TERLALU_PANJANG")) toast("Catatan maksimal 200 huruf.", "bad");
         else toast("Gagal membuat penarikan.", "bad");
         return;
       }
+      setNote("");
       toast("Permintaan penarikan diterima. Dana cair maksimal 1 hari kerja.");
       navigate("/app/wallet");
     } finally {
@@ -585,7 +589,12 @@ export function Withdraw() {
             </Field>
 
             <Field label="Catatan (opsional)">
-              <Input placeholder="Contoh: untuk beli bahan baku" />
+              <Input
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                maxLength={200}
+                placeholder="Contoh: untuk beli bahan baku"
+              />
             </Field>
 
             <div className="rounded-lg border border-line bg-canvas p-4 text-[13.5px]">
@@ -594,7 +603,7 @@ export function Withdraw() {
                 <span className="tnum font-semibold text-ink">{rupiah(value)}</span>
               </div>
               <div className="flex justify-between py-1">
-                <span className="text-muted">Biaya transfer</span>
+                <span className="text-muted">Biaya transfer bank</span>
                 <span className="tnum font-semibold text-ink">−{rupiah(fee)}</span>
               </div>
               <div className="mt-2 flex justify-between border-t border-line pt-2.5 text-[15px]">
@@ -689,6 +698,7 @@ export function BioLinks() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [del, setDel] = useState<{ id: string; label: string } | null>(null);
+  const movingRef = useRef(false);
 
   const load = async () => {
     if (!user || !activeId) return;
@@ -724,21 +734,27 @@ export function BioLinks() {
   };
 
   const move = async (id: string, dir: -1 | 1) => {
-    const sorted = [...links].sort((a, b) => a.sort_order - b.sort_order);
-    const i = sorted.findIndex((x) => x.id === id);
-    const j = i + dir;
-    if (i < 0 || j < 0 || j >= sorted.length) return;
-    const a = sorted[i];
-    const b = sorted[j];
-    const next = links.map((x) =>
-      x.id === a.id ? { ...x, sort_order: b.sort_order } : x.id === b.id ? { ...x, sort_order: a.sort_order } : x,
-    );
-    setLinks(next);
-    const r1 = await supabase.from("bio_links").update({ sort_order: b.sort_order }).eq("id", a.id);
-    const r2 = await supabase.from("bio_links").update({ sort_order: a.sort_order }).eq("id", b.id);
-    if (r1.error || r2.error) {
-      toast("Gagal menyusun ulang.", "bad");
-      load();
+    if (movingRef.current) return;
+    movingRef.current = true;
+    try {
+      const sorted = [...links].sort((a, b) => a.sort_order - b.sort_order);
+      const i = sorted.findIndex((x) => x.id === id);
+      const j = i + dir;
+      if (i < 0 || j < 0 || j >= sorted.length) return;
+      const a = sorted[i];
+      const b = sorted[j];
+      const next = links.map((x) =>
+        x.id === a.id ? { ...x, sort_order: b.sort_order } : x.id === b.id ? { ...x, sort_order: a.sort_order } : x,
+      );
+      setLinks(next);
+      const r1 = await supabase.from("bio_links").update({ sort_order: b.sort_order }).eq("id", a.id);
+      const r2 = await supabase.from("bio_links").update({ sort_order: a.sort_order }).eq("id", b.id);
+      if (r1.error || r2.error) {
+        toast("Gagal menyusun ulang.", "bad");
+        load();
+      }
+    } finally {
+      movingRef.current = false;
     }
   };
 
@@ -1112,7 +1128,7 @@ export function Theme() {
         // belum dijalankan di Supabase. Beritahu jelas, jangan gagal diam-diam.
         const msg = (error.message ?? "").toUpperCase();
         if (/THEME_ID/i.test(error.message)) {
-          toast("Kolom tema belum ada di database. Jalankan dulu file database/migrate_fase5_theme_id.sql di Supabase SQL Editor, lalu simpan lagi.", "bad");
+          toast("Penyimpanan tampilan gagal. Coba lagi sebentar lagi.", "bad");
         } else if (msg.includes("TEMA_PREMIUM")) {
           toast("Tema ini khusus Premium. Tetap di tema sekarang atau naik ke Premium.", "bad");
         } else {
@@ -2190,7 +2206,7 @@ export function StoreQR() {
 export function StoreSettings() {
   const { toast } = useApp();
   const { user, profile, loading: authLoading, refresh } = useAuth();
-  const { activeId, setActiveId, reload: reloadStores } = useStores();
+  const { activeId, active: activeStore, setActiveId, reload: reloadStores } = useStores();
   const [plan, setPlan] = useState("Bulanan");
   const [payLoading, setPayLoading] = useState(false);
   const [close, setClose] = useState(false);
@@ -2448,15 +2464,16 @@ export function StoreSettings() {
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <div className="text-[14.5px] font-bold text-ink">
-                  {profile?.is_closed ? "Toko sedang ditutup" : "Tutup toko sementara"}
+                  {activeStore?.is_closed ? "Toko sedang ditutup" : "Tutup toko sementara"}
                 </div>
                 <p className="text-[13.5px] text-muted">Halaman toko tetap bisa dibuka, tetapi tombol beli dimatikan.</p>
               </div>
               <Button
-                variant={profile?.is_closed ? "secondary" : "danger"}
+                variant={activeStore?.is_closed ? "secondary" : "danger"}
+                disabled={!activeStore}
                 onClick={() => setClose(true)}
               >
-                {profile?.is_closed ? "Buka kembali" : "Tutup toko"}
+                {activeStore?.is_closed ? "Buka kembali" : "Tutup toko"}
               </Button>
             </div>
           </Card>
@@ -2568,24 +2585,27 @@ export function StoreSettings() {
       <ConfirmDialog
         open={close}
         onClose={() => setClose(false)}
-        title={profile?.is_closed ? "Buka kembali toko?" : "Tutup toko sementara?"}
+        title={activeStore?.is_closed ? "Buka kembali toko?" : "Tutup toko sementara?"}
         body={
-          profile?.is_closed
+          activeStore?.is_closed
             ? "Pembeli bisa memesan lagi seperti biasa."
             : "Pembeli tidak bisa membuat pesanan baru selama toko ditutup. Pesanan berjalan tetap diproses seperti biasa, dan Anda bisa membuka kembali kapan saja."
         }
-        confirmLabel={profile?.is_closed ? "Buka toko" : "Tutup toko"}
+        confirmLabel={activeStore?.is_closed ? "Buka toko" : "Tutup toko"}
         onConfirm={async () => {
-          if (!user) return;
-          const next = !(profile?.is_closed ?? false);
+          if (!activeStore) {
+            setClose(false);
+            return;
+          }
+          const next = !(activeStore.is_closed ?? false);
           setClose(false);
-          const { error } = await supabase.from("profiles").update({ is_closed: next }).eq("id", user.id);
+          const { error } = await supabase.from("stores").update({ is_closed: next }).eq("id", activeStore.id);
           if (error) {
             toast("Gagal mengubah status toko.", "bad");
             return;
           }
-          await refresh();
-          toast(next ? "Toko ditutup sementara." : "Toko dibuka kembali.", next ? "warn" : "ok");
+          await reloadStores();
+          toast(next ? "Toko ditutup sementara. Pembeli tidak bisa checkout." : "Toko dibuka kembali.", next ? "warn" : "ok");
         }}
       />
     </AppShell>

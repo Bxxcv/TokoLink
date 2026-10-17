@@ -922,6 +922,7 @@ export function AdminWithdrawals() {
     id: string; bank: string; account_number: string; amount: number | string;
     fee: number | string; status: string; created_at: string; seller_id: string;
     store_name?: string | null;
+    note?: string | null;
     profiles?: { store_name: string | null } | { store_name: string | null }[] | null;
   };
   const [list, setList] = useState<WRow[]>([]);
@@ -939,6 +940,7 @@ export function AdminWithdrawals() {
       setList(((data ?? []) as {
         id: string; bank: string; account_masked: string; amount: number | string;
         fee: number | string; status: string; created_at: string; seller_id: string; store_name: string | null;
+        note?: string | null;
       }[]).map((w) => ({ ...w, account_number: w.account_masked })));
     } else {
       // Fallback bila migrasi belum jalan: query lama (sementara, tidak aman).
@@ -970,6 +972,8 @@ export function AdminWithdrawals() {
   const filtered = list.filter((w) => (tab === "semua" ? true : w.status === tab));
   const sum = (st: string) => filtered.filter((w) => w.status === st).reduce((s, w) => s + Number(w.amount), 0);
 
+  const confirmRow = confirm ? list.find((x) => x.id === confirm.id) : null;
+
   return (
     <AppShell group="admin">
       <PageHeader
@@ -980,8 +984,8 @@ export function AdminWithdrawals() {
         actions={<Button variant="secondary" onClick={() => {
           downloadCSV(
             "antrean-transfer.csv",
-            ["id", "toko", "bank", "rekening", "diminta", "biaya", "status", "tanggal"],
-            filtered.map((w) => [w.id, storeOf(w), w.bank, masked(w.account_number), Number(w.amount), Number(w.fee), w.status, w.created_at]),
+            ["id", "toko", "bank", "rekening", "diminta", "biaya", "status", "catatan", "tanggal"],
+            filtered.map((w) => [w.id, storeOf(w), w.bank, masked(w.account_number), Number(w.amount), Number(w.fee), w.status, w.note ?? "", w.created_at]),
           );
           toast("Antrean transfer diunduh (CSV).");
         }}>
@@ -1099,7 +1103,7 @@ export function AdminWithdrawals() {
         }
         body={
           confirm?.act === "proses"
-            ? `Transfer ke ${list.find((x) => x.id === confirm.id)?.bank} ${fullAcct ?? "•••• (memuat…)"}. Tindakan ini tercatat di log audit.`
+            ? `Transfer ke ${confirmRow?.bank} ${fullAcct ?? "•••• (memuat…)"}.${confirmRow?.note ? ` Catatan penjual: "${confirmRow.note}".` : ""} Tindakan ini tercatat di log audit.`
             : confirm?.act === "selesai"
               ? "Saldo penjual berkurang dan tercatat di ledger sebagai keluar."
               : "Penarikan ditolak. Dana tetap di saldo penjual (tidak ada potongan)."

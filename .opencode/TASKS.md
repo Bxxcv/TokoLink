@@ -277,8 +277,20 @@ referensi itu.
       - **CATATAN TRANSISI:** simpan tema dari halaman LAMA (browser
         yang belum muat ulang) akan gagal sampai deploy baru masuk —
         tinggal deploy; setelah deploy, simpan tema normal lagi.
+      - **AUDIT + PERBAIKAN 17 Okt 2026:** audit QA/UI-UX penuh (laporan
+        di `Hasil_Audit_cyber/Hasil_Qa.md`, read-only lalu dieksekusi):
+        K1 tombol WA (`store_contact_link` → `p_seller_id`), K2 pemilih
+        toko di drawer HP, K3 Zona Berbahaya → `stores.is_closed`, S1
+        badge Pesanan ikut toko aktif (keputusan user), S2 catatan
+        withdraw disimpan ke DB (migrasi `database/migrate_withdraw_note.sql`
+        SUDAH dijalankan; `request_withdrawal` 4-arg + `admin_withdrawal_list`
+        balikin `note`), guard urutan bio, mikro-copy biaya/error, PLUS
+        sinkronisasi pindah toko antar-komponen (event `tl_active_store_change`
+        di `src/lib/stores.ts`). Verifikasi QA: 10/10 PASS statis,
+        `tsc`/build hijau. S3 (promo publik) DITUNDA atas keputusan user.
       - **BELUM:** Fase C (hapus kolom `seller_id` lama), tes user
-        (tambah toko kedua, pindah toko, checkout toko kedua).
+        (tambah toko kedua, pindah toko, checkout toko kedua), deploy
+        perbaikan audit + cek visual (WA hidup lagi setelah deploy).
 - [x] **Halaman "buat kata sandi baru"** untuk link reset password (saat
       ini mengarah ke `/`). **Selesai 10 Okt 2026:** halaman `/reset`
       + router tangani link recovery; redirect Supabase diarahkan ke
