@@ -1,6 +1,6 @@
 import QRCode from "qrcode";
 import { useEffect, useMemo, useState } from "react";
-import { Link, navigate, storeUrl } from "../lib/router";
+import { Link, navigate, shareUrl, storeUrl } from "../lib/router";
 import { rupiah } from "../lib/format";
 import { useApp } from "../lib/store";
 import type { Product } from "../lib/shop";
@@ -50,17 +50,17 @@ export type StoreProfile = {
 };
 
 /** Link kontak publik toko (URL wa.me, tanpa bocorkan nomor mentah). */
-function useStoreContact(sellerId: string | null | undefined) {
+function useStoreContact(storeId: string | null | undefined) {
   const [waUrl, setWaUrl] = useState<string | null>(null);
   useEffect(() => {
-    if (!sellerId) {
+    if (!storeId) {
       setWaUrl(null);
       return;
     }
     let alive = true;
     (async () => {
       try {
-        const { data } = await supabase.rpc("store_contact_link", { p_seller_id: sellerId });
+        const { data } = await supabase.rpc("store_contact_link", { p_store_id: storeId });
         if (!alive) return;
         setWaUrl((data as { wa_url: string | null } | null)?.wa_url ?? null);
       } catch {
@@ -70,7 +70,7 @@ function useStoreContact(sellerId: string | null | undefined) {
     return () => {
       alive = false;
     };
-  }, [sellerId]);
+  }, [storeId]);
   return waUrl;
 }
 
@@ -129,9 +129,10 @@ function usePublicStore(slug: string) {
       setNotFound(false);
       setLoadError(false);
       try {
+        // Multi-toko: identitas dari tabel stores (1 slug = 1 toko).
         const { data: prof, error: profErr } = await supabase
-          .from("public_stores")
-          .select("id,store_name,store_slug,city,avatar_url,cover_url,bio,is_closed")
+          .from("public_stores_v2")
+          .select("id,owner_id,store_name,store_slug,city,avatar_url,cover_url,bio,is_closed")
           .eq("store_slug", slug)
           .maybeSingle();
         if (profErr) throw profErr;
@@ -142,21 +143,22 @@ function usePublicStore(slug: string) {
           setLoading(false);
           return;
         }
-        // Badge premium via RPC (kolom plan tertutup untuk publik).
+        const row = prof as StoreProfile & { owner_id: string };
+        // Badge premium via RPC — plan per AKUN (pakai owner, bukan toko).
         let premium = false;
         try {
           const { data: prem } = await supabase.rpc("store_is_premium", {
-            p_seller_id: (prof as StoreProfile).id,
+            p_seller_id: row.owner_id,
           });
           premium = prem === true;
         } catch {
-          /* RPC belum ada (migrasi part 3 belum jalan) → anggap gratis */
+          /* RPC belum ada → anggap gratis */
         }
-        setStore({ ...(prof as StoreProfile), is_premium: premium });
+        setStore({ ...(row as StoreProfile), is_premium: premium });
         const { data: prods, error: prodsErr } = await supabase
           .from("products")
           .select("*")
-          .eq("seller_id", (prof as StoreProfile).id)
+          .eq("store_id", row.id)
           .eq("status", "aktif")
           .order("created_at", { ascending: false });
         if (prodsErr) throw prodsErr;
@@ -172,20 +174,6 @@ function usePublicStore(slug: string) {
 
   return { store, items, loading, notFound, loadError };
 }
-
-/** Bentuk baris `discount_codes` yang dibaca publik saat validasi promo. */
-type DiscountRow = {
-  seller_id: string;
-  code: string;
-  type: string;
-  value: number | string;
-  min_purchase: number | string;
-  usage_limit: number | null;
-  used_count: number;
-  valid_until: string | null;
-  is_active: boolean;
-};
-
 function StoreHeader({ crumb, store }: { crumb?: string; store?: StoreProfile | null }) {
   const { count } = useApp();
   // Tanpa data toko (masih loading) tampilkan netral — JANGAN nama contoh.
@@ -836,7 +824,7 @@ export function StoreHome({ slug }: { slug: string }) {
       const { data } = await supabase
         .from("store_theme")
         .select("accent,layout,show_hours,show_qr,show_cart")
-        .eq("seller_id", store.id)
+        .eq("store_id", store.id)
         .maybeSingle();
       const t = data as { accent: string; layout: string; show_hours: boolean; show_qr: boolean; show_cart: boolean } | null;
       if (!t) return;
@@ -856,7 +844,7 @@ export function StoreHome({ slug }: { slug: string }) {
         const { data, error } = await supabase
           .from("store_theme")
           .select("theme_id")
-          .eq("seller_id", store.id)
+          .eq("store_id", store.id)
           .maybeSingle();
         if (error || !data) return;
         const id = (data as { theme_id?: string }).theme_id;
@@ -878,7 +866,7 @@ export function StoreHome({ slug }: { slug: string }) {
       const { data } = await supabase
         .from("store_hours")
         .select("day_of_week,open_time,close_time,is_open")
-        .eq("seller_id", store.id);
+        .eq("store_id", store.id);
       const rows = ((data ?? []) as {
         day_of_week: number; open_time: string | null; close_time: string | null; is_open: boolean;
       }[]);
@@ -927,7 +915,7 @@ export function StoreHome({ slug }: { slug: string }) {
       const { data } = await supabase
         .from("bio_links")
         .select("id,label,url,icon")
-        .eq("seller_id", store.id)
+        .eq("store_id", store.id)
         .eq("is_active", true)
         .order("sort_order", { ascending: true });
       setBioLinks((data ?? []) as { id: string; label: string; url: string; icon: string | null }[]);
@@ -942,7 +930,7 @@ export function StoreHome({ slug }: { slug: string }) {
       const { data } = await supabase
         .from("discount_codes")
         .select("code,type,value,valid_until")
-        .eq("seller_id", store.id)
+        .eq("store_id", store.id)
         .eq("is_active", true);
       const today = new Date().toISOString().slice(0, 10);
       const list = ((data ?? []) as {
@@ -1056,9 +1044,9 @@ export function StoreHome({ slug }: { slug: string }) {
           qrData={qrData}
           onOpenQR={() => setQrOpen(true)}
           onShare={async () => {
-            const ok = await copyText(storeUrl(slug));
+            const ok = await copyText(shareUrl(slug));
             setShared(ok);
-            toast(ok ? "Tautan toko disalin." : "Gagal menyalin. Salin manual: tokolink.store/" + slug, ok ? "info" : "bad");
+            toast(ok ? "Tautan toko disalin." : "Gagal menyalin. Salin manual: www.tokolink.store/t/" + slug, ok ? "info" : "bad");
             window.setTimeout(() => setShared(false), 1600);
           }}
           shared={shared}
@@ -1100,7 +1088,7 @@ export function StoreHome({ slug }: { slug: string }) {
               <Button
                 className="flex-1"
                 onClick={async () => {
-                  const url = storeUrl(slug);
+                  const url = shareUrl(slug);
                   const ok = await copyText(url);
                   toast(ok ? "Tautan QR disalin." : "Gagal menyalin: " + url, ok ? "ok" : "bad");
                 }}
@@ -1127,9 +1115,9 @@ export function StoreHome({ slug }: { slug: string }) {
           <div className="flex items-center justify-end gap-3">
             <button
               onClick={async () => {
-                const ok = await copyText(storeUrl(slug));
+                const ok = await copyText(shareUrl(slug));
                 setShared(ok);
-                toast(ok ? "Tautan toko disalin." : "Gagal menyalin. Salin manual: tokolink.store/" + slug, ok ? "info" : "bad");
+                toast(ok ? "Tautan toko disalin." : "Gagal menyalin. Salin manual: www.tokolink.store/t/" + slug, ok ? "info" : "bad");
                 window.setTimeout(() => setShared(false), 1600);
               }}
               className="inline-flex items-center gap-2 rounded-md border border-white/25 bg-navy-900/55 px-3 py-1.5 text-[13px] font-semibold text-white backdrop-blur-sm transition-colors hover:bg-white/15"
@@ -1425,7 +1413,7 @@ export function StoreHome({ slug }: { slug: string }) {
             <Button
               className="flex-1"
               onClick={() => {
-                const url = storeUrl(slug);
+                const url = shareUrl(slug);
                 if (navigator.clipboard) navigator.clipboard.writeText(url).catch(() => {});
                 toast("Tautan QR disalin.");
               }}
@@ -1531,18 +1519,18 @@ export function ProductDetail({ id, slug }: { id: string; slug: string }) {
       }
       const mapped = mapProduct(data as DbProduct);
       setP(mapped);
-      const sellerId = (data as DbProduct).seller_id;
-      // BUG-004: profil publik via view tanpa PII.
+      const storeId = (data as DbProduct).store_id ?? null;
+      // BUG-004: identitas publik toko via view tanpa PII. Multi-toko: per TOKO.
       const { data: prof } = await supabase
-        .from("public_stores")
+        .from("public_stores_v2")
         .select("id,store_name,store_slug,city,avatar_url,cover_url,bio,is_closed")
-        .eq("id", sellerId)
+        .eq("id", storeId)
         .maybeSingle();
       setStore((prof as StoreProfile | null) ?? null);
       const { data: rel } = await supabase
         .from("products")
         .select("*")
-        .eq("seller_id", (data as DbProduct).seller_id)
+        .eq("store_id", storeId)
         .eq("status", "aktif")
         .neq("id", id)
         .limit(4);
@@ -1750,7 +1738,7 @@ export function ProductDetail({ id, slug }: { id: string; slug: string }) {
  */
 function useTotals(promo: string | null) {
   const { cart } = useApp();
-  const [items, setItems] = useState<{ p: Product; qty: number; sellerId: string }[]>([]);
+  const [items, setItems] = useState<{ p: Product; qty: number; storeId: string }[]>([]);
   const [discount, setDiscount] = useState(0);
   const [shipDisc, setShipDisc] = useState(0);
   const [promoNote, setPromoNote] = useState("");
@@ -1784,7 +1772,7 @@ function useTotals(promo: string | null) {
       const byId = new Map(rows.map((r) => [r.id, r]));
       const resolved = cart.flatMap((c) => {
         const r = byId.get(c.id);
-        return r && r.seller_id ? [{ p: mapProduct(r), qty: c.qty, sellerId: r.seller_id }] : [];
+        return r && r.store_id ? [{ p: mapProduct(r), qty: c.qty, storeId: r.store_id }] : [];
       });
       setItems(resolved);
 
@@ -1796,18 +1784,18 @@ function useTotals(promo: string | null) {
       let note = "";
       const code = (promo ?? "").trim();
       if (code && resolved.length > 0) {
-        const sellerIds = [...new Set(resolved.map((i) => i.sellerId))];
-        const sellerSubtotal = resolved
-          .filter((i) => i.sellerId === sellerIds[0])
+        const storeIds = [...new Set(resolved.map((i) => i.storeId))];
+        const storeSubtotal = resolved
+          .filter((i) => i.storeId === storeIds[0])
           .reduce((s, i) => s + i.p.price * i.qty, 0);
         try {
           const r = await fetch("/api/validate-promo", {
             method: "POST",
             headers: { "content-type": "application/json" },
             body: JSON.stringify({
-              seller_id: sellerIds[0],
+              store_id: storeIds[0],
               code,
-              subtotal: sellerSubtotal,
+              subtotal: storeSubtotal,
             }),
           });
           const out = (await r.json()) as {
@@ -1935,10 +1923,10 @@ function orderStore(o: TrackedOrder | null): StoreProfile | null {
 }
 
 /** Beacon kunjungan: 1x per sesi per toko (anti-spam + hemat kuota). */
-function useVisitBeacon(sellerId: string | null | undefined, path: string) {
+function useVisitBeacon(storeId: string | null | undefined, path: string) {
   useEffect(() => {
-    if (!sellerId) return;
-    const key = `tl_visit_${sellerId}`;
+    if (!storeId) return;
+    const key = `tl_visit_${storeId}`;
     if (sessionStorage.getItem(key)) return;
     sessionStorage.setItem(key, "1");
     // Lewat server (rate-limit per IP) — insert anon langsung dicabut
@@ -1946,26 +1934,26 @@ function useVisitBeacon(sellerId: string | null | undefined, path: string) {
     fetch("/api/visit", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ seller_id: sellerId, path }),
+      body: JSON.stringify({ store_id: storeId, path }),
     }).then(
       () => {},
       () => {},
     );
-  }, [sellerId, path]);
+  }, [storeId, path]);
 }
 
 /** Warna aksen toko seller (dari store_theme) agar keranjang & checkout
  *  terasa bagian dari tokonya. Hanya warna — logic & validasi tidak berubah. */
-function useStoreAccent(sellerId: string | null | undefined) {
+function useStoreAccent(storeId: string | null | undefined) {
   const [hex, setHex] = useState("#0A69C4");
   useEffect(() => {
-    if (!sellerId) return;
+    if (!storeId) return;
     let alive = true;
     (async () => {
       const { data } = await supabase
         .from("store_theme")
         .select("accent")
-        .eq("seller_id", sellerId)
+        .eq("store_id", storeId)
         .maybeSingle();
       if (!alive) return;
       const a = (data as { accent?: string } | null)?.accent;
@@ -1974,29 +1962,29 @@ function useStoreAccent(sellerId: string | null | undefined) {
     return () => {
       alive = false;
     };
-  }, [sellerId]);
+  }, [storeId]);
   return hex;
 }
 
-function useCartStore(items: { sellerId: string }[]) {
+function useCartStore(items: { storeId: string }[]) {
   const [store, setStore] = useState<StoreProfile | null>(null);
-  const sellerId = items.length > 0 ? items[0].sellerId : null;
+  const storeId = items.length > 0 ? items[0].storeId : null;
   useEffect(() => {
-    if (!sellerId) {
+    if (!storeId) {
       setStore(null);
       return;
     }
     (async () => {
       // BUG-004: keranjang hanya butuh identitas publik toko, via view tanpa PII.
       const { data } = await supabase
-        .from("public_stores")
+        .from("public_stores_v2")
         .select("id,store_name,store_slug,city,avatar_url")
-        .eq("id", sellerId)
+        .eq("id", storeId)
         .maybeSingle();
       const resolved = (data as StoreProfile | null) ?? null;
       setStore(resolved);
     })();
-  }, [sellerId]);
+  }, [storeId]);
   return store;
 }
 
@@ -2009,7 +1997,7 @@ export function Cart() {
   const [code, setCode] = useState("");
   const [remove, setRemove] = useState<{ id: string; name: string } | null>(null);
   // Satu checkout = satu toko. Beri tahu di awal (bukan setelah isi formulir).
-  const mixed = [...new Set(items.map((i) => i.sellerId))].length > 1;
+  const mixed = [...new Set(items.map((i) => i.storeId))].length > 1;
   // Barang yang stoknya kurang/habis tidak bisa dibayar — cegah sejak sini.
   const shortItems = items.filter((i) => i.p.stock < i.qty);
   const canCheckout = !mixed && shortItems.length === 0 && items.length > 0;
@@ -2254,8 +2242,8 @@ export function Checkout() {
       return;
     }
     // v1: satu checkout = satu toko (multi-toko butuh split order).
-    const sellerIds = [...new Set(items.map((i) => i.sellerId))];
-    if (sellerIds.length > 1) {
+    const storeIds = [...new Set(items.map((i) => i.storeId))];
+    if (storeIds.length > 1) {
       toast("Keranjang berisi produk beda toko. Selesaikan satu toko dulu.", "bad");
       return;
     }
@@ -2266,7 +2254,7 @@ export function Checkout() {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          seller_id: sellerIds[0],
+          store_id: storeIds[0],
           buyer_name: form.name.trim(),
           buyer_phone: form.phone,
           buyer_city: form.city,

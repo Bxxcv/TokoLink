@@ -249,9 +249,36 @@ referensi itu.
       form (nama, slug, kategori, kota, WA, bio, alamat) sudah ada
       kolomnya. Tidak perlu migrasi.
 - [ ] **Multi-toko dalam 1 akun** (1 user kelola beberapa store) —
-      PENTING menurut user, tapi butuh redesain skema (`stores` terpisah
-      dari `profiles`). Kerjakan sebagai proyek tersendiri setelah Fase
-      0-7 stabil, bukan disisipkan.
+      **DIKERJAKAN 13 Okt 2026 (keputusan: Premium per AKUN, dompet
+      GABUNG):** Fase A = `database/migrate_multistore_a.sql` SUDAH DITULIS
+      (tabel `stores`+`store_members`, backfill 1 store/seller, kolom
+      `store_id` + isi-otomatis, cap freemium per-toko, RLS keanggotaan —
+      ADITIF 100%, kode lama tetap jalan). **JALANKAN file itu di SQL
+      editor DULU**, lalu Fase B (konteks toko aktif + dashboard + checkout)
+      dan Fase C (bersih-bersih kolom lama).
+      **Update 17 Okt 2026 — FASE A + B SELESAI di kode & database:**
+      - Migrasi sudah DIJALANKAN di Supabase: `multistore_a`,
+        `multistore_a2_view_fix`, `migrate_rpc_lockdown`,
+        `migrate_multistore_b` (RPC track_order/store_contact_link baca
+        `stores`; param `p_seller_id` sengaja dipertahankan agar halaman
+        lama tidak error), `migrate_multistore_b2_keys` (kunci utama
+        `store_theme` pindah ke `store_id`; `discount_codes` &
+        `store_hours` unik per toko).
+      - Kode Fase B: `src/lib/stores.ts` (hook toko aktif + localStorage
+        `tl_active_store`), pemilih toko di `layout.tsx`, seluruh
+        DashboardA/B (produk, pesanan, bio, tema, diskon, jam, QR,
+        pengaturan toko + tombol "+ Toko baru") pakai `store_id`;
+        publik/cart/checkout (`Storefront.tsx`) + `/api/create-order`,
+        `/api/validate-promo`, `/api/visit` pakai `store_id`
+        (kompatibel dua arah saat transisi deploy).
+      - Dompet/ledger/rekening/premium TETAP level akun (sesuai
+        keputusan). Admin: daftar penjual menampilkan jumlah & nama
+        toko nyata.
+      - **CATATAN TRANSISI:** simpan tema dari halaman LAMA (browser
+        yang belum muat ulang) akan gagal sampai deploy baru masuk —
+        tinggal deploy; setelah deploy, simpan tema normal lagi.
+      - **BELUM:** Fase C (hapus kolom `seller_id` lama), tes user
+        (tambah toko kedua, pindah toko, checkout toko kedua).
 - [x] **Halaman "buat kata sandi baru"** untuk link reset password (saat
       ini mengarah ke `/`). **Selesai 10 Okt 2026:** halaman `/reset`
       + router tangani link recovery; redirect Supabase diarahkan ke
@@ -333,11 +360,19 @@ referensi itu.
       saat order `selesai`). **Perbaikan:** habis kirim, form langsung
       jadi "Ulasanmu" (sebelumnya masih menawarkan barang kedua yang pasti
       ditolak). Migrasi sudah dijalankan user — tinggal tes live.
-- [ ] **Twitter Card / OG per-toko untuk seller Premium** — **DITUNDA
-      10 Okt 2026:** `middleware.js` sempat dibuat tapi MENYEBABKAN
-      `/reset` loop 508 di production → file dihapus. Butuh riset
-      ulang (matcher/edge config) di project TEST sebelum coba lagi.
-      Jangan pasang ke production tanpa tes.
+- [ ] **Twitter Card / OG per-toko** — **DITUNDA 10 Okt 2026** (middleware
+      pernah bikin `/reset` loop 508 di production → file dihapus).
+      **DIKERJAKAN ULANG 17 Okt 2026 TANPA MIDDLEWARE (kode selesai,
+      BELUM di-deploy/dites):** halaman kartu preview `api/store-meta.ts`
+      di rute `tokolink.store/t/{slug}` (rewrite di `vercel.json`) —
+      crawler WhatsApp/IG baca og:title/description/image dari HTML ini,
+      pengunjung langsung dialihkan ke toko asli; slug disaring +
+      semua teks di-escape; toko tidak ada → 302 ke beranda. Tautan
+      "Salin/Bagikan" di dashboard + storefront sekarang memakai `/t/`
+      (`shareUrl()` di `router.tsx`); QR tetap URL toko langsung.
+      Berlaku untuk SEMUA toko (belum digate Premium — konfirmasi user).
+      **Tinggal:** deploy + tes preview WhatsApp (halaman toko asli /
+      `/s/` tidak tersentuh kalau rute `/t/` bermasalah).
 - [x] **Konten statis yang perlu diverifikasi**: blok "Pengiriman
       GoSend/JNE", "Estimasi tiba", "Garansi toko" — **Selesai (keputusan
       user: ongkir DIHAPUS total):** kurir & ongkir dibuang dari checkout/

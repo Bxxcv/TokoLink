@@ -427,6 +427,8 @@ export function AdminSellers() {
   };
   const [sellers, setSellers] = useState<SellerRow[]>([]);
   const [agg, setAgg] = useState<Map<string, { sales: number; orders: number }>>(new Map());
+  // Multi-toko: daftar toko NYATA per pemilik (bukan kolom profiles lama).
+  const [byOwner, setByOwner] = useState<Map<string, { id: string; name: string; slug: string; closed: boolean }[]>>(new Map());
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [detail, setDetail] = useState<SellerRow | null>(null);
@@ -454,6 +456,17 @@ export function AdminSellers() {
         map.set(o.seller_id, cur);
       });
       setAgg(map);
+      const { data: sts } = await supabase
+        .from("stores")
+        .select("id,owner_id,store_name,store_slug,is_closed")
+        .order("created_at", { ascending: true });
+      const om = new Map<string, { id: string; name: string; slug: string; closed: boolean }[]>();
+      ((sts ?? []) as { id: string; owner_id: string; store_name: string | null; store_slug: string | null; is_closed: boolean | null }[]).forEach((s) => {
+        const list = om.get(s.owner_id) ?? [];
+        list.push({ id: s.id, name: s.store_name ?? "Toko tanpa nama", slug: s.store_slug ?? "", closed: !!s.is_closed });
+        om.set(s.owner_id, list);
+      });
+      setByOwner(om);
     } catch {
       setLoadError("Gagal memuat daftar penjual. Periksa koneksi lalu coba lagi.");
     } finally {
@@ -486,9 +499,11 @@ export function AdminSellers() {
     (s) =>
       (status === "Semua" || label(s.status) === status) &&
       ((s.store_name ?? "").toLowerCase().includes(q.toLowerCase()) ||
+        (byOwner.get(s.id) ?? []).some((x) => x.name.toLowerCase().includes(q.toLowerCase())) ||
         (s.owner_name ?? "").toLowerCase().includes(q.toLowerCase())),
   );
-  const nm = (s: SellerRow) => s.store_name || "Toko tanpa nama";
+  const nm = (s: SellerRow) => byOwner.get(s.id)?.[0]?.name || s.store_name || "Toko tanpa nama";
+  const detailStores = detail ? (byOwner.get(detail.id) ?? []) : [];
 
   return (
     <AppShell group="admin">
@@ -577,7 +592,14 @@ export function AdminSellers() {
                   <Td>
                     <button onClick={() => setDetail(s)} className="text-left">
                       <div className="text-[14px] font-bold text-ink hover:text-brand-700">{nm(s)}</div>
-                      <div className="text-[12.5px] text-faint">{s.owner_name || "—"}</div>
+                      <div className="text-[12.5px] text-faint">
+                        {s.owner_name || "—"}
+                        {(byOwner.get(s.id)?.length ?? 0) > 1 && (
+                          <span className="ml-1.5 rounded-full bg-canvas px-1.5 py-0.5 text-[11px] font-semibold text-muted">
+                            {byOwner.get(s.id)?.length} toko
+                          </span>
+                        )}
+                      </div>
                     </button>
                   </Td>
                   <Td className="hidden text-[13.5px] md:table-cell">{s.city || "—"}</Td>
@@ -623,8 +645,8 @@ export function AdminSellers() {
             <Button variant="secondary" onClick={() => setDetail(null)}>
               Tutup
             </Button>
-            {detail?.store_slug && (
-              <ButtonLink to={`/s/${detail.store_slug}`} variant="secondary">
+            {(detailStores[0]?.slug || detail?.store_slug) && (
+              <ButtonLink to={`/s/${detailStores[0]?.slug || detail?.store_slug}`} variant="secondary">
                 <Icon name="external" size={16} /> Lihat toko
               </ButtonLink>
             )}
@@ -648,6 +670,23 @@ export function AdminSellers() {
                   <div className="mt-1 text-[14px] font-bold text-ink">{v}</div>
                 </div>
               ))}
+            </div>
+            <div className="rounded-md border border-line p-3.5">
+              <div className="micro mb-2 text-faint">
+                Toko ({detailStores.length || (detail.store_slug ? 1 : 0)})
+              </div>
+              <div className="space-y-2">
+                {detailStores.length === 0 && <div className="text-[13px] text-faint">Belum ada toko.</div>}
+                {detailStores.map((x) => (
+                  <div key={x.id} className="flex items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="truncate text-[13.5px] font-semibold text-ink">{x.name}</div>
+                      <div className="truncate text-[12px] text-faint">tokolink.store/s/{x.slug}</div>
+                    </div>
+                    <Badge tone={x.closed ? "gray" : "green"}>{x.closed ? "Tutup" : "Buka"}</Badge>
+                  </div>
+                ))}
+              </div>
             </div>
             <div className="rounded-md border border-line p-3.5">
               <div className="micro mb-2 text-faint">Status</div>

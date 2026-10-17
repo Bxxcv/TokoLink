@@ -4,6 +4,7 @@ import type { Product } from "./shop";
 export type DbProduct = {
   id: string;
   seller_id?: string;
+  store_id?: string | null;
   name: string;
   category: string;
   price: number | string;

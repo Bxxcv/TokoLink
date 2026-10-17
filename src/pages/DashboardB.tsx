@@ -1,8 +1,9 @@
 import QRCode from "qrcode";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { isReservedSlug, navigate, storeUrl } from "../lib/router";
+import { isReservedSlug, navigate, shareUrl, storeUrl } from "../lib/router";
 import { supabase } from "../lib/supabase";
 import { useAuth, isPremiumActive } from "../lib/auth";
+import { useStores } from "../lib/stores";
 import { digitsOnly, formatRibuan, isValidWA, normalizeWA } from "../lib/format";
 import { detectLinkIcon, iconForLink } from "../lib/links";
 import { uploadImage } from "../lib/storage";
@@ -677,8 +678,9 @@ export function Withdraw() {
 export function BioLinks() {
   const { toast } = useApp();
   const { user, profile } = useAuth();
-  const storeName = profile?.store_name || "";
-  const storeSlug = profile?.store_slug || "";
+  const { active, activeId } = useStores();
+  const storeName = active?.store_name || profile?.store_name || "";
+  const storeSlug = active?.store_slug || profile?.store_slug || "";
   type BRow = {
     id: string; label: string; url: string; icon: string | null;
     clicks: number; is_active: boolean; sort_order: number;
@@ -689,13 +691,13 @@ export function BioLinks() {
   const [del, setDel] = useState<{ id: string; label: string } | null>(null);
 
   const load = async () => {
-    if (!user) return;
+    if (!user || !activeId) return;
     setLoading(true);
     setLoadError(false);
     const { data, error } = await supabase
       .from("bio_links")
       .select("*")
-      .eq("seller_id", user.id)
+      .eq("store_id", activeId)
       .order("sort_order", { ascending: true });
     if (error) {
       setLoading(false);
@@ -708,7 +710,7 @@ export function BioLinks() {
 
   useEffect(() => {
     load();
-  }, [user?.id]);
+  }, [user?.id, activeId]);
 
   const toggle = async (id: string) => {
     const cur = links.find((x) => x.id === id);
@@ -749,14 +751,15 @@ export function BioLinks() {
   };
 
   const addLink = async () => {
-    if (!user) return;
+    if (!user || !activeId) return;
     const maxOrder = links.reduce((s, l) => Math.max(s, l.sort_order), -1);
     const { data, error } = await supabase
       .from("bio_links")
       .insert({
         seller_id: user.id,
+        store_id: activeId,
         label: "Tautan baru",
-        url: `tokolink.store/${storeSlug}/baru`,
+        url: storeUrl(storeSlug),
         icon: "link",
         sort_order: maxOrder + 1,
       })
@@ -800,10 +803,10 @@ export function BioLinks() {
         actions={
           <>
             <Button variant="secondary" onClick={async () => {
-              const url = storeUrl(storeSlug);
+              const url = shareUrl(storeSlug);
               try {
                 await navigator.clipboard.writeText(url);
-                toast("Tautan toko disalin.");
+                toast("Tautan toko disalin (dengan pratinjau WhatsApp).");
               } catch {
                 toast("Gagal menyalin: " + url, "bad");
               }
@@ -1011,17 +1014,18 @@ function GenericThemeMini({ themeId, storeName, products }: {
 export function Theme() {
   const { toast } = useApp();
   const { user, profile, refresh } = useAuth();
-  const storeName = profile?.store_name || "";
+  const { active, activeId } = useStores();
+  const storeName = active?.store_name || profile?.store_name || "";
   const [uploading, setUploading] = useState<"cover" | "logo" | null>(null);
   const [previewProducts, setPreviewProducts] = useState<{ name: string; price: number; image_url: string | null }[]>([]);
   const [previewCats, setPreviewCats] = useState<string[]>([]);
   useEffect(() => {
-    if (!user) return;
+    if (!user || !activeId) return;
     (async () => {
       const { data } = await supabase
         .from("products")
         .select("name,price,image_url,category")
-        .eq("seller_id", user.id)
+        .eq("store_id", activeId)
         .eq("status", "aktif")
         .order("created_at", { ascending: false })
         .limit(2);
@@ -1029,17 +1033,17 @@ export function Theme() {
       setPreviewProducts(rows.map((r) => ({ name: r.name, price: r.price, image_url: r.image_url })));
       setPreviewCats(Array.from(new Set(rows.map((r) => r.category).filter(Boolean))) as string[]);
     })();
-  }, [user]);
+  }, [user, activeId]);
 
   const uploadMedia = async (file: File | undefined, kind: "cover" | "logo") => {
-    if (!file || !user) return;
+    if (!file || !user || !activeId) return;
     setUploading(kind);
     try {
       const url = await uploadImage(user.id, file, kind === "cover" ? "cover" : "logo");
       const { error } = await supabase
-        .from("profiles")
+        .from("stores")
         .update(kind === "cover" ? { cover_url: url } : { avatar_url: url })
-        .eq("id", user.id);
+        .eq("id", activeId);
       if (error) {
         toast("Gagal menyimpan foto.", "bad");
         return;
@@ -1061,9 +1065,9 @@ export function Theme() {
   const snapshot = useRef({ accent: "Biru", layout: "Kisi", themeId: "klasik", sections: { hours: true, qr: true, reviews: false, cart: true } });
 
   useEffect(() => {
-    if (!user) return;
+    if (!user || !activeId) return;
     (async () => {
-      const { data } = await supabase.from("store_theme").select("*").eq("seller_id", user.id).maybeSingle();
+      const { data } = await supabase.from("store_theme").select("*").eq("store_id", activeId).maybeSingle();
       const t = data as {
         accent: string; layout: string; show_hours: boolean; show_qr: boolean; show_reviews: boolean; show_cart: boolean;
         theme_id?: string;
@@ -1082,15 +1086,16 @@ export function Theme() {
       setSections(next.sections);
       snapshot.current = next;
     })();
-  }, [user?.id]);
+  }, [user?.id, activeId]);
 
   const saveTheme = async () => {
-    if (!user) return;
+    if (!user || !activeId) return;
     setSaving(true);
     try {
       const { error } = await supabase.from("store_theme").upsert(
         {
           seller_id: user.id,
+          store_id: activeId,
           accent,
           layout,
           theme_id: themeId,
@@ -1100,7 +1105,7 @@ export function Theme() {
           show_cart: sections.cart,
           updated_at: new Date().toISOString(),
         },
-        { onConflict: "seller_id" },
+        { onConflict: "store_id" },
       );
       if (error) {
         // Kolom theme_id belum ada = migrasi database/migrate_fase5_theme_id.sql
@@ -1441,6 +1446,7 @@ export function Theme() {
 export function Discount() {
   const { toast } = useApp();
   const { user } = useAuth();
+  const { activeId } = useStores();
   type DRow = {
     id: string; code: string; type: string; value: number | string;
     min_purchase: number | string; usage_limit: number | null; used_count: number;
@@ -1455,18 +1461,18 @@ export function Discount() {
   const [err, setErr] = useState("");
 
   const load = async () => {
-    if (!user) return;
+    if (!user || !activeId) return;
     setLoading(true);
     setLoadError("");
     let req = supabase
       .from("discount_codes")
       .select("*")
-      .eq("seller_id", user.id)
+      .eq("store_id", activeId)
       .order("created_at", { ascending: false });
     let { data, error } = await req;
     if (error && /created_at/i.test(error.message)) {
       // Kolom created_at belum ada (migrasi belum jalan) — muat tanpa urutan.
-      const retry = await supabase.from("discount_codes").select("*").eq("seller_id", user.id);
+      const retry = await supabase.from("discount_codes").select("*").eq("store_id", activeId);
       data = retry.data;
       error = retry.error;
     }
@@ -1481,7 +1487,7 @@ export function Discount() {
 
   useEffect(() => {
     load();
-  }, [user?.id]);
+  }, [user?.id, activeId]);
 
   const dbType = (label: string) => (label === "Persen" ? "persen" : label === "Nominal" ? "nominal" : "potongan_ongkir");
   const labelType = (t: string) => (t === "persen" ? "Persen" : t === "nominal" ? "Nominal" : "Potongan ongkir");
@@ -1493,13 +1499,14 @@ export function Discount() {
     if (code.length < 3) return setErr("Kode minimal 3 karakter, tanpa spasi.");
     if (!form.value || Number(form.value) <= 0) return setErr("Isi nilai diskon.");
     if (form.type === "Persen" && Number(form.value) > 100) return setErr("Persen maksimal 100.");
-    if (!user) return;
+    if (!user || !activeId) return;
     setSaving(true);
     try {
       const { data, error } = await supabase
         .from("discount_codes")
         .insert({
           seller_id: user.id,
+          store_id: activeId,
           code,
           type: dbType(form.type),
           value: Number(form.value),
@@ -1812,6 +1819,7 @@ function HoursStatusCard({ rows }: { rows: { day: number; open: string; close: s
 export function Hours() {
   const { toast } = useApp();
   const { user } = useAuth();
+  const { activeId } = useStores();
   const DAYS = ["Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu", "Minggu"];
   type HRow = { id: string; day: number; open: string; close: string; on: boolean };
   const [rows, setRows] = useState<HRow[]>([]);
@@ -1819,12 +1827,12 @@ export function Hours() {
   const [savingAll, setSavingAll] = useState(false);
 
   const load = async () => {
-    if (!user) return;
+    if (!user || !activeId) return;
     setLoading(true);
     const { data } = await supabase
       .from("store_hours")
       .select("id,day_of_week,open_time,close_time,is_open")
-      .eq("seller_id", user.id);
+      .eq("store_id", activeId);
     const have = new Map<number, HRow>();
     ((data ?? []) as { id: string; day_of_week: number; open_time: string | null; close_time: string | null; is_open: boolean }[]).forEach(
       (r) => {
@@ -1843,6 +1851,7 @@ export function Hours() {
       await supabase.from("store_hours").insert(
         missing.map((d) => ({
           seller_id: user.id,
+          store_id: activeId,
           day_of_week: d,
           open_time: "08:00",
           close_time: d === 6 ? "15:00" : "20:00",
@@ -1852,7 +1861,7 @@ export function Hours() {
       const { data: retry } = await supabase
         .from("store_hours")
         .select("id,day_of_week,open_time,close_time,is_open")
-        .eq("seller_id", user.id);
+        .eq("store_id", activeId);
       ((retry ?? []) as { id: string; day_of_week: number; open_time: string | null; close_time: string | null; is_open: boolean }[]).forEach(
         (r) => {
           have.set(r.day_of_week, {
@@ -1871,7 +1880,7 @@ export function Hours() {
 
   useEffect(() => {
     load();
-  }, [user?.id]);
+  }, [user?.id, activeId]);
 
   const set = async (d: number, k: "on" | "open" | "close", v: string | boolean) => {
     const cur = rows.find((x) => x.day === d);
@@ -1887,10 +1896,10 @@ export function Hours() {
   };
 
   const openAll = async () => {
-    if (!user) return;
+    if (!user || !activeId) return;
     setSavingAll(true);
     try {
-      const { error } = await supabase.from("store_hours").update({ is_open: true }).eq("seller_id", user.id);
+      const { error } = await supabase.from("store_hours").update({ is_open: true }).eq("store_id", activeId);
       if (error) {
         toast("Gagal menyimpan.", "bad");
         return;
@@ -1910,7 +1919,7 @@ export function Hours() {
     const { error } = await supabase
       .from("store_hours")
       .update({ open_time: sat.open, close_time: sat.close, is_open: sat.on })
-      .eq("seller_id", user?.id ?? "")
+      .eq("store_id", activeId ?? "")
       .lte("day_of_week", 4);
     if (error) {
       setRows(prev);
@@ -2011,8 +2020,9 @@ export function Hours() {
 export function StoreQR() {
   const { toast } = useApp();
   const { profile } = useAuth();
-  const storeName = profile?.store_name || "";
-  const storeSlug = profile?.store_slug || "";
+  const { active } = useStores();
+  const storeName = active?.store_name || profile?.store_name || "";
+  const storeSlug = active?.store_slug || profile?.store_slug || "";
   const [style, setStyle] = useState("Standar");
   const styles = ["Standar", "Bingkai toko", "Hitam putih"];
   const [qrData, setQrData] = useState("");
@@ -2051,7 +2061,7 @@ export function StoreQR() {
         actions={
           <>
             <Button variant="secondary" onClick={() => {
-              const url = storeUrl(storeSlug);
+              const url = shareUrl(storeSlug);
               if (navigator.clipboard) navigator.clipboard.writeText(url).catch(() => {});
               toast("Tautan QR disalin.");
             }}>
@@ -2126,7 +2136,7 @@ export function StoreQR() {
                   <Icon name="image" size={16} /> Cetak stiker
                 </Button>
               <Button variant="secondary" onClick={() => {
-                const url = storeUrl(storeSlug);
+                const url = shareUrl(storeSlug);
                 const text = `Kunjungi toko ${storeName}: ${url}`;
                 if (navigator.share) {
                   navigator.share({ title: storeName, text, url }).catch(() => {});
@@ -2180,11 +2190,12 @@ export function StoreQR() {
 export function StoreSettings() {
   const { toast } = useApp();
   const { user, profile, loading: authLoading, refresh } = useAuth();
+  const { activeId, setActiveId, reload: reloadStores } = useStores();
   const [plan, setPlan] = useState("Bulanan");
   const [payLoading, setPayLoading] = useState(false);
   const [close, setClose] = useState(false);
   const [saving, setSaving] = useState(false);
-  const initialized = useRef(false);
+  const [adding, setAdding] = useState(false);
   const [f, setF] = useState({
     name: "",
     slug: "",
@@ -2195,24 +2206,36 @@ export function StoreSettings() {
     address: "",
   });
 
-  // Muat sekali dari profiles.
+  // Muat dari TOKO AKTIF (bukan profil). Ganti toko → form ikut ganti.
   useEffect(() => {
-    if (authLoading || initialized.current) return;
-    initialized.current = true;
-    setF((x) => ({
-      ...x,
-      name: profile?.store_name ?? "",
-      slug: profile?.store_slug ?? "",
-      cat: profile?.category ?? x.cat,
-      city: profile?.city ?? "",
-      phone: profile?.wa_number ?? "",
-      bio: profile?.bio ?? x.bio,
-      address: profile?.address ?? x.address,
-    }));
-  }, [authLoading, profile]);
+    if (authLoading || !activeId) return;
+    (async () => {
+      const { data } = await supabase
+        .from("stores")
+        .select("store_name,store_slug,category,city,wa_number,bio,address,is_closed")
+        .eq("id", activeId)
+        .maybeSingle();
+      const r = (data ?? {}) as {
+        store_name?: string | null; store_slug?: string | null; category?: string | null;
+        city?: string | null; wa_number?: string | null; bio?: string | null;
+        address?: string | null; is_closed?: boolean | null;
+      };
+      setF((x) => ({
+        ...x,
+        name: r.store_name ?? "",
+        slug: r.store_slug ?? "",
+        cat: r.category ?? x.cat,
+        city: r.city ?? "",
+        phone: r.wa_number ?? "",
+        bio: r.bio ?? "",
+        address: r.address ?? "",
+      }));
+      setClose(!!r.is_closed);
+    })();
+  }, [authLoading, activeId]);
 
   const save = async () => {
-    if (!user) {
+    if (!user || !activeId) {
       toast("Sesi berakhir. Masuk lagi.", "bad");
       return;
     }
@@ -2236,7 +2259,7 @@ export function StoreSettings() {
     setSaving(true);
     try {
       const { error } = await supabase
-        .from("profiles")
+        .from("stores")
         .update({
           store_name: f.name.trim(),
           store_slug: slugNorm,
@@ -2245,17 +2268,63 @@ export function StoreSettings() {
           wa_number: f.phone.trim() || null,
           bio: f.bio.trim() || null,
           address: f.address.trim() || null,
+          is_closed: close,
         })
-        .eq("id", user.id);
+        .eq("id", activeId);
       if (error) {
         toast(error.code === "23505" ? "Alamat tautan sudah dipakai toko lain." : "Gagal menyimpan.", "bad");
         return;
       }
       setF((x) => ({ ...x, slug: slugNorm }));
+      await reloadStores();
       await refresh();
       toast("Pengaturan toko disimpan.");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const addStore = async () => {
+    if (!user) {
+      toast("Sesi berakhir. Masuk lagi.", "bad");
+      return;
+    }
+    setAdding(true);
+    try {
+      const slug = `toko-${Date.now().toString(36)}`;
+      const { data, error } = await supabase
+        .from("stores")
+        .insert({ owner_id: user.id, store_name: "Toko baru", store_slug: slug })
+        .select("id")
+        .single();
+      if (error || !data) {
+        toast("Gagal menambah toko.", "bad");
+        return;
+      }
+      const sid = (data as { id: string }).id;
+      const { error: mErr } = await supabase
+        .from("store_members")
+        .insert({ store_id: sid, user_id: user.id, role: "owner" });
+      if (mErr) {
+        toast("Gagal menambah toko.", "bad");
+        return;
+      }
+      // Jam default 7 hari untuk toko baru (seperti toko pertama).
+      await supabase.from("store_hours").insert(
+        [0, 1, 2, 3, 4, 5, 6].map((d) => ({
+          seller_id: user.id,
+          store_id: sid,
+          day_of_week: d,
+          open_time: "08:00",
+          close_time: d === 6 ? "15:00" : "20:00",
+          is_open: d !== 6,
+        })),
+      );
+      await reloadStores();
+      setActiveId(sid);
+      toast("Toko baru dibuat. Lengkapi nama & alamatnya.");
+    } finally {
+      setAdding(false);
     }
   };
   const [notifs, setNotifs] = useState(() => {
@@ -2289,7 +2358,14 @@ export function StoreSettings() {
         kicker="Pengaturan"
         title="Pengaturan toko"
         desc="Informasi yang tampil di halaman publik dan dipakai untuk keperluan pengiriman."
-        actions={<Button onClick={save} loading={saving}>Simpan perubahan</Button>}
+        actions={
+          <div className="flex gap-2">
+            <Button variant="secondary" loading={adding} onClick={addStore}>
+              + Toko baru
+            </Button>
+            <Button onClick={save} loading={saving}>Simpan perubahan</Button>
+          </div>
+        }
       />
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">

@@ -28,26 +28,28 @@ export default async function handler(req: any, res: any) {
     if (cur.n > 20) return json(res, { ok: true });
   }
 
-  let sellerId = "";
+  let storeId = "";
   let path = "/";
   try {
     const b = (typeof req.body === "string" ? JSON.parse(req.body) : req.body) as {
-      seller_id?: string; path?: string;
+      store_id?: string; seller_id?: string; path?: string;
     } | null;
-    sellerId = String(b?.seller_id ?? "").slice(0, 64);
+    // Kompatibilitas: halaman lama kirim seller_id (dulu = user id, sekarang
+    // nilai yang sama dianggap store id → tidak cocok, insert dilewati).
+    storeId = String(b?.store_id ?? b?.seller_id ?? "").slice(0, 64);
     path = String(b?.path ?? "/").slice(0, 160);
   } catch {
     return json(res, { ok: true });
   }
-  if (!sellerId) return json(res, { ok: true });
+  if (!storeId) return json(res, { ok: true });
 
   const url = process.env.SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !key) return json(res, { ok: true });
   const db = createClient(url, key, { auth: { persistSession: false } });
-  // Hanya untuk seller_id yang terdaftar (sama seperti policy lama).
-  const { data: prof } = await db.from("profiles").select("id").eq("id", sellerId).maybeSingle();
-  if (!prof) return json(res, { ok: true });
-  await db.from("store_visits").insert({ seller_id: sellerId, path });
+  // Hanya untuk store_id yang terdaftar.
+  const { data: st } = await db.from("stores").select("id,owner_id").eq("id", storeId).maybeSingle();
+  if (!st) return json(res, { ok: true });
+  await db.from("store_visits").insert({ seller_id: (st as { owner_id: string }).owner_id, store_id: storeId, path });
   return json(res, { ok: true });
 }

@@ -1,8 +1,9 @@
 // POST /api/create-order — FULL REPAIR.
 // Total = subtotal - diskon (ongkir dihapus Okt 2026, kirim via chat).
 //
-// - Harga SELALU dari DB. seller_id DITURUNKAN dari produk (bukan dipercaya
-//   mentah), seller harus aktif & toko tidak tutup.
+// - Harga SELALU dari DB. Multi-toko: toko DITURUNKAN dari produk (bukan
+//   dipercaya mentah); seller_id (pemilik akun) diambil dari stores.owner_id
+//   untuk payments/ledger (dompet level AKUN), order dicatat per TOKO.
 // - Stok divalidasi (tolak bila kurang). Pengurangan stok atomik di webhook.
 // - Kuota promo via RPC atomik consume_promo (anti-race).
 // - Idempotensi via idempotency_key (unique). Klik ganda = 1 order.
@@ -15,6 +16,7 @@ import { createClient } from "@supabase/supabase-js";
 type CartLine = { product_id: string; qty: number };
 
 type OrderBody = {
+  store_id?: string;
   seller_id?: string;
   buyer_name?: string;
   buyer_phone?: string;
@@ -125,18 +127,17 @@ export default async function handler(req: any, res: any) {
     }
   }
 
-  // 1) Produk SELALU dari DB. seller_id DITURUNKAN (satu toko per order).
+  // 1) Produk SELALU dari DB. Toko DITURUNKAN (satu toko per order).
   const ids = [...new Set(cart.map((c) => String(c.product_id)))];
   const { data: products } = await db
     .from("products")
-    .select("id,seller_id,name,price,stock")
+    .select("id,store_id,seller_id,name,price,stock")
     .in("id", ids)
     .eq("status", "aktif");
   const byId = new Map(
-    ((products ?? []) as { id: string; seller_id: string; name: string; price: number | string; stock: number }[]).map((p) => [p.id, p]),
+    ((products ?? []) as { id: string; store_id: string | null; seller_id: string; name: string; price: number | string; stock: number }[]).map((p) => [p.id, p]),
   );
   let subtotal = 0;
-  const sellerSet = new Set<string>();
   const lines: { product_id: string; name: string; qty: number; price: number }[] = [];
   const outOfStock: string[] = [];
   for (const line of cart) {
@@ -148,7 +149,6 @@ export default async function handler(req: any, res: any) {
       outOfStock.push(p.name);
       continue;
     }
-    sellerSet.add(p.seller_id);
     subtotal += Number(p.price) * qty;
     lines.push({ product_id: String(line.product_id), name: p.name, qty, price: Number(p.price) });
   }
@@ -156,23 +156,37 @@ export default async function handler(req: any, res: any) {
     return json(res, { error: `Stok tidak cukup: ${outOfStock.slice(0, 3).join(", ")}.` }, 400);
   }
   if (lines.length === 0) return json(res, { error: "Produk tidak tersedia." }, 400);
-  if (sellerSet.size !== 1) {
+  // Semua produk wajib punya store_id & satu toko yang sama.
+  const storeIds = new Set(lines.map((l) => byId.get(l.product_id)?.store_id ?? ""));
+  if (storeIds.size !== 1 || storeIds.has("")) {
     return json(res, { error: "Keranjang berisi produk beda toko. Selesaikan satu toko dulu." }, 400);
   }
-  const sellerId = [...sellerSet][0];
-  if (body.seller_id && body.seller_id !== sellerId) {
+  const storeId = [...storeIds][0];
+  if (body.store_id && body.store_id !== storeId) {
     return json(res, { error: "Data toko tidak cocok." }, 400);
   }
 
-  // 2) Seller harus aktif & toko tidak tutup.
+  // 2) Toko harus ada, tidak tutup; pemilik akun harus aktif.
+  const { data: store } = await db
+    .from("stores")
+    .select("id,owner_id,is_closed")
+    .eq("id", storeId)
+    .maybeSingle();
+  const st = store as { id: string; owner_id: string; is_closed: boolean | null } | null;
+  if (!st) return json(res, { error: "Toko tidak ditemukan." }, 400);
+  if (st.is_closed) return json(res, { error: "Toko sedang tutup. Coba lagi nanti." }, 400);
+  const sellerId = st.owner_id; // dompet/pembayaran level AKUN
+  // Kompatibilitas transisi: halaman lama kirim seller_id.
+  if (body.seller_id && body.seller_id !== sellerId) {
+    return json(res, { error: "Data toko tidak cocok." }, 400);
+  }
   const { data: seller } = await db
     .from("profiles")
-    .select("id,status,is_closed")
+    .select("id,status")
     .eq("id", sellerId)
     .maybeSingle();
-  const s = seller as { status: string; is_closed: boolean | null } | null;
+  const s = seller as { status: string } | null;
   if (!s || s.status !== "aktif") return json(res, { error: "Toko tidak aktif." }, 400);
-  if (s.is_closed) return json(res, { error: "Toko sedang tutup. Coba lagi nanti." }, 400);
 
   // 3) Tanpa ongkir: total = subtotal - diskon (pengiriman via chat).
 
@@ -184,7 +198,7 @@ export default async function handler(req: any, res: any) {
     const { data: codes } = await db
       .from("discount_codes")
       .select("id,code,type,value,min_purchase,usage_limit,used_count,valid_until")
-      .eq("seller_id", sellerId)
+      .eq("store_id", storeId)
       .eq("is_active", true);
     const match = ((codes ?? []) as {
       id: string; code: string; type: string; value: number | string; min_purchase: number | string;
@@ -232,6 +246,7 @@ export default async function handler(req: any, res: any) {
       .insert({
         id: orderId,
         seller_id: sellerId,
+        store_id: storeId,
         buyer_name: name,
         buyer_phone: phone,
         buyer_city: city,
@@ -276,7 +291,7 @@ export default async function handler(req: any, res: any) {
   );
   const { data: payment } = await db
     .from("payments")
-    .insert({ order_id: oid, seller_id: sellerId, channel: "QRIS", amount: total, fee: 0, status: "menunggu" })
+    .insert({ order_id: oid, seller_id: sellerId, store_id: storeId, channel: "QRIS", amount: total, fee: 0, status: "menunggu" })
     .select("id")
     .single();
 

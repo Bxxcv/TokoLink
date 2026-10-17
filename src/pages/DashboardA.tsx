@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link, navigate } from "../lib/router";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
+import { useStores } from "../lib/stores";
 import {
   STATUS_LABEL,
   type Order,
@@ -111,10 +112,11 @@ export function hourWIB(iso: string): number {
 export function DashboardHome() {
   const { toast } = useApp();
   const { user, profile } = useAuth();
+  const { active, activeId } = useStores();
   const firstName = profile?.owner_name?.trim().split(" ")[0] || "Seller";
   const hour = new Date().getHours();
   const greet = hour < 11 ? "Selamat pagi" : hour < 15 ? "Selamat siang" : hour < 19 ? "Selamat sore" : "Selamat malam";
-  const storeSlug = profile?.store_slug || "";
+  const storeSlug = active?.store_slug || profile?.store_slug || "";
   type ORow = { id: string; buyer_name: string; total: number | string; status: string; created_at: string };
   type PRow = { id: string; name: string; price: number | string; stock: number; sold: number; status: string };
   const [orders, setOrders] = useState<ORow[]>([]);
@@ -125,25 +127,26 @@ export function DashboardHome() {
   const [hasHours, setHasHours] = useState(false);
   // Checklist DARI DATA ASLI (bukan state lokal yang hilang saat refresh).
   const check = [
-    !!(profile?.avatar_url || profile?.cover_url),
+    !!(profile?.avatar_url || active?.cover_url),
     products.length >= 5,
     hasHours,
-    !!(profile?.store_slug),
+    !!(storeSlug),
   ];
   const done = check.filter(Boolean).length;
 
   useEffect(() => {
-    if (!user) return;
+    if (!user || !activeId) return;
     (async () => {
       const now = new Date();
       const d30 = new Date(now.getTime() - 30 * 86400000).toISOString();
       const d60 = new Date(now.getTime() - 60 * 86400000).toISOString();
       const [{ data: o30 }, { data: o60 }, { data: prods }, { data: ledger }, { count: hoursCount }] = await Promise.all([
-        supabase.from("orders").select("id,buyer_name,total,status,created_at").eq("seller_id", user.id).gte("created_at", d30).order("created_at", { ascending: false }),
-        supabase.from("orders").select("total").eq("seller_id", user.id).gte("created_at", d60).lt("created_at", d30),
-        supabase.from("products").select("id,name,price,stock,sold,status").eq("seller_id", user.id).order("sold", { ascending: false }),
+        supabase.from("orders").select("id,buyer_name,total,status,created_at").eq("store_id", activeId).gte("created_at", d30).order("created_at", { ascending: false }),
+        supabase.from("orders").select("total").eq("store_id", activeId).gte("created_at", d60).lt("created_at", d30),
+        supabase.from("products").select("id,name,price,stock,sold,status").eq("store_id", activeId).order("sold", { ascending: false }),
+        // Saldo GABUNG semua toko (keputusan produk) — tetap per akun.
         supabase.from("ledger").select("amount").eq("seller_id", user.id),
-        supabase.from("store_hours").select("id", { count: "exact", head: true }).eq("seller_id", user.id),
+        supabase.from("store_hours").select("id", { count: "exact", head: true }).eq("store_id", activeId),
       ]);
       setOrders((o30 ?? []) as ORow[]);
       setPrevOrders((o60 ?? []) as ORow[]);
@@ -152,7 +155,7 @@ export function DashboardHome() {
       setHasHours((hoursCount ?? 0) > 0);
       setLoading(false);
     })();
-  }, [user?.id]);
+  }, [user?.id, activeId]);
 
   const live = orders.filter((o) => o.status !== "batal");
   const omzet = live.reduce((s, o) => s + Number(o.total), 0);
@@ -402,6 +405,7 @@ export function DashboardHome() {
 export function Analytics() {
   const { toast } = useApp();
   const { user } = useAuth();
+  const { activeId } = useStores();
   const [period, setPeriod] = useState("30 hari");
   type AOrder = { total: number | string; status: string; created_at: string };
   type AProd = { name: string; price: number | string; sold: number };
@@ -410,20 +414,20 @@ export function Analytics() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user || !activeId) return;
     (async () => {
       setLoading(true);
       const days = period === "7 hari" ? 7 : period === "90 hari" ? 90 : 30;
       const since = new Date(Date.now() - days * 86400000).toISOString();
       const [{ data: o }, { data: p }] = await Promise.all([
-        supabase.from("orders").select("total,status,created_at").eq("seller_id", user.id).gte("created_at", since).order("created_at", { ascending: true }),
-        supabase.from("products").select("name,price,sold").eq("seller_id", user.id).order("sold", { ascending: false }).limit(5),
+        supabase.from("orders").select("total,status,created_at").eq("store_id", activeId).gte("created_at", since).order("created_at", { ascending: true }),
+        supabase.from("products").select("name,price,sold").eq("store_id", activeId).order("sold", { ascending: false }).limit(5),
       ]);
       setOrders((o ?? []) as AOrder[]);
       setProducts((p ?? []) as AProd[]);
       setLoading(false);
     })();
-  }, [user?.id, period]);
+  }, [user?.id, activeId, period]);
 
   const live = orders.filter((o) => o.status !== "batal");
   const omzet = live.reduce((s, o) => s + Number(o.total), 0);
@@ -589,25 +593,26 @@ export function Analytics() {
 export function Traffic() {
   const [period, setPeriod] = useState("30 hari");
   const { user } = useAuth();
+  const { activeId: trafficStoreId } = useStores();
   const [visits, setVisits] = useState<{ path: string; created_at: string }[]>([]);
   const [orders, setOrders] = useState<{ created_at: string }[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user || !trafficStoreId) return;
     (async () => {
       setLoading(true);
       const days = period === "7 hari" ? 7 : period === "90 hari" ? 90 : 30;
       const since = new Date(Date.now() - days * 86400000).toISOString();
       const [{ data: v }, { data: o }] = await Promise.all([
-        supabase.from("store_visits").select("path,created_at").eq("seller_id", user.id).gte("created_at", since).order("created_at", { ascending: true }).limit(5000),
-        supabase.from("orders").select("created_at").eq("seller_id", user.id).gte("created_at", since),
+        supabase.from("store_visits").select("path,created_at").eq("store_id", trafficStoreId).gte("created_at", since).order("created_at", { ascending: true }).limit(5000),
+        supabase.from("orders").select("created_at").eq("store_id", trafficStoreId).gte("created_at", since),
       ]);
       setVisits((v ?? []) as { path: string; created_at: string }[]);
       setOrders((o ?? []) as { created_at: string }[]);
       setLoading(false);
     })();
-  }, [user?.id, period]);
+  }, [user?.id, trafficStoreId, period]);
 
   const days = period === "7 hari" ? 7 : period === "90 hari" ? 90 : 30;
   const dayKeys: string[] = [];
@@ -699,7 +704,8 @@ export function Traffic() {
 export function Products() {
   const { toast } = useApp();
   const { user, profile } = useAuth();
-  const slug = profile?.store_slug ?? "";
+  const { active, activeId } = useStores();
+  const slug = active?.store_slug ?? profile?.store_slug ?? "";
   // Nilai awal boleh dititipkan dari pencarian di header (lihat
   // components/layout.tsx) -- router berbasis hash tidak baca query
   // string, jadi dititipkan lewat sessionStorage, dibaca sekali lalu
@@ -728,6 +734,7 @@ export function Products() {
         .filter((c) => !isNaN(Number(c[1])))
         .map((c) => ({
           seller_id: user.id,
+          store_id: activeId,
           name: c[0].slice(0, 80),
           category: c[3] || "Kue & Snack",
           price: Math.max(0, Number(c[1])),
@@ -758,13 +765,13 @@ export function Products() {
   };
 
   const load = async () => {
-    if (!user) return;
+    if (!user || !activeId) return;
     setLoading(true);
     setLoadError(false);
     const { data, error } = await supabase
       .from("products")
       .select("*")
-      .eq("seller_id", user.id)
+      .eq("store_id", activeId)
       .order("created_at", { ascending: false })
       .limit(1000);
     setLoading(false);
@@ -777,14 +784,15 @@ export function Products() {
 
   useEffect(() => {
     load();
-  }, [user?.id]);
+  }, [user?.id, activeId]);
 
   const duplicate = async (p: Product) => {
-    if (!user) return;
+    if (!user || !activeId) return;
     const { data, error } = await supabase
       .from("products")
       .insert({
         seller_id: user.id,
+        store_id: activeId,
         name: `${p.name} (salinan)`,
         category: p.cat,
         price: p.price,
@@ -1048,6 +1056,7 @@ export function Products() {
 export function ProductForm({ id }: { id?: string }) {
   const { toast } = useApp();
   const { user } = useAuth();
+  const { activeId } = useStores();
   const editing = !!id;
   const [, setExisting] = useState<Product | null>(null);
   const [loading, setLoading] = useState(editing);
@@ -1133,7 +1142,7 @@ export function ProductForm({ id }: { id?: string }) {
       toast("Lengkapi isian yang ditandai merah.", "bad");
       return;
     }
-    if (!user) {
+    if (!user || !activeId) {
       toast("Sesi berakhir. Masuk lagi.", "bad");
       return;
     }
@@ -1154,7 +1163,7 @@ export function ProductForm({ id }: { id?: string }) {
       };
       const { error } = editing
         ? await supabase.from("products").update(payload).eq("id", id)
-        : await supabase.from("products").insert(payload);
+        : await supabase.from("products").insert({ ...payload, store_id: activeId });
       if (error) {
         const msg = (error.message ?? "").toUpperCase();
         toast(
@@ -1396,19 +1405,20 @@ export function Orders() {
   const [q, setQ] = useState("");
   const [period, setPeriod] = useState("Semua");
   const { user, profile } = useAuth();
-  const storeSlug = profile?.store_slug || "";
+  const { active, activeId } = useStores();
+  const storeSlug = active?.store_slug || profile?.store_slug || "";
   const [rows, setRows] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
 
   const load = async () => {
-    if (!user) return;
+    if (!user || !activeId) return;
     setLoading(true);
     setLoadError(false);
     const { data: orders, error } = await supabase
       .from("orders")
       .select("id,buyer_name,buyer_city,total,status,channel,created_at")
-      .eq("seller_id", user.id)
+      .eq("store_id", activeId)
       .order("created_at", { ascending: false })
       .limit(500);
     if (error || !orders) {
@@ -1454,7 +1464,7 @@ export function Orders() {
 
   useEffect(() => {
     load();
-  }, [user?.id]);
+  }, [user?.id, activeId]);
 
   const counts = {
     semua: rows.length,

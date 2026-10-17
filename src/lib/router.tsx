@@ -52,6 +52,13 @@ export function storeUrl(slug: string): string {
   return `https://tokolink.store/${slug}`;
 }
 
+/** URL KHUSUS DISALIN/DIBAGIKAN: lewat kartu preview /t/ (og: per toko untuk
+ *  WhatsApp/IG), lalu pengunjung dialihkan otomatis ke halaman toko. QR tetap
+ *  pakai storeUrl (pemindai manusia tidak butuh preview). */
+export function shareUrl(slug: string): string {
+  return `https://www.tokolink.store/t/${slug}`;
+}
+
 export function useIsActive(path: string) {
   return useCallback(
     (to: string, exact = false) =>

@@ -1,6 +1,7 @@
 {
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api/$1" },
+    { "source": "/t/:slug", "destination": "/api/store-meta?slug=:slug" },
     { "source": "/(.*)", "destination": "/index.html" }
   ],
   "crons": [

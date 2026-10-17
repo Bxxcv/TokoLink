@@ -200,6 +200,7 @@ TokoLink/
 │   ├── _lib.ts                    # helper bersama
 │   ├── create-order.ts
 │   ├── buatqris-webhook.ts
+│   ├── store-meta.ts              # halaman preview /t/{slug} (OG per toko)
 │   ├── admin-users.ts
 │   └── delete-account.ts
 ├── src/
@@ -208,6 +209,7 @@ TokoLink/
 │   │   ├── router.tsx               # custom router, tetap dipakai
 │   │   ├── supabase.ts              # client Supabase (anon key, aman di browser)
 │   │   ├── auth.tsx                 # session + profil
+│   │   ├── stores.ts                # konteks toko aktif (multi-toko)
 │   │   ├── links.ts                 # detectLinkIcon() sentral (semua tema pakai ini)
 │   │   ├── format.ts products.ts storage.ts cities.ts
 │   │   └── data.tsx                 # DATA CONTOH lama — lihat AGENTS.md #9

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import clsx from "clsx";
 import { Link, navigate, useRoute } from "../lib/router";
 import { signOut, useAuth, isPremiumActive } from "../lib/auth";
+import { useStores } from "../lib/stores";
 import { useApp } from "../lib/store";
 import { supabase } from "../lib/supabase";
 import { countUnread } from "../lib/notifications";
@@ -147,9 +148,24 @@ function NavList({ groups, path, onNavigate, dark }: { groups: NavGroup[]; path:
 
 function StoreSwitcher({ admin = false }: { admin?: boolean }) {
   const { profile } = useAuth();
-  const storeName = admin ? "TokoLink Indonesia" : profile?.store_name || "";
-  const storeSub = admin ? "Admin Master" : `tokolink.store/${profile?.store_slug || ""}`;
-  return (
+  const { stores, active, setActiveId } = useStores();
+  if (admin) {
+    return (
+      <div className="flex items-center gap-2.5">
+        <span className="flex h-9 w-9 items-center justify-center rounded-md bg-navy-800 text-brand-300">
+          <LogoMark size={22} />
+        </span>
+        <span className="hidden leading-tight sm:block">
+          <span className="block text-[14px] font-extrabold text-ink">TokoLink Indonesia</span>
+          <span className="micro text-faint">Admin Master</span>
+        </span>
+      </div>
+    );
+  }
+  // 1 toko = tampilan lama (tanpa pemilih). 2+ toko = dropdown pindah.
+  const storeName = active?.store_name || profile?.store_name || "";
+  const storeSub = `tokolink.store/${active?.store_slug || profile?.store_slug || ""}`;
+  const face = (
     <div className="flex items-center gap-2.5">
       <span className="flex h-9 w-9 items-center justify-center rounded-md bg-navy-800 text-brand-300">
         <LogoMark size={22} />
@@ -158,7 +174,21 @@ function StoreSwitcher({ admin = false }: { admin?: boolean }) {
         <span className="block text-[14px] font-extrabold text-ink">{storeName}</span>
         <span className="micro text-faint">{storeSub}</span>
       </span>
+      {stores.length > 1 && <Icon name="chevron" size={15} className="hidden text-faint sm:block" />}
     </div>
+  );
+  if (stores.length <= 1) return face;
+  return (
+    <Dropdown
+      align="left"
+      width="w-64"
+      trigger={() => face}
+      items={stores.map((s) => ({
+        label: `${s.store_name || "Toko"}${s.id === active?.id ? " ✓" : ""}`,
+        icon: "store",
+        onClick: () => setActiveId(s.id),
+      }))}
+    />
   );
 }
 
@@ -261,7 +291,8 @@ export function AppShell({
       }));
   // Nama & toko ikut profil yang login; admin tetap pakai label mock sampai Fase 6.
   const sellerName = profile?.owner_name || "";
-  const storeSlug = profile?.store_slug || "";
+  const { active: activeStore } = useStores();
+  const storeSlug = activeStore?.store_slug || profile?.store_slug || "";
   // Admin belum ada halaman profil sendiri (Fase 6, AdminUsers) — sementara
   // pakai nama akun yang login kalau ada, jangan nama orang yang dikarang.
   const displayName = admin ? profile?.owner_name || "Admin" : sellerName;

@@ -1,6 +1,8 @@
 // POST /api/validate-promo — preview kode promo SERVER-SIDE (BUG-018).
 // Frontend tidak lagi membaca tabel discount_codes langsung (policy anon
-// dicabut). Body: { seller_id, code, subtotal, shipping_method }.
+// dicabut). Multi-toko: promo milik TOKO. Body baru: { store_id, code,
+// subtotal } — body lama { seller_id, ... } tetap diterima (dipetakan ke
+// toko pertama seller) supaya halaman lama tidak patah saat transisi.
 // Response: { ok, discount, ship_discount, message }.
 
 import { createClient } from "@supabase/supabase-js";
@@ -10,6 +12,7 @@ function json(res: any, data: unknown, status = 200) {
 }
 
 type PromoBody = {
+  store_id?: string;
   seller_id?: string;
   code?: string;
   subtotal?: number;
@@ -49,21 +52,36 @@ export default async function handler(req: any, res: any) {
   const body = parsePromoBody(req);
   if (!body) return json(res, { ok: false, message: "Data tidak valid." });
 
-  const sellerId = String(body.seller_id ?? "");
+  let storeId = String(body.store_id ?? "");
+  const legacySellerId = String(body.seller_id ?? "");
   const code = String(body.code ?? "").trim().slice(0, 40);
   const subtotal = Math.max(0, Math.round(Number(body.subtotal ?? 0)));
 
-  if (!sellerId || !code) return json(res, { ok: false, message: "Kode belum diisi." });
+  if ((!storeId && !legacySellerId) || !code) return json(res, { ok: false, message: "Kode belum diisi." });
 
   const url = process.env.SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !key) return json(res, { error: "Server belum dikonfigurasi." }, 500);
   const db = createClient(url, key, { auth: { persistSession: false } });
 
+  // Kompatibilitas transisi: halaman lama kirim seller_id (user id) —
+  // petakan ke toko pertama milik seller itu.
+  if (!storeId && legacySellerId) {
+    const { data: st } = await db
+      .from("stores")
+      .select("id")
+      .eq("owner_id", legacySellerId)
+      .order("created_at", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    storeId = (st as { id: string } | null)?.id ?? "";
+  }
+  if (!storeId) return json(res, { ok: false, message: "Kode tidak berlaku di toko ini." });
+
   const { data: codes } = await db
     .from("discount_codes")
     .select("code,type,value,min_purchase,usage_limit,used_count,valid_until")
-    .eq("seller_id", sellerId)
+    .eq("store_id", storeId)
     .eq("is_active", true);
   const match = ((codes ?? []) as {
     code: string; type: string; value: number | string; min_purchase: number | string;
