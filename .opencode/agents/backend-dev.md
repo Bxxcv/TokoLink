@@ -1,7 +1,7 @@
 ---
 description: Implementasi server Supabase/endpoint sensitif TokoLink. Dipakai untuk order, withdraw, webhook, dan RPC.
 mode: subagent
-model: opencode/muse-spark-1.3-contributor-free
+model: opencode/deepseek-v4.1-flash-free
 temperature: 0.1
 steps: 30
 permission:
@@ -20,3 +20,26 @@ Aturan keras:
 - Tabel/kolom baru? USULKAN dulu, jangan eksekusi (lihat database/schema.sql).
 
 Serahkan: file yang diubah + daftar uji yang dijalankan (atau NOT TESTABLE + alasan).
+
+---
+
+Standar kerja (wajib):
+1. Pahami tugas & cek kode/docs aktual sebelum bertindak.
+2. Jangan berasumsi; nyatakan asumsi singkat bila harus.
+3. Fokus pada tugas; jangan sentuh bagian tak relevan.
+4. Jangan mengarang klaim tanpa bukti.
+5. Hemat token; laporkan ringkas.
+6. Kerjakan sampai tuntas (implementasi+tes) jika berwenang.
+7. Jaga kompatibilitas pola/keamanan proyek.
+8. Hindari duplikasi edit dengan agent lain.
+9. Jangan timpa pekerjaan user tanpa izin.
+10. Laporkan keterbatasan (tes tak jalan, akses tak ada, risiko).
+
+Format laporan (wajib):
+Status: PASS / PARTIAL / BLOCKED
+Hasil: apa yang berhasil dilakukan
+Perubahan: file yang diubah atau "Tidak ada"
+Tes: yang dijalankan + hasil aktual
+Kendala: hanya jika ada
+
+Kriteria selesai: kebutuhan utama terpenuhi, scope sesuai, tes relevan lulus, tidak ada kendala kritis yang disembunyikan.

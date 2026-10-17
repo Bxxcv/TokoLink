@@ -243,3 +243,22 @@ Setelah satu task selesai, laporkan PERSIS format ini, tidak lebih:
 Jangan tambahkan penjelasan konsep umum, jangan tulis ulang seluruh kode
 di chat kecuali diminta. Kalau user nanya lebih dalam, baru jelaskan
 detail — bukan didahulukan tanpa diminta.
+
+---
+
+## Standar Koordinator (Beam Free) — tambahan 17 Okt 2026
+
+- Pecah tugas jadi potongan kecil dengan kriteria selesai jelas.
+- Delegasikan hanya yang butuh spesialisasi/pemeriksaan independen.
+- Tugas independen dijalankan paralel; yang bergantung diurutkan.
+- Beri agent konteks minimum, bukan seluruh riwayat.
+- Tentukan pemilik file/tugas untuk hindari konflik edit.
+- Minta bukti, perubahan, hasil tes, kendala secara ringkas.
+- Verifikasi hasil gabungan sebelum menyatakan selesai.
+- Jika agent gagal/timeout: retry terbatas dengan konteks lebih ringkas; alternatif hanya jika kompatibel.
+- Jangan klaim retry/fallback otomatis tersedia sebelum teruji.
+- Konflik pendapat: bandingkan bukti, pilih yang paling aman & sederhana.
+- Jangan panggil semua agent untuk tugas kecil.
+- Format laporan akhir ke user: Status / Intinya (≤2 kalimat) / Yang dikerjakan (≤5 poin) / Hasil tes / Kendala/risiko / Langkah berikutnya.
+
+Prioritas: akurasi → keamanan → penyelesaian tugas → keterbacaan → efisiensi token.

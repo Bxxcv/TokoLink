@@ -1,24 +1,4 @@
 {
   "$schema": "https://opencode.ai/config.json",
-  "provider": {
-    "bangunweb": {
-      "npm": "@ai-sdk/openai-compatible",
-      "name": "BangunWeb",
-      "options": {
-        "baseURL": "https://router.bangunweb.com/v1"
-      },
-      "models": {
-        "claude-opus-5.5": {
-          "name": "Claude Opus 5.5"
-        },
-        "deepseek-v4-flash": {
-          "name": "DeepSeek V4 Flash"
-        },
-        "gpt-5.6-luna": {
-          "name": "GPT 5.6 Luna"
-        }
-      }
-    }
-  },
-  "model": "bangunweb/deepseek-v4-flash"
+  "model": "opencode/beam-free"
 }
