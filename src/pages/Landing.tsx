@@ -1652,7 +1652,7 @@ function FloatingChatWidget() {
           className="flex h-12 w-12 items-center justify-center rounded-full bg-brand-500 text-navy-900 shadow-lift transition-transform hover:scale-105"
           ariaLabel="Buka chat"
         >
-          <Icon name="send" size={22} />
+          <Icon name="bot" size={22} />
         </Link>
       )}
       <button
