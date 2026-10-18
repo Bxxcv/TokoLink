@@ -6,6 +6,7 @@ import { ToastHost, ButtonLink } from "./components/ui";
 import Landing from "./pages/Landing";
 import { Login, Register, Forgot, ResetPassword } from "./pages/Auth";
 import { SystemPage } from "./pages/System";
+import Chat from "./pages/Chat";
 import { StoreHome, ProductDetail, Cart, Checkout, Qris, PaymentStatus, OrderSuccess, OrderTracking, LegalPrivacy, LegalTerms, About } from "./pages/Storefront";
 import {
   DashboardHome,
@@ -100,6 +101,7 @@ function RouteView({ path }: { path: string }) {
   if (path === "/system") return <RequireAuth><SystemPage /></RequireAuth>;
   if (path === "/legal/privacy") return <LegalPrivacy />;
   if (path === "/legal/terms") return <LegalTerms />;
+  if (path === "/chat") return <Chat />;
   if (path === "/tentang" || path === "/kontak") return <About />;
 
   /* ---- phase 2: storefront ---- */

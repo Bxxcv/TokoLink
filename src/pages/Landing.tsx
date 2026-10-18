@@ -1637,6 +1637,32 @@ export default function Landing() {
         <CtaBand />
       </Reveal>
       <Footer />
+      <FloatingChatWidget />
+    </div>
+  );
+}
+
+function FloatingChatWidget() {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="fixed bottom-5 right-5 z-50 flex flex-col items-end gap-2">
+      {open && (
+        <Link
+          to="/chat"
+          className="flex h-12 w-12 items-center justify-center rounded-full bg-brand-500 text-navy-900 shadow-lift transition-transform hover:scale-105"
+          ariaLabel="Buka chat"
+        >
+          <Icon name="send" size={22} />
+        </Link>
+      )}
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-label={open ? "Tutup menu chat" : "Buka menu chat"}
+        className="flex h-12 w-12 items-center justify-center rounded-full bg-navy-900 text-white shadow-lift transition-transform hover:scale-105"
+      >
+        <Icon name={open ? "close" : "menu"} size={22} />
+      </button>
     </div>
   );
 }
