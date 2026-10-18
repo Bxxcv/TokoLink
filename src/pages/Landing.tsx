@@ -1648,10 +1648,19 @@ function FloatingChatWidget() {
     <div className="fixed bottom-5 right-5 z-50 flex flex-col items-end gap-2">
       <div
         className={cx(
-          "transition-all duration-300 ease-out",
+          "flex flex-col items-end gap-2 transition-all duration-300 ease-out",
           open ? "translate-y-0 opacity-100 scale-100" : "pointer-events-none translate-y-2 opacity-0 scale-95",
         )}
       >
+        <a
+          href="https://wa.me/6285191245042?text=Halo%20TokoLink,%20saya%20butuh%20bantuan."
+          target="_blank"
+          rel="noreferrer"
+          aria-label="Chat WhatsApp"
+          className="flex h-12 w-12 items-center justify-center rounded-full bg-[#25D366] text-white shadow-lift transition-transform hover:scale-105"
+        >
+          <Icon name="wa" size={22} />
+        </a>
         <Link
           to="/chat"
           ariaLabel="Buka chat bot"
