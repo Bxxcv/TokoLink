@@ -490,3 +490,25 @@ Kontak support resmi: WA 085191245042, email supporttokolink@gmail.com.
       admin gelap (navy) + label "Admin Master" + chip ADMIN di header,
       beda jelas dari seller. Badge drawer jujur (Gratis/Premium/Admin),
       upsell sidebar jujur (tanpa klaim biaya 0,5%).
+
+---
+
+## Status Terkini (18 Okt 2026)
+
+**Fase 0-7:** selesai kecuali smoke test end-to-end (belum dijalankan).
+
+**Multi-toko:** Fase A + B selesai di kode & DB (migrasi multistore_a, a2_view_fix, rpc_lockdown, multistore_b, b2_keys, withdraw_note, security_hotfix_store_members). Fase C (hapus kolom seller_id lama) BELUM. Premium per AKUN, dompet GABUNG. isPremiumActive jangan diubah.
+
+**Audit 17 Okt:** 3 kritis (K1 WA RPC, K2 pemilih toko HP, K3 tutup toko) + 2 serius (S1 badge, S2 catatan withdraw) diperbaiki & ter-deploy. S3 (promo publik) ditunda. Sinkron pindah toko antar-komponen via event tl_active_store_change.
+
+**P0 launch:** halaman Tentang/Kontak, 404 UI, robots/sitemap, security hotfix IDOR, .env.example. Belum: badan hukum/NIB, cek merek DJKI, backup+uji restore, 2FA, SOP insiden, review legal.
+
+**P1:** reports table+UI admin queue, status page, export CSV di akun, CSP report-only, rate limit built-in. Belum: mekanisme lapor di StoreHome (sudah mailto), status page eksternal, uji beban, ekspor data penuh.
+
+**P2:** chatbot fondasi (tabel chat_threads/chat_messages, RLS, RPC buyer_open_chat/buyer_send_chat/buyer_bot_reply, halaman /chat, widget floating landing + ikon bot & WA, nav Chat), bot FAQ kata kunci. Belum: eskalasi notifikasi ke seller, retensi 2-4 minggu (cron), domain kustom, verifikasi penjual, studi kasus.
+
+**Kendala teknis penting:**
+- Vercel Hobby max 12 serverless functions → middleware.ts dihapus; OG dinamis hanya di /t/{slug}.
+- BUATQRIS_TEST=0 di Vercel untuk produksi (sudah di .env lokal).
+- BUATQRIS_CALLBACK_URL harus tokolink.store (sudah diperbaiki di .env lokal).
+- Token GitHub/VERCEL disimpan di .env lokal (jangan commit).

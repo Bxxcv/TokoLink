@@ -246,3 +246,16 @@ graph TD
 2. Tidak ada teks/harga/stok contoh di file tema; yang tidak ada datanya dibuang, bukan dikarang.
 3. Bilah/CTA tema selalu mengarah ke `/cart` — tidak pernah mengalihkan order ke WhatsApp.
 4. Pilihan seller tersimpan di `store_theme.theme_id` (`klasik` = bawaan); tambah tema baru = tambah file + 1 baris di peta, tanpa ubah alur beli.
+
+---
+
+## Perubahan Terkini (18 Okt 2026)
+
+- `src/lib/stores.ts`: hook konteks toko aktif + event internal `tl_active_store_change` (sinkron pindah toko antar komponen).
+- `api/store-meta.ts`: halaman preview `/t/{slug}` (OG per toko, redirect ke toko; self-contained, tanpa import relatif).
+- Tabel baru: `stores`, `store_members`, `reports`, `chat_threads`, `chat_messages`.
+- Kolom baru: `withdrawals.note`, `store_id` di 7 tabel, `stores.is_closed`.
+- RPC baru: `buyer_open_chat`, `buyer_send_chat`, `buyer_bot_reply`, `request_withdrawal` (4-arg), `admin_withdrawal_list` (dengan note), `store_contact_link` (dibatasi ke id toko).
+- Security hotfix: RLS `store_members` (cegah self-join lintas toko), `store_contact_link` (cegah panen WA via user id).
+- Middleware `middleware.ts` sempat ditambah lalu dihapus (Hobby plan max 12 serverless functions).
+- Header keamanan: CSP report-only ditambah di `vercel.json`.

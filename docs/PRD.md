@@ -175,3 +175,12 @@ di `AGENTS.md` #9).
 | Kode promo | `discount_codes` |
 | Status toko buka/tutup | dihitung dari `store_hours` + jam saat ini |
 | Pengajuan naik ke Premium | `premium_requests` |
+
+---
+
+## Tambahan (Okt 2026)
+
+- **Chat** (P2, fondasi): halaman `/chat` + widget floating di landing (ikon bot & WhatsApp). Buyer chat terikat `access_token` order; bot FAQ (kata kunci) lalu eskalasi ke penjual. Retensi pesan 2-4 minggu (belum diotomasi).
+- **Lapor toko**: tombol di footer halaman toko → email support; tabel `reports` + queue admin di `/admin/reports`.
+- **Status layanan**: halaman `/status`.
+- **Ekspor data**: unduh CSV (produk, pesanan, ledger) dari Pengaturan Akun.
