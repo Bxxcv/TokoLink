@@ -2949,6 +2949,44 @@ export function AccountSettings() {
           />
         </Field>
       </Modal>
+
+      <Card className="mt-4">
+        <CardHead title="Ekspor data" icon="download" />
+        <p className="text-[13.5px] text-muted">Unduh data toko Anda (produk, pesanan, ledger) sebagai file CSV. Untuk pembukuan pribadi.</p>
+        <div className="mt-3">
+          <Button
+            variant="secondary"
+            onClick={async () => {
+              if (!user) return;
+              try {
+                const [prod, ord, led] = await Promise.all([
+                  supabase.from("products").select("*").eq("seller_id", user.id),
+                  supabase.from("orders").select("*").eq("seller_id", user.id),
+                  supabase.from("ledger").select("*").eq("seller_id", user.id),
+                ]);
+                const dl = (name: string, rows: any[]) => {
+                  if (!rows.length) return;
+                  const headers = Object.keys(rows[0]);
+                  const csv = [headers.join(","), ...rows.map((r) => headers.map((h) => JSON.stringify(r[h] ?? "")).join(","))].join("\n");
+                  const blob = new Blob([csv], { type: "text/csv" });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement("a");
+                  a.href = url; a.download = name; a.click();
+                  URL.revokeObjectURL(url);
+                };
+                dl("produk.csv", prod.data ?? []);
+                dl("pesanan.csv", ord.data ?? []);
+                dl("ledger.csv", led.data ?? []);
+                toast("Data diunduh.");
+              } catch {
+                toast("Gagal mengunduh data.", "bad");
+              }
+            }}
+          >
+            Unduh semua data (CSV)
+          </Button>
+        </div>
+      </Card>
     </AppShell>
   );
 }

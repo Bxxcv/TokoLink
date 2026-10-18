@@ -7,7 +7,7 @@ import Landing from "./pages/Landing";
 import { Login, Register, Forgot, ResetPassword } from "./pages/Auth";
 import { SystemPage } from "./pages/System";
 import Chat from "./pages/Chat";
-import { StoreHome, ProductDetail, Cart, Checkout, Qris, PaymentStatus, OrderSuccess, OrderTracking, LegalPrivacy, LegalTerms, About } from "./pages/Storefront";
+import { StoreHome, ProductDetail, Cart, Checkout, Qris, PaymentStatus, OrderSuccess, OrderTracking, LegalPrivacy, LegalTerms, About, StatusPage } from "./pages/Storefront";
 import {
   DashboardHome,
   Analytics,
@@ -41,6 +41,7 @@ import {
   AdminSystem,
   AdminAudit,
   AdminBroadcast,
+  AdminReports,
 } from "./pages/Admin";
 
 function NotFound({ path }: { path: string }) {
@@ -101,6 +102,7 @@ function RouteView({ path }: { path: string }) {
   if (path === "/system") return <RequireAuth><SystemPage /></RequireAuth>;
   if (path === "/legal/privacy") return <LegalPrivacy />;
   if (path === "/legal/terms") return <LegalTerms />;
+  if (path === "/status") return <StatusPage />;
   if (path === "/chat") return <Chat />;
   if (path === "/tentang" || path === "/kontak") return <About />;
 
@@ -213,6 +215,8 @@ function RouteView({ path }: { path: string }) {
         return <AdminAudit />;
       case "broadcast":
         return <AdminBroadcast />;
+      case "reports":
+        return <AdminReports />;
       default:
         return <NotFound path={path} />;
     }

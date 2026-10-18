@@ -40,11 +40,13 @@ export default function Chat() {
     if (!buyerStore || !buyerToken || !buyerText.trim()) { setBuyerErr("Isi toko, token pesanan, dan pesan."); return; }
     setBuyerLoading(true);
     try {
-      const { data, error } = await supabase.rpc("buyer_open_chat", { p_store_id: buyerStore, p_order_token: buyerToken, p_body: buyerText.trim() });
+      const q = buyerText.trim();
+      const { data, error } = await supabase.rpc("buyer_open_chat", { p_store_id: buyerStore, p_order_token: buyerToken, p_body: q });
       if (error) { setBuyerErr(error.message.includes("ORDER_TIDAK_DITEMUKAN") ? "Pesanan/token tidak cocok." : "Gagal membuka chat."); return; }
       setBuyerThread(String(data));
       setBuyerText("");
       await loadBuyerThread(String(data));
+      await supabase.rpc("buyer_bot_reply", { p_thread_id: String(data), p_order_token: buyerToken, p_question: q });
     } finally { setBuyerLoading(false); }
   };
 
@@ -52,9 +54,12 @@ export default function Chat() {
     if (!buyerThread || !buyerText.trim()) return;
     setBuyerLoading(true);
     try {
-      const { error } = await supabase.rpc("buyer_send_chat", { p_thread_id: buyerThread, p_order_token: buyerToken, p_body: buyerText.trim() });
+      const q = buyerText.trim();
+      const { error } = await supabase.rpc("buyer_send_chat", { p_thread_id: buyerThread, p_order_token: buyerToken, p_body: q });
       if (error) { setBuyerErr("Gagal kirim pesan."); return; }
       setBuyerText("");
+      await loadBuyerThread(buyerThread);
+      await supabase.rpc("buyer_bot_reply", { p_thread_id: buyerThread, p_order_token: buyerToken, p_question: q });
       await loadBuyerThread(buyerThread);
     } finally { setBuyerLoading(false); }
   };

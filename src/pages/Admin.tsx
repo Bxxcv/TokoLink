@@ -2121,3 +2121,56 @@ export function AdminBroadcast() {
     </AppShell>
   );
 }
+
+export function AdminReports() {
+  const { toast } = useApp();
+  type R = { id: string; target_type: string; target_id: string; reason: string; status: string; created_at: string };
+  const [list, setList] = useState<R[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [tab, setTab] = useState("menunggu");
+  const load = async () => {
+    setLoading(true);
+    const { data } = await supabase.from("reports").select("id,target_type,target_id,reason,status,created_at").order("created_at", { ascending: false }).limit(200);
+    setList((data ?? []) as R[]);
+    setLoading(false);
+  };
+  useEffect(() => { load(); }, []);
+  const setStatus = async (id: string, status: string) => {
+    const { error } = await supabase.from("reports").update({ status, reviewed_at: new Date().toISOString() }).eq("id", id);
+    if (error) { toast("Gagal mengubah status.", "bad"); return; }
+    toast("Status diperbarui.");
+    load();
+  };
+  const filtered = tab === "semua" ? list : list.filter((r) => r.status === tab);
+  return (
+    <AppShell group="admin">
+      <PageHeader title="Laporan" desc="Laporan toko/pengguna dari pengunjung." />
+      <Tabs items={[{ id: "menunggu", label: "Menunggu" }, { id: "ditinjau", label: "Ditinjau" }, { id: "ditolak", label: "Ditolak" }, { id: "ditindak", label: "Ditindak" }, { id: "semua", label: "Semua" }]} active={tab} onChange={setTab} />
+      {loading ? <Skeleton className="mt-4 h-40" /> : filtered.length === 0 ? <EmptyState title="Tidak ada laporan" /> : (
+        <TableWrap className="mt-4">
+          <table className="w-full text-[13px]">
+            <thead><tr><Th>Tipe</Th><Th>Target</Th><Th>Alasan</Th><Th>Status</Th><Th>Tanggal</Th><Th></Th></tr></thead>
+            <tbody>
+              {filtered.map((r) => (
+                <tr key={r.id} className="border-t border-line">
+                  <Td>{r.target_type}</Td>
+                  <Td className="font-mono text-[11px]">{r.target_id.slice(0, 12)}…</Td>
+                  <Td className="max-w-[260px] truncate">{r.reason}</Td>
+                  <Td><Badge>{r.status}</Badge></Td>
+                  <Td>{new Date(r.created_at).toLocaleDateString("id-ID")}</Td>
+                  <Td>
+                    <div className="flex gap-1">
+                      <Button size="sm" variant="secondary" onClick={() => setStatus(r.id, "ditinjau")}>Tinjau</Button>
+                      <Button size="sm" variant="secondary" onClick={() => setStatus(r.id, "ditolak")}>Tolak</Button>
+                      <Button size="sm" onClick={() => setStatus(r.id, "ditindak")}>Tindak</Button>
+                    </div>
+                  </Td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </TableWrap>
+      )}
+    </AppShell>
+  );
+}

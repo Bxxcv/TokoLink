@@ -3468,3 +3468,48 @@ export function About() {
     </div>
   );
 }
+
+export function StatusPage() {
+  return (
+    <div className="min-h-screen bg-canvas">
+      <header className="sticky top-0 z-40 border-b border-line bg-white/95 backdrop-blur-sm">
+        <PageShell>
+          <div className="flex h-[68px] items-center justify-between">
+            <Link to="/" aria-label="TokoLink beranda"><Logo size={28} tone="light" wordClass="text-navy-800" /></Link>
+            <ButtonLink to="/" size="sm" variant="secondary">Beranda</ButtonLink>
+          </div>
+        </PageShell>
+      </header>
+      <PageShell className="py-12">
+        <div className="mx-auto max-w-[680px]">
+          <div className="micro flex items-center gap-2.5 text-brand-600"><span className="text-ink">01</span><span className="h-px w-6 bg-brand-300" /><span>Status</span></div>
+          <h1 className="mt-4 text-[30px] font-extrabold text-ink sm:text-[38px]">Status layanan TokoLink</h1>
+          <p className="mt-3 text-[14px] text-faint">Terakhir diperbarui: {new Date().toLocaleDateString("id-ID")}</p>
+          <div className="mt-8 space-y-3">
+            {[
+              { name: "Situs & halaman toko", status: "Berjalan", tone: "green" },
+              { name: "Checkout & QRIS", status: "Berjalan", tone: "green" },
+              { name: "Webhook pembayaran", status: "Berjalan", tone: "green" },
+              { name: "Dasbor penjual", status: "Berjalan", tone: "green" },
+              { name: "Admin Master", status: "Berjalan", tone: "green" },
+            ].map((s) => (
+              <div key={s.name} className="flex items-center justify-between rounded-lg border border-line bg-white px-4 py-3">
+                <span className="text-[14px] font-semibold text-ink">{s.name}</span>
+                <Badge tone={s.tone as any}>{s.status}</Badge>
+              </div>
+            ))}
+          </div>
+          <p className="mt-6 text-[14px] text-muted">
+            Gangguan? Hubungi{" "}
+            <a href="https://wa.me/6285191245042?text=Halo%20TokoLink,%20ada%20gangguan." className="font-bold text-brand-700 underline underline-offset-4">WhatsApp</a>{" "}
+            atau{" "}
+            <a href="mailto:supporttokolink@gmail.com" className="font-bold text-brand-700 underline underline-offset-4">email</a>.
+          </p>
+          <div className="mt-6">
+            <Link to="/" className="inline-flex items-center gap-1.5 text-[14px] font-semibold text-muted transition-colors hover:text-ink"><Icon name="left" size={16} /> Kembali ke beranda</Link>
+          </div>
+        </div>
+      </PageShell>
+    </div>
+  );
+}
