@@ -46,11 +46,12 @@ export default async function handler(req: any, res: any) {
 
   const url = process.env.SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SUPABASE_ANON_KEY;
-  let store: {
+  type StoreRow = {
     store_name: string | null; store_slug: string | null; city: string | null;
     category: string | null; bio: string | null; avatar_url: string | null;
     cover_url: string | null; is_closed: boolean | null;
-  } | null = null;
+  };
+  let store: StoreRow | null = null;
   if (url && key) {
     const db = createClient(url, key, { auth: { persistSession: false } });
     const { data } = await db
@@ -58,7 +59,7 @@ export default async function handler(req: any, res: any) {
       .select("store_name,store_slug,city,category,bio,avatar_url,cover_url,is_closed")
       .eq("store_slug", slug)
       .maybeSingle();
-    store = (data as typeof store) ?? null;
+    store = (data as StoreRow | null) ?? null;
   }
 
   // Toko tidak ada → jangan bikin halaman hantu; balik ke beranda.
@@ -68,14 +69,15 @@ export default async function handler(req: any, res: any) {
     return;
   }
 
-  const name = (store!.store_name ?? "").trim() || "Toko di TokoLink";
+  const s = store as StoreRow;
+  const name = (s.store_name ?? "").trim() || "Toko di TokoLink";
   const dest = `${BASE}/s/${slug}`;
-  const img = safeUrl(store!.cover_url) ?? safeUrl(store!.avatar_url) ?? FALLBACK_OG;
-  const bits = [store!.category, store!.city].map((x) => (x ?? "").trim()).filter(Boolean);
-  const desc = (store!.bio ?? "").trim()
+  const img = safeUrl(s.cover_url) ?? safeUrl(s.avatar_url) ?? FALLBACK_OG;
+  const bits = [s.category, s.city].map((x) => (x ?? "").trim()).filter(Boolean);
+  const desc = (s.bio ?? "").trim()
     || `Lihat katalog, harga, dan checkout QRIS di ${name}${bits.length ? ` — ${bits.join(" · ")}` : ""}.`;
   const descTrim = desc.slice(0, 180);
-  const title = `${name}${store!.is_closed ? " (sedang tutup)" : ""} — TokoLink`;
+  const title = `${name}${s.is_closed ? " (sedang tutup)" : ""} — TokoLink`;
 
   const html = `<!doctype html>
 <html lang="id">
