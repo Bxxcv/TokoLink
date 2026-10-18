@@ -68,14 +68,14 @@ export default async function handler(req: any, res: any) {
     return;
   }
 
-  const name = (store.store_name ?? "").trim() || "Toko di TokoLink";
+  const name = (store!.store_name ?? "").trim() || "Toko di TokoLink";
   const dest = `${BASE}/s/${slug}`;
-  const img = safeUrl(store.cover_url) ?? safeUrl(store.avatar_url) ?? FALLBACK_OG;
-  const bits = [store.category, store.city].map((x) => (x ?? "").trim()).filter(Boolean);
-  const desc = (store.bio ?? "").trim()
+  const img = safeUrl(store!.cover_url) ?? safeUrl(store!.avatar_url) ?? FALLBACK_OG;
+  const bits = [store!.category, store!.city].map((x) => (x ?? "").trim()).filter(Boolean);
+  const desc = (store!.bio ?? "").trim()
     || `Lihat katalog, harga, dan checkout QRIS di ${name}${bits.length ? ` — ${bits.join(" · ")}` : ""}.`;
   const descTrim = desc.slice(0, 180);
-  const title = `${name}${store.is_closed ? " (sedang tutup)" : ""} — TokoLink`;
+  const title = `${name}${store!.is_closed ? " (sedang tutup)" : ""} — TokoLink`;
 
   const html = `<!doctype html>
 <html lang="id">
