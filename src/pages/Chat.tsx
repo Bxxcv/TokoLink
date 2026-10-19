@@ -1,15 +1,16 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "../lib/auth";
 import { supabase } from "../lib/supabase";
-import { useRoute, Link } from "../lib/router";
+import { useRoute, Link, navigate } from "../lib/router";
 import { PageShell, Button, Input, Textarea, Card, ButtonLink, Field, cx } from "../components/ui";
 import { Logo } from "../components/Logo";
 
 type Msg = { id: string; sender_type: string; body: string; created_at: string };
 
 export default function Chat() {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const route = useRoute();
+  useEffect(() => { if (!authLoading && !user && (route.includes("store=") || route.includes("token="))) { navigate("/login"); } }, [authLoading, user, route]);
   const params = new URLSearchParams(route.split("?")[1] ?? "");
   const storeParam = params.get("store");
   const tokenParam = params.get("token");
@@ -120,7 +121,16 @@ export default function Chat() {
           <h1 className="text-[26px] font-extrabold text-ink sm:text-[32px]">Chat</h1>
           <p className="mt-2 text-[14px] text-muted">Tanya jawab penjual & pembeli. Bot FAQ akan menyusul; saat ini chat langsung.</p>
 
-          {!user && (
+          {!user && !authLoading && (
+            <Card className="mt-6 p-5">
+              <h2 className="text-[16px] font-extrabold text-ink">Masuk dulu untuk chat</h2>
+              <p className="mt-1 text-[13px] text-muted">Chat hanya untuk pembeli yang sudah masuk (login).</p>
+              <div className="mt-4">
+                <ButtonLink to="/login" size="sm">Masuk</ButtonLink>
+              </div>
+            </Card>
+          )}
+          {user && (
             <Card className="mt-6 p-5">
               <h2 className="text-[16px] font-extrabold text-ink">Buka chat sebagai pembeli</h2>
               <p className="mt-1 text-[13px] text-muted">Butuh ID toko dan token pesanan dari tautan cek status.</p>
