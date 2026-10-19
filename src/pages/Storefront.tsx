@@ -2273,14 +2273,14 @@ export function Checkout() {
           buyer_city: form.city,
           buyer_address: fullAddr,
           buyer_note: form.note.trim() || undefined,
-          channel: "QRIS",
+          channel: form.pay === "Transfer manual" ? "Transfer manual" : "QRIS",
           cart: items.map((i) => ({ product_id: i.p.id, qty: i.qty })),
           promo_code: promo,
           idempotency_key: idemKey,
         }),
       });
       const out = (await res.json()) as {
-        order_id?: string; access_token?: string;
+        order_id?: string; access_token?: string; channel?: string;
         qr?: { qr_url: string; qris_image: string; total_amount: number; expired_at: string | null; payment_url: string | null; is_test: boolean } | null;
         qr_pending?: boolean; error?: string;
       };
@@ -2296,7 +2296,11 @@ export function Checkout() {
         }
       }
       clear();
-      navigate(`/checkout/qris?id=${out.order_id}&token=${out.access_token}`);
+      if (out.channel === "Transfer manual") {
+        navigate(`/checkout/status?id=${out.order_id}&token=${out.access_token}`);
+      } else {
+        navigate(`/checkout/qris?id=${out.order_id}&token=${out.access_token}`);
+      }
     } catch {
       toast("Tidak bisa menghubungi server.", "bad");
     } finally {
@@ -2423,6 +2427,7 @@ export function Checkout() {
               <div className="grid gap-2.5 sm:grid-cols-2">
                 {[
                   ["QRIS", "qr", "Semua e-wallet & m-banking", "Biaya 0,7%"],
+                  ["Transfer manual", "receipt", "Upload bukti pembayaran, admin review", "Tanpa biaya"],
                 ].map(([name, icon, note, fee]) => (
                   <label
                     key={name}
@@ -2733,6 +2738,7 @@ export function Qris({ orderId, token }: { orderId: string; token: string }) {
 
 /* ----------------------------- payment status ----------------------------- */
 export function PaymentStatus({ orderId, token }: { orderId: string; token: string }) {
+  const { toast } = useApp();
   const { order, loading, notFound, waitingLong } = useOrderStatus(orderId, token);
   const store = orderStore(order);
   const status = order?.status ?? "menunggu";
@@ -2783,6 +2789,25 @@ export function PaymentStatus({ orderId, token }: { orderId: string; token: stri
       </div>
     );
   }
+
+  const isManual = (order?.channel ?? "") === "Transfer manual";
+  const [proofFile, setProofFile] = useState<File | null>(null);
+  const [proofUploading, setProofUploading] = useState(false);
+  const [proofDone, setProofDone] = useState(false);
+  const uploadProof = async () => {
+    if (!proofFile || !order) return;
+    setProofUploading(true);
+    try {
+      const path = `${order.id}/bukti.jpg`;
+      const { error: upErr } = await supabase.storage.from("payment-proofs").upload(path, proofFile, { upsert: true });
+      if (upErr) { toast("Gagal upload bukti.", "bad"); return; }
+      const { data: urlData } = supabase.storage.from("payment-proofs").getPublicUrl(path);
+      // bucket private → gunakan path, bukan public url; simpan path
+      await supabase.from("payments").update({ proof_url: path }).eq("order_id", order.id);
+      setProofDone(true);
+      toast("Bukti terkirim. Menunggu review admin.");
+    } finally { setProofUploading(false); }
+  };
 
   return (
     <div className="min-h-screen bg-canvas">
@@ -2845,6 +2870,21 @@ export function PaymentStatus({ orderId, token }: { orderId: string; token: stri
               </div>
             </div>
           </div>
+          )}
+
+          {!failed && isManual && !paid && (
+            <div className="mt-4 rounded-xl border border-line bg-white p-5">
+              <div className="micro mb-2 text-brand-600">Upload bukti transfer</div>
+              <p className="text-[13px] text-muted">Transfer sesuai nominal, lalu upload foto bukti. Admin akan review.</p>
+              {proofDone ? (
+                <p className="mt-3 text-[13px] font-semibold text-ok">Bukti terkirim. Menunggu review admin.</p>
+              ) : (
+                <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
+                  <input type="file" accept="image/*" onChange={(e) => setProofFile(e.target.files?.[0] ?? null)} className="text-[13px]" />
+                  <Button onClick={uploadProof} loading={proofUploading} disabled={!proofFile}>Kirim bukti</Button>
+                </div>
+              )}
+            </div>
           )}
 
           {!failed && (

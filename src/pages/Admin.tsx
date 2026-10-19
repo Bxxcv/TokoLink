@@ -1322,7 +1322,8 @@ export function AdminPayments() {
   type PayRow = {
     id: string; order_id: string; channel: string; amount: number | string;
     fee: number | string; external_ref: string | null; status: string; created_at: string;
-    seller_id: string; profiles: { store_name: string | null } | { store_name: string | null }[] | null;
+    seller_id: string; proof_url: string | null;
+    profiles: { store_name: string | null } | { store_name: string | null }[] | null;
   };
   const [rows, setRows] = useState<PayRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1333,7 +1334,7 @@ export function AdminPayments() {
       setLoading(true);
       const { data } = await supabase
         .from("payments")
-        .select("id,order_id,channel,amount,fee,external_ref,status,created_at,seller_id,profiles(store_name)")
+        .select("id,order_id,channel,amount,fee,external_ref,status,created_at,seller_id,proof_url,profiles(store_name)")
         .order("created_at", { ascending: false })
         .limit(200);
       setRows((data ?? []) as PayRow[]);
@@ -1470,6 +1471,39 @@ export function AdminPayments() {
             ))}
           </dl>
         )}
+        {inspect && inspect.channel === "Transfer manual" && inspect.status === "menunggu" && (
+            <div className="mt-4 space-y-3">
+              {inspect.proof_url && (
+                <Button size="sm" variant="secondary" onClick={async () => {
+                  const { data } = await supabase.storage.from("payment-proofs").createSignedUrl(inspect.proof_url!, 3600);
+                  if (data?.signedUrl) window.open(data.signedUrl, "_blank");
+                  else toast("Gagal membuka bukti.", "bad");
+                }}>
+                  Lihat bukti pembayaran
+                </Button>
+              )}
+              <div className="flex gap-2">
+                <Button size="sm" onClick={async () => {
+                  // approve: payment berhasil, order dikemas, ledger masuk
+                  const { error: pe } = await supabase.from("payments").update({ status: "berhasil" }).eq("id", inspect.id);
+                  if (pe) { toast("Gagal.", "bad"); return; }
+                  await supabase.from("orders").update({ status: "dikemas" }).eq("id", inspect.order_id);
+                  // ledger insert best-effort via RPC not available; skip (admin catat manual)
+                  toast("Transfer disetujui.");
+                  setInspect(null);
+                  // reload
+                  window.location.reload();
+                }}>Setujui</Button>
+                <Button size="sm" variant="secondary" onClick={async () => {
+                  await supabase.from("payments").update({ status: "gagal" }).eq("id", inspect.id);
+                  await supabase.from("orders").update({ status: "batal" }).eq("id", inspect.order_id);
+                  toast("Transfer ditolak.");
+                  setInspect(null);
+                  window.location.reload();
+                }}>Tolak</Button>
+              </div>
+            </div>
+          )}
       </Modal>
     </AppShell>
   );

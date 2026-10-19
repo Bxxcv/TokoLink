@@ -240,6 +240,7 @@ export default async function handler(req: any, res: any) {
     }
   }
 
+  const channel = body.channel === "Transfer manual" ? "Transfer manual" : "QRIS";
   const total = subtotal - discount;
   // Tolak SEBELUM insert (jangan bikin order sampah).
   if (!Number.isFinite(total) || total < 1000) {
@@ -264,7 +265,7 @@ export default async function handler(req: any, res: any) {
         buyer_note: note,
         total,
         status: "menunggu",
-        channel: "QRIS",
+        channel,
         promo_id: promoId,
         shipping_method: null,
         shipping_cost: 0,
@@ -301,12 +302,17 @@ export default async function handler(req: any, res: any) {
   );
   const { data: payment } = await db
     .from("payments")
-    .insert({ order_id: oid, seller_id: sellerId, store_id: storeId, channel: "QRIS", amount: total, fee: 0, status: "menunggu" })
+    .insert({ order_id: oid, seller_id: sellerId, store_id: storeId, channel, amount: total, fee: 0, status: "menunggu" })
     .select("id")
     .single();
 
-  // 6) BuatQris generate QRIS.
   const base = { order_id: oid, access_token: otoken };
+
+  if (channel === "Transfer manual") {
+    return json(res, { ...base, qr: null, qr_pending: false, channel });
+  }
+
+  // 6) BuatQris generate QRIS (hanya QRIS).
   const accountId = process.env.BUATQRIS_ACCOUNT_ID;
   const secretToken = process.env.BUATQRIS_SECRET_TOKEN;
   const testMode = process.env.BUATQRIS_TEST ?? "1";
@@ -359,6 +365,7 @@ export default async function handler(req: any, res: any) {
       }
       return json(res, {
         ...base,
+        channel,
         qr_pending: false,
         qr: {
           qr_url: d.qr_url,
