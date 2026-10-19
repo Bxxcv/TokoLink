@@ -514,3 +514,5 @@ Kontak support resmi: WA 085191245042, email supporttokolink@gmail.com.
 - Token GitHub/VERCEL disimpan di .env lokal (jangan commit).
 
 **Buyer wajib login (18 Okt 2026):** migrasi `buyer_id` + RLS buyer; create-order wajib auth + simpan buyer_id; Checkout guard login; halaman `/orders` buyer. Transfer manual: migrasi `payments.proof_url` + bucket `payment-proofs`; create-order channel transfer; upload bukti di PaymentStatus; admin review approve/reject.
+
+**Lockout login (18 Okt 2026):** klien 5x gagal → blokir 15 menit (localStorage per email), pelengkap rate limit server Supabase Auth. Testimoni: section di landing dengan empty state (tanpa data palsu), menunggu cerita nyata dari user.
