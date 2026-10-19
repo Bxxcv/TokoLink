@@ -8,6 +8,7 @@ export type StoreRef = {
   avatar_url: string | null;
   cover_url: string | null;
   is_closed: boolean | null;
+  force_open?: boolean | null;
 };
 
 const ACTIVE_KEY = "tl_active_store";
@@ -38,7 +39,7 @@ export function useStores() {
     }
     const { data } = await supabase
       .from("store_members")
-      .select("store_id, stores(id,store_name,store_slug,avatar_url,cover_url,is_closed)")
+      .select("store_id, stores(id,store_name,store_slug,avatar_url,cover_url,is_closed,force_open)")
       .eq("user_id", uid)
       .order("store_id");
     const list = (((data ?? []) as {

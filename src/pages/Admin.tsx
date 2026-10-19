@@ -1484,19 +1484,15 @@ export function AdminPayments() {
               )}
               <div className="flex gap-2">
                 <Button size="sm" onClick={async () => {
-                  // approve: payment berhasil, order dikemas, ledger masuk
-                  const { error: pe } = await supabase.from("payments").update({ status: "berhasil" }).eq("id", inspect.id);
-                  if (pe) { toast("Gagal.", "bad"); return; }
-                  await supabase.from("orders").update({ status: "dikemas" }).eq("id", inspect.order_id);
-                  // ledger insert best-effort via RPC not available; skip (admin catat manual)
-                  toast("Transfer disetujui.");
+                  const { data, error } = await supabase.rpc("admin_approve_transfer", { p_payment_id: inspect.id });
+                  if (error) { toast(error.message || "Gagal.", "bad"); return; }
+                  toast(`Transfer disetujui. Saldo seller +${(data as any)?.credit ?? ""}`);
                   setInspect(null);
-                  // reload
                   window.location.reload();
                 }}>Setujui</Button>
                 <Button size="sm" variant="secondary" onClick={async () => {
-                  await supabase.from("payments").update({ status: "gagal" }).eq("id", inspect.id);
-                  await supabase.from("orders").update({ status: "batal" }).eq("id", inspect.order_id);
+                  const { error } = await supabase.rpc("admin_reject_transfer", { p_payment_id: inspect.id });
+                  if (error) { toast(error.message || "Gagal.", "bad"); return; }
                   toast("Transfer ditolak.");
                   setInspect(null);
                   window.location.reload();
