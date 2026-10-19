@@ -4,7 +4,7 @@ import { useRoute, Link, isReservedSlug } from "./lib/router";
 import { ToastHost, ButtonLink } from "./components/ui";
 
 import Landing from "./pages/Landing";
-import { Login, Register, Forgot, ResetPassword } from "./pages/Auth";
+import { Login, Register, Forgot, ResetPassword, BuyerLogin, BuyerRegister } from "./pages/Auth";
 import { SystemPage } from "./pages/System";
 import Chat from "./pages/Chat";
 import { StoreHome, ProductDetail, Cart, Checkout, Qris, PaymentStatus, OrderSuccess, OrderTracking, LegalPrivacy, LegalTerms, About, StatusPage, BuyerOrders } from "./pages/Storefront";
@@ -96,6 +96,8 @@ function RouteView({ path }: { path: string }) {
   /* ---- phase 1: public & auth ---- */
   if (path === "/") return <Landing />;
   if (path === "/login") return <Login />;
+  if (path === "/masuk") return <BuyerLogin />;
+  if (path === "/daftar") return <BuyerRegister />;
   if (path === "/register") return <Register />;
   if (path === "/forgot") return <Forgot />;
   if (path === "/reset") return <ResetPassword />;

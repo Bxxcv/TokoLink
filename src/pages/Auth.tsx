@@ -129,7 +129,7 @@ export function EyeButton({ open, onToggle }: { open: boolean; onToggle: () => v
 }
 
 /* ---------------------------------- login --------------------------------- */
-export function Login() {
+export function Login({ buyer = false }: { buyer?: boolean } = {}) {
   const [email, setEmail] = useState("");
   const [pass, setPass] = useState("");
   const [show, setShow] = useState(false);
@@ -192,7 +192,7 @@ export function Login() {
       if (!remember) purgePersistedSessions();
       const { data } = await supabase.auth.getUser();
       const profile = data.user ? await ensureProfile(data.user.id) : null;
-      navigate(profile?.role === "admin" ? "/admin" : "/app");
+      if (buyer) navigate("/orders"); else navigate(profile?.role === "admin" ? "/admin" : "/app");
     } finally {
       setLoading(false);
     }
@@ -202,8 +202,8 @@ export function Login() {
     <AuthLayout
       index="01"
       kicker="Masuk"
-      title="Selamat datang kembali."
-      lead="Masuk untuk mengurus pesanan, stok, dan saldo toko Anda."
+      title={buyer ? "Masuk sebagai pembeli." : "Selamat datang kembali."}
+      lead={buyer ? "Masuk untuk melihat pesanan dan status belanja Anda." : "Masuk untuk mengurus pesanan, stok, dan saldo toko Anda."}
       footer={
         <>
           Belum punya toko?{" "}
@@ -849,6 +849,100 @@ export function ResetPassword() {
           </Button>
         </form>
       )}
+    </AuthLayout>
+  );
+}
+
+export function BuyerLogin() {
+  return <Login buyer />;
+}
+
+export function BuyerRegister() {
+  const [name, setName] = useState("");
+  const [contact, setContact] = useState("");
+  const [pass, setPass] = useState("");
+  const [show, setShow] = useState(false);
+  const [err, setErr] = useState<Record<string, string>>({});
+  const [formErr, setFormErr] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [sent, setSent] = useState("");
+
+  const { session, loading: authLoading } = useAuth();
+  useEffect(() => {
+    if (!authLoading && session) navigate("/orders");
+  }, [authLoading, session]);
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const next: Record<string, string> = {};
+    if (name.trim().length < 3) next.name = "Tulis nama lengkap Anda.";
+    if (!contact.includes("@")) next.contact = "Pendaftaran memakai email aktif.";
+    if (pass.length < 8) next.pass = "Kata sandi minimal 8 karakter.";
+    setErr(next);
+    setFormErr("");
+    if (Object.keys(next).length) return;
+    setLoading(true);
+    try {
+      prepareSessionPersistence(true);
+      const { data, error } = await supabase.auth.signUp({
+        email: contact.trim(),
+        password: pass,
+        options: { data: { owner_name: name.trim() } },
+      });
+      if (error) {
+        const msg = friendlyAuthError(error.message);
+        if (error.message.toLowerCase().includes("already registered"))
+          setErr((x) => ({ ...x, contact: msg }));
+        else setFormErr(msg);
+        return;
+      }
+      if (!data.session) {
+        setSent(contact.trim());
+        return;
+      }
+      if (data.user) {
+        await ensureProfile(data.user.id, { owner_name: name.trim() });
+        navigate("/orders");
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (sent) {
+    return (
+      <AuthLayout index="01" kicker="Daftar" title="Cek email Anda." lead={`Link verifikasi dikirim ke ${sent}.`} footer={null}>
+        <p className="text-[14px] text-muted">Setelah verifikasi, masuk lewat /masuk.</p>
+      </AuthLayout>
+    );
+  }
+
+  return (
+    <AuthLayout
+      index="01"
+      kicker="Daftar pembeli"
+      title="Buat akun pembeli."
+      lead="Daftar untuk melihat pesanan dan status belanja Anda."
+      footer={
+        <>
+          Sudah punya akun?{" "}
+          <Link to="/masuk" className="font-bold text-brand-700 underline underline-offset-4">Masuk</Link>
+        </>
+      }
+    >
+      <form onSubmit={submit} className="space-y-4" noValidate>
+        {formErr && <div className="text-[13px] text-bad">{formErr}</div>}
+        <Field label="Nama lengkap" required error={err.name}>
+          <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nama Anda" />
+        </Field>
+        <Field label="Email" required error={err.contact}>
+          <Input type="email" value={contact} onChange={(e) => setContact(e.target.value)} placeholder="nama@contoh.com" />
+        </Field>
+        <Field label="Kata sandi" required error={err.pass}>
+          <Input type={show ? "text" : "password"} value={pass} onChange={(e) => setPass(e.target.value)} placeholder="Minimal 8 karakter" />
+        </Field>
+        <Button type="submit" loading={loading} className="w-full">Daftar</Button>
+      </form>
     </AuthLayout>
   );
 }

@@ -2212,7 +2212,7 @@ export function Checkout() {
   const { user, loading: authLoading } = useAuth();
   useEffect(() => {
     if (authLoading) return;
-    if (!user) navigate("/login");
+    if (!user) navigate("/masuk");
   }, [authLoading, user]);
   const [form, setForm] = useState({
     name: "",
@@ -2241,7 +2241,7 @@ export function Checkout() {
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user) { toast("Masuk dulu untuk checkout.", "bad"); navigate("/login"); return; }
+    if (!user) { toast("Masuk dulu untuk checkout.", "bad"); navigate("/masuk"); return; }
     const n: Record<string, string> = {};
     if (form.name.trim().length < 3) n.name = "Tulis nama penerima.";
     if (form.phone.replace(/\D/g, "").length < 9) n.phone = "Nomor WhatsApp belum benar.";
@@ -2262,7 +2262,7 @@ export function Checkout() {
       const fullAddr = (form.postal.trim() ? `${form.addr.trim()} (${form.postal.trim()})` : form.addr.trim()).slice(0, 500);
       const { data: sess } = await supabase.auth.getSession();
       const token = sess.session?.access_token;
-      if (!token) { toast("Masuk dulu untuk checkout.", "bad"); navigate("/login"); return; }
+      if (!token) { toast("Masuk dulu untuk checkout.", "bad"); navigate("/masuk"); return; }
       const res = await fetch("/api/create-order", {
         method: "POST",
         headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
@@ -3570,7 +3570,7 @@ export function BuyerOrders() {
   const [loading, setLoading] = useState(true);
   useEffect(() => {
     if (authLoading) return;
-    if (!user) { navigate("/login"); return; }
+    if (!user) { navigate("/masuk"); return; }
     (async () => {
       setLoading(true);
       const { data } = await supabase

@@ -39,7 +39,7 @@ export function useRoute(): string {
 
 /** Kata yang TIDAK boleh jadi slug toko (dipakai rute aplikasi). */
 export const RESERVED_SLUGS = [
-  "s", "login", "register", "forgot", "cart", "checkout", "order", "tentang", "kontak", "harga", "chat", "status", "orders",
+  "s", "login", "register", "forgot", "cart", "checkout", "order", "tentang", "kontak", "harga", "chat", "status", "orders", "masuk", "daftar",
   "app", "admin", "legal", "system", "api",
 ];
 
