@@ -259,3 +259,5 @@ graph TD
 - Security hotfix: RLS `store_members` (cegah self-join lintas toko), `store_contact_link` (cegah panen WA via user id).
 - Middleware `middleware.ts` sempat ditambah lalu dihapus (Hobby plan max 12 serverless functions).
 - Header keamanan: CSP report-only ditambah di `vercel.json`.
+
+**Buyer wajib login:** `orders.buyer_id` (FK auth.users), RLS buyer baca order sendiri, `access_token` tetap untuk link lama. Transfer manual: `payments.proof_url`, bucket `payment-proofs` (private), admin approve/reject + ledger.

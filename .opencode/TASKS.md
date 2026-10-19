@@ -512,3 +512,5 @@ Kontak support resmi: WA 085191245042, email supporttokolink@gmail.com.
 - BUATQRIS_TEST=0 di Vercel untuk produksi (sudah di .env lokal).
 - BUATQRIS_CALLBACK_URL harus tokolink.store (sudah diperbaiki di .env lokal).
 - Token GitHub/VERCEL disimpan di .env lokal (jangan commit).
+
+**Buyer wajib login (18 Okt 2026):** migrasi `buyer_id` + RLS buyer; create-order wajib auth + simpan buyer_id; Checkout guard login; halaman `/orders` buyer. Transfer manual: migrasi `payments.proof_url` + bucket `payment-proofs`; create-order channel transfer; upload bukti di PaymentStatus; admin review approve/reject.
