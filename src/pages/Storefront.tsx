@@ -3567,7 +3567,7 @@ export function StatusPage() {
 
 export function BuyerOrders() {
   const { user, loading: authLoading } = useAuth();
-  const [rows, setRows] = useState<{ id: string; total: number | string; status: string; created_at: string; store_id: string | null }[]>([]);
+  const [rows, setRows] = useState<{ id: string; total: number | string; status: string; created_at: string; store_id: string | null; access_token: string | null }[]>([]);
   const [loading, setLoading] = useState(true);
   useEffect(() => {
     if (authLoading) return;
@@ -3576,7 +3576,7 @@ export function BuyerOrders() {
       setLoading(true);
       const { data } = await supabase
         .from("orders")
-        .select("id,total,status,created_at,store_id")
+        .select("id,total,status,created_at,store_id,access_token")
         .eq("buyer_id", user.id)
         .order("created_at", { ascending: false });
       setRows((data ?? []) as any);
@@ -3609,8 +3609,11 @@ export function BuyerOrders() {
                     <Badge>{r.status}</Badge>
                   </div>
                   <div className="mt-1 text-[13px] text-muted">{new Date(r.created_at).toLocaleString("id-ID")} · {rupiah(Number(r.total))}</div>
-                  <div className="mt-3">
+                  <div className="mt-3 flex flex-wrap gap-2">
                     <ButtonLink to={`/order/${r.id}`} size="sm" variant="secondary">Lihat detail</ButtonLink>
+                    {r.store_id && r.access_token && (
+                      <ButtonLink to={`/chat?store=${r.store_id}&token=${r.access_token}`} size="sm">Tanya penjual</ButtonLink>
+                    )}
                   </div>
                 </div>
               ))}

@@ -60,6 +60,28 @@ export async function buildNotifications(userId: string): Promise<NotifItem[]> {
   const fmt = (iso: string) =>
     new Date(iso).toLocaleString("id-ID", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
   const list: NotifItem[] = [];
+  // Chat: thread terbuka untuk seller.
+  try {
+    const { count } = await supabase
+      .from("chat_threads")
+      .select("id", { count: "exact", head: true })
+      .eq("seller_id", userId)
+      .eq("status", "open");
+    if ((count ?? 0) > 0) {
+      list.push({
+        id: "chat-open",
+        title: `${count} percakapan chat`,
+        body: "Ada pembeli yang menunggu balasan di halaman Chat.",
+        time: "baru",
+        tone: "info",
+        kind: "system",
+        link: "/chat",
+        linkLabel: "Buka chat",
+      });
+    }
+  } catch {
+    /* abaikan */
+  }
   (
     (orders ?? []) as { id: string; buyer_name: string; total: number | string; status: string; created_at: string }[]
   ).forEach((o) => {

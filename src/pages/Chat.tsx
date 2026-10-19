@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "../lib/auth";
+import { useStores } from "../lib/stores";
 import { supabase } from "../lib/supabase";
 import { useRoute, Link, navigate } from "../lib/router";
 import { PageShell, Button, Input, Textarea, Card, ButtonLink, Field, cx } from "../components/ui";
@@ -10,7 +11,7 @@ type Msg = { id: string; sender_type: string; body: string; created_at: string }
 export default function Chat() {
   const { user, loading: authLoading } = useAuth();
   const route = useRoute();
-  useEffect(() => { if (!authLoading && !user && (route.includes("store=") || route.includes("token="))) { navigate("/login"); } }, [authLoading, user, route]);
+  useEffect(() => { if (!authLoading && !user && (route.includes("store=") || route.includes("token="))) { navigate("/masuk"); } }, [authLoading, user, route]);
   const params = new URLSearchParams(route.split("?")[1] ?? "");
   const storeParam = params.get("store");
   const tokenParam = params.get("token");
@@ -25,7 +26,10 @@ export default function Chat() {
   const [buyerLoading, setBuyerLoading] = useState(false);
 
   // Seller mode
-  const [threads, setThreads] = useState<{ id: string; store_id: string; last_message_at: string }[]>([]);
+  const [threads, setThreads] = useState<{ id: string; store_id: string; last_message_at: string; store_name?: string | null; buyer_name?: string | null }[]>([]);
+  const [threadsLoading, setThreadsLoading] = useState(false);
+  const [threadsError, setThreadsError] = useState("");
+  const { active: activeStore } = useStores();
   const [activeThread, setActiveThread] = useState<string | null>(null);
   const [sellerMsgs, setSellerMsgs] = useState<Msg[]>([]);
   const [sellerText, setSellerText] = useState("");
@@ -67,8 +71,25 @@ export default function Chat() {
 
   const loadSellerThreads = async () => {
     if (!user) return;
-    const { data } = await supabase.from("chat_threads").select("id,store_id,last_message_at").order("last_message_at", { ascending: false }).limit(50);
-    setThreads((data ?? []) as any);
+    setThreadsLoading(true);
+    setThreadsError("");
+    try {
+      let q = supabase.from("chat_threads").select("id,store_id,buyer_token,last_message_at").order("last_message_at", { ascending: false }).limit(50);
+      if (activeStore?.id) q = q.eq("store_id", activeStore.id);
+      const { data, error } = await q;
+      if (error) { setThreadsError("Gagal memuat percakapan."); return; }
+      const list = (data ?? []) as { id: string; store_id: string; buyer_token: string | null; last_message_at: string }[];
+      // ambil nama toko + nama buyer (best-effort, tanpa N+1: 2 query)
+      const storeIds = [...new Set(list.map((t) => t.store_id))];
+      const tokens = list.map((t) => t.buyer_token).filter(Boolean) as string[];
+      const [storesRes, ordersRes] = await Promise.all([
+        storeIds.length ? supabase.from("stores").select("id,store_name").in("id", storeIds) : Promise.resolve({ data: [] }),
+        tokens.length ? supabase.from("orders").select("buyer_name,access_token").in("access_token", tokens) : Promise.resolve({ data: [] }),
+      ]);
+      const storeMap = new Map<string, string>(((storesRes as any).data ?? []).map((s: any) => [s.id, String(s.store_name ?? "Toko")]));
+      const buyerMap = new Map<string, string>(((ordersRes as any).data ?? []).map((o: any) => [o.access_token, String(o.buyer_name ?? "Pembeli")]));
+      setThreads(list.map((t) => ({ ...t, store_name: storeMap.get(t.store_id) ?? "Toko", buyer_name: t.buyer_token ? buyerMap.get(t.buyer_token) ?? "Pembeli" : "Pembeli" })));
+    } finally { setThreadsLoading(false); }
   };
 
   const loadSellerMsgs = async (tid: string) => {
@@ -85,6 +106,7 @@ export default function Chat() {
   }, [activeThread]);
 
   const sendSeller = async () => {
+    if (sellerLoading) return;
     if (!activeThread || !sellerText.trim()) return;
     setSellerLoading(true);
     try {
@@ -110,7 +132,7 @@ export default function Chat() {
       <header className="sticky top-0 z-40 border-b border-line bg-white/95 backdrop-blur-sm">
         <PageShell>
           <div className="flex h-[68px] items-center justify-between">
-            <Link to="/" aria-label="TokoLink beranda"><Logo size={28} tone="light" wordClass="text-navy-800" /></Link>
+            <Link to="/" ariaLabel="TokoLink beranda"><Logo size={28} tone="light" wordClass="text-navy-800" /></Link>
             <ButtonLink to={user ? "/app" : "/"} size="sm" variant="secondary">Kembali</ButtonLink>
           </div>
         </PageShell>
@@ -126,7 +148,7 @@ export default function Chat() {
               <h2 className="text-[16px] font-extrabold text-ink">Masuk dulu untuk chat</h2>
               <p className="mt-1 text-[13px] text-muted">Chat hanya untuk pembeli yang sudah masuk (login).</p>
               <div className="mt-4">
-                <ButtonLink to="/login" size="sm">Masuk</ButtonLink>
+                <ButtonLink to="/masuk" size="sm">Masuk</ButtonLink>
               </div>
             </Card>
           )}
@@ -147,13 +169,14 @@ export default function Chat() {
                   <div className="max-h-[360px] overflow-y-auto rounded-lg border border-line bg-canvas p-3 space-y-2">
                     {buyerMsgs.map((m) => (
                       <div key={m.id} className={m.sender_type === "buyer" ? "text-right" : "text-left"}>
-                        <span className="inline-block rounded-lg bg-white px-3 py-2 text-[13.5px] text-ink shadow-sm">{m.body}</span>
+                        <span className="inline-block max-w-[85%] break-words rounded-lg bg-white px-3 py-2 text-[13.5px] text-ink shadow-sm">{m.body}</span>
                       </div>
                     ))}
                   </div>
+                  {buyerErr && <p className="mt-2 text-[13px] text-bad">{buyerErr}</p>}
                   <div className="mt-3 flex gap-2">
-                    <Input value={buyerText} onChange={(e) => setBuyerText(e.target.value)} placeholder="Tulis pesan..." onKeyDown={(e) => { if (e.key === "Enter") sendBuyer(); }} />
-                    <Button onClick={sendBuyer} loading={buyerLoading}>Kirim</Button>
+                    <Input value={buyerText} onChange={(e) => setBuyerText(e.target.value)} placeholder="Tulis pesan..." onKeyDown={(e) => { if (e.key === "Enter" && !buyerLoading) sendBuyer(); }} />
+                    <Button onClick={sendBuyer} loading={buyerLoading} disabled={buyerLoading}>Kirim</Button>
                   </div>
                 </div>
               )}
@@ -163,12 +186,15 @@ export default function Chat() {
           {user && (
             <div className="mt-6 grid gap-4 lg:grid-cols-[260px_1fr]">
               <Card className="p-3">
-                <div className="micro mb-2 text-faint">Thread</div>
-                <div className="space-y-1.5">
-                  {threads.length === 0 && <p className="text-[13px] text-muted">Belum ada chat.</p>}
+                <div className="micro mb-2 text-faint">Percakapan</div>
+                <div className="max-h-[45vh] space-y-1.5 overflow-y-auto">
+                  {threadsLoading && <p className="text-[13px] text-muted">Memuat...</p>}
+                  {!threadsLoading && threadsError && <p className="text-[13px] text-bad">{threadsError}</p>}
+                  {!threadsLoading && !threadsError && threads.length === 0 && <p className="text-[13px] text-muted">Belum ada chat.</p>}
                   {threads.map((t) => (
                     <button key={t.id} onClick={() => setActiveThread(t.id)} className={cx("block w-full rounded-md border px-3 py-2 text-left text-[13px]", activeThread === t.id ? "border-brand-500 bg-brand-50" : "border-line bg-white hover:bg-canvas")}>
-                      {t.id.slice(0, 8)}… · {new Date(t.last_message_at).toLocaleString("id-ID")}
+                      <span className="block font-semibold text-ink">{t.buyer_name ?? "Pembeli"}</span>
+                      <span className="block text-[11px] text-faint">{t.store_name ?? "Toko"} · {new Date(t.last_message_at).toLocaleString("id-ID")}</span>
                     </button>
                   ))}
                 </div>
@@ -179,18 +205,18 @@ export default function Chat() {
                     <div className="max-h-[400px] overflow-y-auto space-y-2">
                       {sellerMsgs.map((m) => (
                         <div key={m.id} className={m.sender_type === "seller" ? "text-right" : "text-left"}>
-                          <span className="inline-block rounded-lg bg-canvas px-3 py-2 text-[13.5px] text-ink">{m.body}</span>
+                          <span className="inline-block max-w-[85%] break-words rounded-lg bg-canvas px-3 py-2 text-[13.5px] text-ink">{m.body}</span>
                           <div className="mt-0.5 text-[11px] text-faint">{m.sender_type}</div>
                         </div>
                       ))}
                     </div>
                     <div className="mt-3 flex gap-2">
-                      <Input value={sellerText} onChange={(e) => setSellerText(e.target.value)} placeholder="Balas..." onKeyDown={(e) => { if (e.key === "Enter") sendSeller(); }} />
+                      <Input value={sellerText} onChange={(e) => setSellerText(e.target.value)} placeholder="Balas..." onKeyDown={(e) => { if (e.key === "Enter" && !sellerLoading) sendSeller(); }} />
                       <Button onClick={sendSeller} loading={sellerLoading}>Kirim</Button>
                     </div>
                   </>
                 ) : (
-                  <p className="text-[13px] text-muted">Pilih thread di kiri.</p>
+                  <p className="text-[13px] text-muted">Pilih percakapan di daftar atas.</p>
                 )}
               </Card>
             </div>
