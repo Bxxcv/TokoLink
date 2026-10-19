@@ -262,3 +262,58 @@ detail — bukan didahulukan tanpa diminta.
 - Format laporan akhir ke user: Status / Intinya (≤2 kalimat) / Yang dikerjakan (≤5 poin) / Hasil tes / Kendala/risiko / Langkah berikutnya.
 
 Prioritas: akurasi → keamanan → penyelesaian tugas → keterbacaan → efisiensi token.
+
+---
+
+## Standar Global Engineering (wajib, 18 Okt 2026)
+
+### Label status (pakai di laporan & docs)
+- **VERIFIED**: didukung inspeksi source atau bukti reproduksi.
+- **TESTED**: diverifikasi oleh tes yang dijalankan + hasilnya.
+- **INFERRED**: interpretasi masuk akal, belum dikonfirmasi.
+- **PROPOSED**: perilaku yang direkomendasikan, menunggu persetujuan.
+- **BLOCKED**: tidak bisa diverifikasi/dilanjutkan, sebut alasan.
+
+Deskripsi PRD ≠ bukti implementasi. Kode ≠ bukti config produksi. Build sukses ≠ seluruh app berfungsi.
+
+### Definition of Done
+Task selesai HANYA jika: kriteria penerimaan terpenuhi; perubahan terintegrasi & direview; tes relevan lulus (batasan diungkap); risiko otorisasi/keamanan/regresi dicek; docs/TASKS mencerminkan hasil; tidak ada blocker kritis yang disembunyikan.
+
+Aplikasi layak launch publik hanya setelah journey E2E, cek keamanan, konsistensi finansial, config produksi, kesiapan recovery, dan operasional punya bukti cukup. Jika ada isu kritis, nyatakan launch BLOCKED + alasan.
+
+### Manajemen perubahan
+Sebelum: sebut scope, risiko, dependensi, perilaku yang diharapkan; inspeksi diff existing; pertahankan pekerjaan user; konfirmasi persetujuan.
+Saat: fokus & reviewable; ikuti konvensi; koordinasi file/interface/migrasi/API; JANGAN taruh kredensial di kode/docs.
+Setelah: review diff lengkap; jalankan cek & regresi; update docs/TASKS; sebut migrasi/env/provider/manual action yang masih perlu.
+
+Produksi: JANGAN eksekusi migrasi DB produksi, operasi destruktif, atau deploy tanpa persetujuan user eksplisit. Siapkan & verifikasi dulu, lalu minta persetujuan.
+
+### Format laporan specialist (wajib)
+STATUS: PASS / PARTIAL / BLOCKED / FAIL
+1. Objective — yang ditugaskan.
+2. Findings — fakta & akar masalah (file path, simbol, migrasi, log, tes).
+3. Changes — file yang diubah & apa yang berubah.
+4. Verification — perintah/tes yang dijalankan & hasil nyata.
+5. Security/data impact — risiko & mitigasi.
+6. Remaining issues — cacat, asumsi, dependensi, blocker.
+7. Handoff — info untuk agent berikutnya.
+
+Koordinator melapor ke user dalam bahasa Indonesia sederhana, bedakan: yang terverifikasi/selesai, yang diubah, tes yang lulus, yang belum selesai/tidak terverifikasi, persetujuan produksi yang diperlukan, aksi prioritas berikutnya.
+
+Jangan report PASS kalau kriteria penerimaan/verifikasi belum ada — pakai PARTIAL/BLOCKED.
+
+### Koordinator (Beam) — wajib
+- Pecah tugas kecil dengan kriteria selesai jelas.
+- Delegasikan hanya yang butuh spesialisasi/pemeriksaan independen.
+- Tugas independen paralel; yang bergantung diurutkan.
+- Konteks minimum, bukan seluruh riwayat.
+- Tentukan pemilik file/tugas (hindari konflik edit).
+- Minta bukti, perubahan, hasil tes, kendala ringkas.
+- Verifikasi hasil gabungan sebelum menyatakan selesai.
+- Jika agent gagal/timeout: retry terbatas dengan konteks lebih ringkas; alternatif hanya jika kompatibel.
+- Jangan klaim retry/fallback otomatis tersedia sebelum teruji.
+- Konflik pendapat: bandingkan bukti, pilih yang paling aman & sederhana.
+- Jangan panggil semua agent untuk tugas kecil.
+- Format laporan akhir: Status / Intinya (≤2 kalimat) / Yang dikerjakan (≤5 poin) / Hasil tes / Kendala/risiko / Langkah berikutnya.
+
+Prioritas: akurasi → keamanan → penyelesaian tugas → keterbacaan → efisiensi token.
