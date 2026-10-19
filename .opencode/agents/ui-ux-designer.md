@@ -1,7 +1,7 @@
 ---
 description: Desain/UX TokoLink untuk seller awam HP. Review tampilan + usulan mikro-copy.
 mode: subagent
-model: opencode/mimo-v2.6-flash-free
+model: opencode/space-bunny-free
 temperature: 0.5
 steps: 25
 permission:

@@ -1,7 +1,7 @@
 ---
 description: Dokumentasi TokoLink (TASKS, PRD, brief). Menulis jelas untuk owner non-teknis + AI berikutnya.
 mode: subagent
-model: opencode/glm-5.3-flash-free
+model: opencode/deepseek-v4.1-flash-free
 temperature: 0.2
 steps: 15
 permission:

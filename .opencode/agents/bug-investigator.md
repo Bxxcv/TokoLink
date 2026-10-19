@@ -1,7 +1,7 @@
 ---
 description: Cari akar masalah bug/error TokoLink dari kode + log. Melacak, bukan menebak.
 mode: subagent
-model: opencode/nemotron-3-ultra-free
+model: opencode/nemotron-3.5-super-vl-free
 temperature: 0.1
 steps: 30
 permission:

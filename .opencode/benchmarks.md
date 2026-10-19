@@ -17,21 +17,23 @@ Tanggal: 17 Okt 2026. Koordinator: Beam Free (`opencode/beam-free`).
 
 Muse Spark, BangunWeb, Mistral, dan model berbayar: DILARANG (dihapus dari config).
 
-## Penempatan peran (12 spesialis)
-| Peran | Model | Alasan penempatan |
+## Penempatan peran (12 spesialis) — disesuaikan dengan perbandingan model (18 Okt 2026)
+| Peran | Model | Alasan singkat |
 |---|---|---|
-| frontend-dev | mimo-v2.6-flash-free | coding UI + kecepatan, temperatur 0.4 |
-| backend-dev | deepseek-v4.1-flash-free | coding server/RPC, instruksi ketat |
-| database-engineer | nemotron-3-ultra-free | analisis skema/transaksi berat |
-| api-integration | deepseek-v4.1-flash-free | integrasi API, timeout/error handling |
-| security-auditor | nemotron-3.5-super-vl-free | review mendalam, potensi vision |
-| qa-engineer | glm-5.3-flash-free | uji & pelaporan terstruktur |
-| bug-investigator | nemotron-3-ultra-free | pelacakan akar masalah |
-| ui-ux-designer | mimo-v2.6-flash-free | review visual + mikro-copy |
-| performance-engineer | deepseek-v4.1-flash-free | analisis indeks/agregat |
-| product-manager | longcat-2.5-preview-free | opsi & trade-off |
-| devops-engineer | nemotron-3.5-lightning-free | cepat, tugas infra sederhana |
-| tech-writer | glm-5.3-flash-free | dokumentasi ringkas |
+| frontend-dev | space-bunny-free | cepat + fokus frontend/3D |
+| backend-dev | nemotron-3.5-super-vl-free | intelligence tinggi, cepat, multimodal |
+| database-engineer | mimo-v2.6-flash-free | unggul tugas terstruktur |
+| api-integration | mimo-v2.6-flash-free | kontrak/error terstruktur |
+| security-auditor | nemotron-3.5-super-vl-free | intelligence tinggi |
+| qa-engineer | glm-5.3-flash-free | kuat coding kompleks |
+| bug-investigator | nemotron-3.5-super-vl-free | diagnosis mendalam |
+| ui-ux-designer | space-bunny-free | cepat + multimodal + frontend |
+| performance-engineer | deepseek-v4.1-flash-free | sangat cepat |
+| product-manager | longcat-2.5-preview-free | besar, tanpa batas (lambat) |
+| devops-engineer | nemotron-3.5-lightning-free | ekstrem cepat, tool-call |
+| tech-writer | deepseek-v4.1-flash-free | cepat |
+
+Catatan: nemotron-3-ultra (lemah coding + limit 50 req/hari) dihapus dari semua peran coding.
 
 ## Benchmark internal (uji identik)
 Task: gunakan tool bash `printf '%s' 'TokoLink2026' | sha256sum`, lalu balas JSON `{"hash":"<hex>"}`. Bobot: kebenaran 40%, tool 25%, kepatuhan 15%, efisiensi 10%, konsistensi 10%.

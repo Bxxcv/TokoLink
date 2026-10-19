@@ -1,7 +1,7 @@
 ---
 description: Bangun/ubah UI React TokoLink (src/pages, src/components, 8 tema). Dipakai untuk fitur tampilan, form, dan revisi visual.
 mode: subagent
-model: opencode/mimo-v2.6-flash-free
+model: opencode/space-bunny-free
 temperature: 0.4
 steps: 25
 permission:

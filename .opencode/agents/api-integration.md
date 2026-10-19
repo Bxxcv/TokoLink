@@ -1,7 +1,7 @@
 ---
 description: Integrasi BuatQris, Brevo, Supabase client, Vercel env/cron. Dipakai saat fitur menyentuh pihak luar.
 mode: subagent
-model: opencode/deepseek-v4.1-flash-free
+model: opencode/mimo-v2.6-flash-free
 temperature: 0.1
 steps: 25
 permission:

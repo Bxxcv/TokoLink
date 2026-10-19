@@ -1,7 +1,7 @@
 ---
 description: Implementasi server Supabase/endpoint sensitif TokoLink. Dipakai untuk order, withdraw, webhook, dan RPC.
 mode: subagent
-model: opencode/deepseek-v4.1-flash-free
+model: opencode/nemotron-3.5-super-vl-free
 temperature: 0.1
 steps: 30
 permission:

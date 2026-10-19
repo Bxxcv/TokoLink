@@ -1,7 +1,7 @@
 ---
 description: Skema, migrasi, RLS, trigger, dan RPC Postgres TokoLink. Dipakai untuk perubahan database apa pun.
 mode: subagent
-model: opencode/nemotron-3-ultra-free
+model: opencode/mimo-v2.6-flash-free
 temperature: 0.1
 steps: 25
 permission:
