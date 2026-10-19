@@ -68,6 +68,18 @@ function clientIp(req: any): string {
 export default async function handler(req: any, res: any) {
   if (req.method !== "POST") return json(res, { error: "Method tidak didukung." }, 405);
 
+  // Buyer wajib login (keputusan produk 18 Okt 2026).
+  const url = process.env.SUPABASE_URL;
+  const anon = process.env.SUPABASE_ANON_KEY;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !anon || !key) return json(res, { error: "Server belum dikonfigurasi." }, 500);
+  const token = ((req.headers.authorization as string | undefined) ?? "").replace(/^Bearer\s+/i, "");
+  if (!token) return json(res, { error: "Belum login. Masuk dulu untuk checkout." }, 401);
+  const gate = createClient(url, anon, { auth: { persistSession: false } });
+  const { data: me } = await gate.auth.getUser(token);
+  if (!me.user) return json(res, { error: "Sesi tidak valid. Masuk lagi." }, 401);
+  const buyerId = me.user.id;
+
   // Rate limit per-IP (in-memory per instance; lihat LAPORAN untuk batasnya).
   const ip = clientIp(req);
   const g = globalThis as unknown as { __coHits?: Map<string, { n: number; reset: number }> };
@@ -97,9 +109,6 @@ export default async function handler(req: any, res: any) {
 
   const idemKey = String(body.idempotency_key ?? "").trim().slice(0, 64) || null;
 
-  const url = process.env.SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) return json(res, { error: "Server belum dikonfigurasi." }, 500);
   const db = createClient(url, key, { auth: { persistSession: false } });
 
   // Idempotensi: kunci dipakai ulang → kembalikan order lama.
@@ -247,6 +256,7 @@ export default async function handler(req: any, res: any) {
         id: orderId,
         seller_id: sellerId,
         store_id: storeId,
+        buyer_id: buyerId,
         buyer_name: name,
         buyer_phone: phone,
         buyer_city: city,

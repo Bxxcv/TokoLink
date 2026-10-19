@@ -2146,7 +2146,7 @@ export function AdminReports() {
     <AppShell group="admin">
       <PageHeader title="Laporan" desc="Laporan toko/pengguna dari pengunjung." />
       <Tabs items={[{ id: "menunggu", label: "Menunggu" }, { id: "ditinjau", label: "Ditinjau" }, { id: "ditolak", label: "Ditolak" }, { id: "ditindak", label: "Ditindak" }, { id: "semua", label: "Semua" }]} active={tab} onChange={setTab} />
-      {loading ? <Skeleton className="mt-4 h-40" /> : filtered.length === 0 ? <EmptyState title="Tidak ada laporan" /> : (
+      {loading ? <Skeleton className="mt-4 h-40" /> : filtered.length === 0 ? <EmptyState title="Tidak ada laporan" desc="Belum ada laporan masuk." /> : (
         <TableWrap className="mt-4">
           <table className="w-full text-[13px]">
             <thead><tr><Th>Tipe</Th><Th>Target</Th><Th>Alasan</Th><Th>Status</Th><Th>Tanggal</Th><Th></Th></tr></thead>

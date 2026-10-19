@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, navigate, shareUrl, storeUrl } from "../lib/router";
 import { rupiah } from "../lib/format";
 import { useApp } from "../lib/store";
+import { useAuth } from "../lib/auth";
 import type { Product } from "../lib/shop";
 import { supabase } from "../lib/supabase";
 import { mapProduct, type DbProduct } from "../lib/products";
@@ -2208,6 +2209,11 @@ export function Cart() {
 /* -------------------------------- checkout -------------------------------- */
 export function Checkout() {
   const { cart, toast, promo, clear } = useApp();
+  const { user, loading: authLoading } = useAuth();
+  useEffect(() => {
+    if (authLoading) return;
+    if (!user) navigate("/login");
+  }, [authLoading, user]);
   const [form, setForm] = useState({
     name: "",
     phone: "",
@@ -2235,6 +2241,7 @@ export function Checkout() {
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!user) { toast("Masuk dulu untuk checkout.", "bad"); navigate("/login"); return; }
     const n: Record<string, string> = {};
     if (form.name.trim().length < 3) n.name = "Tulis nama penerima.";
     if (form.phone.replace(/\D/g, "").length < 9) n.phone = "Nomor WhatsApp belum benar.";
@@ -2253,9 +2260,12 @@ export function Checkout() {
     setLoading(true);
     try {
       const fullAddr = (form.postal.trim() ? `${form.addr.trim()} (${form.postal.trim()})` : form.addr.trim()).slice(0, 500);
+      const { data: sess } = await supabase.auth.getSession();
+      const token = sess.session?.access_token;
+      if (!token) { toast("Masuk dulu untuk checkout.", "bad"); navigate("/login"); return; }
       const res = await fetch("/api/create-order", {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
         body: JSON.stringify({
           store_id: storeIds[0],
           buyer_name: form.name.trim(),
@@ -3508,6 +3518,63 @@ export function StatusPage() {
           <div className="mt-6">
             <Link to="/" className="inline-flex items-center gap-1.5 text-[14px] font-semibold text-muted transition-colors hover:text-ink"><Icon name="left" size={16} /> Kembali ke beranda</Link>
           </div>
+        </div>
+      </PageShell>
+    </div>
+  );
+}
+
+export function BuyerOrders() {
+  const { user, loading: authLoading } = useAuth();
+  const [rows, setRows] = useState<{ id: string; total: number | string; status: string; created_at: string; store_id: string | null }[]>([]);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    if (authLoading) return;
+    if (!user) { navigate("/login"); return; }
+    (async () => {
+      setLoading(true);
+      const { data } = await supabase
+        .from("orders")
+        .select("id,total,status,created_at,store_id")
+        .eq("buyer_id", user.id)
+        .order("created_at", { ascending: false });
+      setRows((data ?? []) as any);
+      setLoading(false);
+    })();
+  }, [authLoading, user]);
+  if (authLoading || loading) return <div className="min-h-screen bg-canvas flex items-center justify-center"><span className="text-muted">Memuat...</span></div>;
+  return (
+    <div className="min-h-screen bg-canvas">
+      <header className="sticky top-0 z-40 border-b border-line bg-white/95 backdrop-blur-sm">
+        <PageShell>
+          <div className="flex h-[68px] items-center justify-between">
+            <Link to="/" aria-label="TokoLink beranda"><Logo size={28} tone="light" wordClass="text-navy-800" /></Link>
+            <ButtonLink to="/" size="sm" variant="secondary">Beranda</ButtonLink>
+          </div>
+        </PageShell>
+      </header>
+      <PageShell className="py-10">
+        <div className="mx-auto max-w-[720px]">
+          <h1 className="text-[26px] font-extrabold text-ink sm:text-[32px]">Pesanan saya</h1>
+          <p className="mt-2 text-[14px] text-muted">Daftar pesanan yang kamu buat setelah login.</p>
+          {rows.length === 0 ? (
+            <div className="mt-6 rounded-lg border border-line bg-white p-6 text-center text-[14px] text-muted">Belum ada pesanan.</div>
+          ) : (
+            <div className="mt-6 space-y-3">
+              {rows.map((r) => (
+                <div key={r.id} className="rounded-lg border border-line bg-white p-4">
+                  <div className="flex items-center justify-between">
+                    <span className="font-mono text-[13px] font-bold text-ink">{r.id}</span>
+                    <Badge>{r.status}</Badge>
+                  </div>
+                  <div className="mt-1 text-[13px] text-muted">{new Date(r.created_at).toLocaleString("id-ID")} · {rupiah(Number(r.total))}</div>
+                  <div className="mt-3">
+                    <ButtonLink to={`/order/${r.id}`} size="sm" variant="secondary">Lihat detail</ButtonLink>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </PageShell>
     </div>
