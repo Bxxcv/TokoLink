@@ -516,3 +516,5 @@ Kontak support resmi: WA 085191245042, email supporttokolink@gmail.com.
 **Buyer wajib login (18 Okt 2026):** migrasi `buyer_id` + RLS buyer; create-order wajib auth + simpan buyer_id; Checkout guard login; halaman `/orders` buyer. Transfer manual: migrasi `payments.proof_url` + bucket `payment-proofs`; create-order channel transfer; upload bukti di PaymentStatus; admin review approve/reject.
 
 **Lockout login (18 Okt 2026):** klien 5x gagal → blokir 15 menit (localStorage per email), pelengkap rate limit server Supabase Auth. Testimoni: section di landing dengan empty state (tanpa data palsu), menunggu cerita nyata dari user.
+
+**Transfer manual ledger fix (18 Okt 2026):** admin approve sekarang insert ledger `masuk` + komisi `keluar` via RPC `admin_approve_transfer` (atomik, idempoten). Reject restore promo. **Force open override:** toggle "Paksa buka" di StoreSettings + kolom `stores.force_open` + view publik; badge StoreHome/ProductDetail ikut force_open.
