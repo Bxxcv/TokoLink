@@ -1604,6 +1604,25 @@ function Footer() {
   );
 }
 
+function Testimoni() {
+  return (
+    <section className="border-b border-line bg-white py-20 lg:py-28">
+      <PageShell>
+        <SectionHead
+          index="07b"
+          kicker="Cerita penjual"
+          title="Cerita nyata dari penjual kecil."
+          lead="Bagian ini akan diisi cerita singkat penjual yang sudah memakai TokoLink. Punya cerita? Kirim ke supporttokolink@gmail.com."
+        />
+        <div className="mt-10 rounded-xl border border-dashed border-line bg-canvas p-8 text-center text-[14px] text-muted">
+          Belum ada cerita penjual yang ditampilkan. Jika kamu penjual TokoLink dan ingin dibagikan
+          ceritamu, hubungi kami via WhatsApp atau email.
+        </div>
+      </PageShell>
+    </section>
+  );
+}
+
 export default function Landing() {
   return (
     <div className="overflow-x-clip bg-white">
@@ -1626,6 +1645,9 @@ export default function Landing() {
       </Reveal>
       <Reveal>
         <StorePreview />
+      </Reveal>
+      <Reveal>
+        <Testimoni />
       </Reveal>
       <Reveal>
         <Pricing />

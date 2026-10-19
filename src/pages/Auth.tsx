@@ -155,16 +155,40 @@ export function Login() {
     if (!authLoading && session) navigate(role === "admin" ? "/admin" : "/app");
   }, [authLoading, session, role]);
 
+  const lockKey = `tl_lock_${email.trim().toLowerCase()}`;
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErr("");
     if (!email.includes("@")) return setErr("Masuk memakai alamat email yang terdaftar.");
     if (pass.length < 6) return setErr("Kata sandi minimal 6 karakter.");
+    // Lockout sisi klien (pelengkap rate limit server Supabase Auth).
+    try {
+      const raw = localStorage.getItem(lockKey);
+      if (raw) {
+        const { until } = JSON.parse(raw) as { until: number };
+        if (until && Date.now() < until) {
+          const m = Math.ceil((until - Date.now()) / 60000);
+          return setErr(`Terlalu banyak percobaan. Coba lagi dalam ${m} menit.`);
+        }
+      }
+    } catch { /* abaikan */ }
     setLoading(true);
     try {
       prepareSessionPersistence(remember);
       const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password: pass });
-      if (error) return setErr(friendlyAuthError(error.message));
+      if (error) {
+        // Catat kegagalan; kunci setelah 5x.
+        try {
+          const raw = localStorage.getItem(lockKey);
+          const cur = raw ? JSON.parse(raw) as { count: number; until: number } : { count: 0, until: 0 };
+          const next = (cur.count ?? 0) + 1;
+          const until = next >= 5 ? Date.now() + 15 * 60 * 1000 : 0;
+          localStorage.setItem(lockKey, JSON.stringify({ count: next, until }));
+        } catch { /* abaikan */ }
+        return setErr(friendlyAuthError(error.message));
+      }
+      // Sukses → reset.
+      try { localStorage.removeItem(lockKey); } catch { /* abaikan */ }
       if (!remember) purgePersistedSessions();
       const { data } = await supabase.auth.getUser();
       const profile = data.user ? await ensureProfile(data.user.id) : null;
