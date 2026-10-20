@@ -317,7 +317,8 @@ export default async function handler(req: any, res: any) {
   // 6) BuatQris generate QRIS (hanya QRIS).
   const accountId = process.env.BUATQRIS_ACCOUNT_ID;
   const secretToken = process.env.BUATQRIS_SECRET_TOKEN;
-  const testMode = process.env.BUATQRIS_TEST ?? "1";
+  const rawTest = (process.env.BUATQRIS_TEST ?? "1").toLowerCase().trim();
+  const testMode = (rawTest === "1" || rawTest === "true" || rawTest === "yes" || rawTest === "test" || rawTest === "test=1") ? "1" : "0";
   if (!accountId || !secretToken) {
     return json(res, { ...base, qr_pending: true, error: "Kredensial BuatQris belum dipasang di server." });
   }
@@ -375,7 +376,7 @@ export default async function handler(req: any, res: any) {
           total_amount: d.total_amount,
           expired_at: d.expired_at,
           payment_url: d.payment_url,
-          is_test: testMode === "1" || testMode === "true",
+          is_test: (out.data as any)?.is_test ?? (testMode === "1"),
         },
       });
     }
