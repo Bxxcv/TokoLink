@@ -50,7 +50,7 @@ export function useStores() {
     if (ids.length > 0) {
       const { data: stores } = await supabase
         .from("public_stores_v2")
-        .select("id,store_name,store_slug,avatar_url,cover_url,is_closed")
+        .select("id,store_name,store_slug,avatar_url,cover_url,is_closed,force_open")
         .in("id", ids);
       list = (stores ?? []) as StoreRef[];
     }

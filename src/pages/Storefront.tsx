@@ -137,7 +137,7 @@ function usePublicStore(slug: string) {
         // Multi-toko: identitas dari tabel stores (1 slug = 1 toko).
         const { data: prof, error: profErr } = await supabase
           .from("public_stores_v2")
-          .select("id,owner_id,store_name,store_slug,city,avatar_url,cover_url,bio,is_closed")
+          .select("id,owner_id,store_name,store_slug,city,avatar_url,cover_url,bio,is_closed,force_open")
           .eq("store_slug", slug)
           .maybeSingle();
         if (profErr) throw profErr;
@@ -1528,7 +1528,7 @@ export function ProductDetail({ id, slug }: { id: string; slug: string }) {
       // BUG-004: identitas publik toko via view tanpa PII. Multi-toko: per TOKO.
       const { data: prof } = await supabase
         .from("public_stores_v2")
-        .select("id,store_name,store_slug,city,avatar_url,cover_url,bio,is_closed")
+        .select("id,store_name,store_slug,city,avatar_url,cover_url,bio,is_closed,force_open")
         .eq("id", storeId)
         .maybeSingle();
       setStore((prof as StoreProfile | null) ?? null);
