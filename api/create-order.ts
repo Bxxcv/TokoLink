@@ -311,7 +311,7 @@ export default async function handler(req: any, res: any) {
   const base = { order_id: oid, access_token: otoken };
 
   if (channel === "Transfer manual") {
-    return json(res, { ...base, qr: null, qr_pending: false, channel });
+    return json(res, { ...base, qr: null, qr_pending: false, channel, _testMode: testMode });
   }
 
   // 6) BuatQris generate QRIS (hanya QRIS).
@@ -369,6 +369,7 @@ export default async function handler(req: any, res: any) {
       return json(res, {
         ...base,
         channel,
+        _testMode: testMode,
         qr_pending: false,
         qr: {
           qr_url: d.qr_url,
