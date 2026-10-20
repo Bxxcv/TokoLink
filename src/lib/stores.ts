@@ -37,15 +37,23 @@ export function useStores() {
       setLoading(false);
       return;
     }
-    const { data } = await supabase
+    // Baca store_members (id saja) lalu detail dari view public_stores_v2,
+    // karena role authenticated belum punya GRANT SELECT di tabel stores
+    // (lihat database/migrate_store_select_grant.sql — perlu dijalankan).
+    const { data: mems } = await supabase
       .from("store_members")
-      .select("store_id, stores(id,store_name,store_slug,avatar_url,cover_url,is_closed,force_open)")
+      .select("store_id")
       .eq("user_id", uid)
       .order("store_id");
-    const list = (((data ?? []) as {
-      store_id: string;
-      stores: StoreRef | StoreRef[] | null;
-    }[]).map((r) => (Array.isArray(r.stores) ? r.stores[0] : r.stores)).filter(Boolean)) as StoreRef[];
+    const ids = (mems ?? []).map((m: any) => m.store_id).filter(Boolean);
+    let list: StoreRef[] = [];
+    if (ids.length > 0) {
+      const { data: stores } = await supabase
+        .from("public_stores_v2")
+        .select("id,store_name,store_slug,avatar_url,cover_url,is_closed")
+        .in("id", ids);
+      list = (stores ?? []) as StoreRef[];
+    }
     setStores(list);
     // Aktif tersimpan masih anggota? Kalau tidak, pakai toko pertama.
     const saved = (() => {
