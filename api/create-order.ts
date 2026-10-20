@@ -73,8 +73,9 @@ export default async function handler(req: any, res: any) {
   const anon = process.env.SUPABASE_ANON_KEY;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !anon || !key) return json(res, { error: "Server belum dikonfigurasi." }, 500);
-  const token = ((req.headers.authorization as string | undefined) ?? "").replace(/^Bearer\s+/i, "");
-  if (!token) return json(res, { error: "Belum login. Masuk dulu untuk checkout." }, 401);
+  const authHeader = (req.headers.authorization as string | undefined) ?? (req.headers.Authorization as string | undefined) ?? "";
+  const token = authHeader.replace(/^Bearer\s+/i, "");
+  if (!token) return json(res, { error: "Belum login. Masuk dulu untuk checkout.", debug: { hasAuth: !!req.headers.authorization, hasAuthCap: !!req.headers.Authorization, allHeaders: Object.keys(req.headers) } }, 401);
   const gate = createClient(url, anon, { auth: { persistSession: false } });
   const { data: me } = await gate.auth.getUser(token);
   if (!me.user) return json(res, { error: "Sesi tidak valid. Masuk lagi." }, 401);
