@@ -13,7 +13,8 @@ export default async function handler(req: any, res: any) {
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !anon || !key) return res.status(500).json({ error: "Server belum dikonfigurasi." });
 
-  const token = ((req.headers.authorization as string | undefined) ?? "").replace(/^Bearer\s+/i, "");
+  const authHeader = (req.headers.authorization as string | undefined) ?? (req.headers["x-supabase-auth"] as string | undefined) ?? "";
+  const token = authHeader.replace(/^Bearer\s+/i, "").trim();
   if (!token) return res.status(401).json({ error: "Belum login." });
 
   const gate = createClient(url, anon, { auth: { persistSession: false } });

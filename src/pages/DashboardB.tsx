@@ -2544,7 +2544,7 @@ export function StoreSettings() {
                   }
                   const res = await fetch("/api/create-premium-order", {
                     method: "POST",
-                    headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+                    headers: { "content-type": "application/json", authorization: `Bearer ${token}`, "x-supabase-auth": `Bearer ${token}` },
                     body: JSON.stringify({ billing: plan === "Tahunan" ? "tahunan" : "bulanan" }),
                   });
                   const out = (await res.json().catch(() => ({}))) as {
@@ -2922,7 +2922,7 @@ export function AccountSettings() {
                   }
                   const res = await fetch("/api/delete-account", {
                     method: "POST",
-                    headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+                    headers: { "content-type": "application/json", authorization: `Bearer ${token}`, "x-supabase-auth": `Bearer ${token}` },
                     body: JSON.stringify({ password: delPw }),
                   });
                   const out = (await res.json().catch(() => ({}))) as { error?: string };

@@ -14,7 +14,8 @@ export default async function handler(req: any, res: any) {
 
   const secret = process.env.CRON_SECRET;
   if (!secret) return res.status(500).json({ error: "CRON_SECRET belum dipasang." });
-  const token = ((req.headers.authorization as string | undefined) ?? "").replace(/^Bearer\s+/i, "");
+  const authHeader = (req.headers.authorization as string | undefined) ?? (req.headers["x-supabase-auth"] as string | undefined) ?? "";
+  const token = authHeader.replace(/^Bearer\s+/i, "").trim();
   if (!token || token !== secret) return res.status(401).json({ error: "Unauthorized." });
 
   const url = process.env.SUPABASE_URL;

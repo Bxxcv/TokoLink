@@ -1526,7 +1526,7 @@ export function AdminUsers() {
         setLoading(false);
         return;
       }
-      const res = await fetch("/api/admin-users", { headers: { authorization: `Bearer ${token}` } });
+      const res = await fetch("/api/admin-users", { headers: { authorization: `Bearer ${token}`, "x-supabase-auth": `Bearer ${token}` } });
       const out = (await res.json()) as { users?: URow[]; error?: string };
       if (!res.ok) {
         toast(out.error ?? "Gagal memuat pengguna.", "bad");

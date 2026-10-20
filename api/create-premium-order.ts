@@ -45,7 +45,8 @@ export default async function handler(req: any, res: any) {
   if (!url || !anon || !key) return json(res, { error: "Server belum dikonfigurasi." }, 500);
 
   // Identitas dari token login (tidak percaya seller_id dari browser).
-  const token = ((req.headers.authorization as string | undefined) ?? "").replace(/^Bearer\s+/i, "");
+  const authHeader = (req.headers.authorization as string | undefined) ?? (req.headers["x-supabase-auth"] as string | undefined) ?? "";
+  const token = authHeader.replace(/^Bearer\s+/i, "").trim();
   if (!token) return json(res, { error: "Belum login." }, 401);
   const gate = createClient(url, anon, { auth: { persistSession: false } });
   const { data: me } = await gate.auth.getUser(token);

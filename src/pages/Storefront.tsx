@@ -2266,7 +2266,7 @@ export function Checkout() {
       if (!token) { toast("Masuk dulu untuk checkout.", "bad"); navigate("/masuk"); return; }
       const res = await fetch("/api/create-order", {
         method: "POST",
-        headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+        headers: { "content-type": "application/json", authorization: `Bearer ${token}`, "x-supabase-auth": `Bearer ${token}` },
         body: JSON.stringify({
           store_id: storeIds[0],
           buyer_name: form.name.trim(),
