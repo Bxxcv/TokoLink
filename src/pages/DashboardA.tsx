@@ -135,7 +135,7 @@ export function DashboardHome() {
   const done = check.filter(Boolean).length;
 
   useEffect(() => {
-    if (!user || !activeId) return;
+    if (!user || !activeId) { setLoading(false); return; }
     (async () => {
       const now = new Date();
       const d30 = new Date(now.getTime() - 30 * 86400000).toISOString();
@@ -154,7 +154,7 @@ export function DashboardHome() {
       setBalance(((ledger ?? []) as { amount: number | string }[]).reduce((s, l) => s + Number(l.amount), 0));
       setHasHours((hoursCount ?? 0) > 0);
       setLoading(false);
-    })();
+    })().catch(() => setLoading(false));
   }, [user?.id, activeId]);
 
   const live = orders.filter((o) => o.status !== "batal");
@@ -414,7 +414,7 @@ export function Analytics() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!user || !activeId) return;
+    if (!user || !activeId) { setLoading(false); return; }
     (async () => {
       setLoading(true);
       const days = period === "7 hari" ? 7 : period === "90 hari" ? 90 : 30;
@@ -765,7 +765,7 @@ export function Products() {
   };
 
   const load = async () => {
-    if (!user || !activeId) return;
+    if (!user || !activeId) { setLoading(false); return; }
     setLoading(true);
     setLoadError(false);
     const { data, error } = await supabase
@@ -787,7 +787,7 @@ export function Products() {
   }, [user?.id, activeId]);
 
   const duplicate = async (p: Product) => {
-    if (!user || !activeId) return;
+    if (!user || !activeId) { setLoading(false); return; }
     const { data, error } = await supabase
       .from("products")
       .insert({
@@ -1412,7 +1412,7 @@ export function Orders() {
   const [loadError, setLoadError] = useState(false);
 
   const load = async () => {
-    if (!user || !activeId) return;
+    if (!user || !activeId) { setLoading(false); return; }
     setLoading(true);
     setLoadError(false);
     const { data: orders, error } = await supabase

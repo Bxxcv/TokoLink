@@ -701,7 +701,7 @@ export function BioLinks() {
   const movingRef = useRef(false);
 
   const load = async () => {
-    if (!user || !activeId) return;
+    if (!user || !activeId) { setLoading(false); return; }
     setLoading(true);
     setLoadError(false);
     const { data, error } = await supabase
@@ -767,7 +767,7 @@ export function BioLinks() {
   };
 
   const addLink = async () => {
-    if (!user || !activeId) return;
+    if (!user || !activeId) { setLoading(false); return; }
     const maxOrder = links.reduce((s, l) => Math.max(s, l.sort_order), -1);
     const { data, error } = await supabase
       .from("bio_links")
@@ -1477,7 +1477,7 @@ export function Discount() {
   const [err, setErr] = useState("");
 
   const load = async () => {
-    if (!user || !activeId) return;
+    if (!user || !activeId) { setLoading(false); return; }
     setLoading(true);
     setLoadError("");
     let req = supabase
@@ -1515,7 +1515,7 @@ export function Discount() {
     if (code.length < 3) return setErr("Kode minimal 3 karakter, tanpa spasi.");
     if (!form.value || Number(form.value) <= 0) return setErr("Isi nilai diskon.");
     if (form.type === "Persen" && Number(form.value) > 100) return setErr("Persen maksimal 100.");
-    if (!user || !activeId) return;
+    if (!user || !activeId) { setLoading(false); return; }
     setSaving(true);
     try {
       const { data, error } = await supabase
@@ -1843,7 +1843,7 @@ export function Hours() {
   const [savingAll, setSavingAll] = useState(false);
 
   const load = async () => {
-    if (!user || !activeId) return;
+    if (!user || !activeId) { setLoading(false); return; }
     setLoading(true);
     const { data } = await supabase
       .from("store_hours")
@@ -1912,7 +1912,7 @@ export function Hours() {
   };
 
   const openAll = async () => {
-    if (!user || !activeId) return;
+    if (!user || !activeId) { setLoading(false); return; }
     setSavingAll(true);
     try {
       const { error } = await supabase.from("store_hours").update({ is_open: true }).eq("store_id", activeId);
@@ -2457,6 +2457,19 @@ export function StoreSettings() {
                 </li>
               ))}
             </ul>
+          </Card>
+
+          <Card>
+            <CardHead title="Paksa buka" sub="Buka toko di luar jam operasional" icon="clock" />
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-[13.5px] text-muted">Aktifkan jika ingin toko tetap menerima pesanan meskipun di luar jam buka.</p>
+              <Toggle checked={!!activeStore?.force_open} onChange={async (v) => {
+                if (!activeStore) return;
+                await supabase.from("stores").update({ force_open: v }).eq("id", activeStore.id);
+                await reloadStores();
+                toast(v ? "Toko dipaksa buka." : "Ikut jam operasional lagi.");
+              }} />
+            </div>
           </Card>
 
           <Card className="border-[#F6CFCF]">

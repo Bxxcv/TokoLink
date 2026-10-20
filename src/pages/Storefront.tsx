@@ -2680,7 +2680,7 @@ export function Qris({ orderId, token }: { orderId: string; token: string }) {
           <Button
             size="lg"
             className="w-full bg-brand-500! text-navy-900! hover:bg-brand-400!"
-            onClick={() => navigate(`/checkout/status?id=${order.id}&token=${token}`)}
+            onClick={() => navigate(`/checkout/status?id=${order?.id ?? orderId}&token=${token}`)}
             disabled={expired}
           >
             Saya sudah bayar
