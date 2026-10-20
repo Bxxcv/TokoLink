@@ -2740,6 +2740,9 @@ export function Qris({ orderId, token }: { orderId: string; token: string }) {
 /* ----------------------------- payment status ----------------------------- */
 export function PaymentStatus({ orderId, token }: { orderId: string; token: string }) {
   const { toast } = useApp();
+  const [proofFile, setProofFile] = useState<File | null>(null);
+  const [proofUploading, setProofUploading] = useState(false);
+  const [proofDone, setProofDone] = useState(false);
   const { order, loading, notFound, waitingLong } = useOrderStatus(orderId, token);
   const store = orderStore(order);
   const status = order?.status ?? "menunggu";
@@ -2792,9 +2795,6 @@ export function PaymentStatus({ orderId, token }: { orderId: string; token: stri
   }
 
   const isManual = (order?.channel ?? "") === "Transfer manual";
-  const [proofFile, setProofFile] = useState<File | null>(null);
-  const [proofUploading, setProofUploading] = useState(false);
-  const [proofDone, setProofDone] = useState(false);
   const uploadProof = async () => {
     if (!proofFile || !order) return;
     setProofUploading(true);
