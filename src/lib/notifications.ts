@@ -29,6 +29,7 @@ export function markRead(ids: string[]): string[] {
   } catch {
     /* abaikan */
   }
+  try { window.dispatchEvent(new CustomEvent("tl_notif_read")); } catch { /* abaikan */ }
   return next;
 }
 

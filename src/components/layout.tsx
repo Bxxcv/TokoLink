@@ -85,6 +85,7 @@ export const ADMIN_NAV: NavGroup[] = [
       { label: "Pengaturan sistem", to: "/admin/system", icon: "settings" },
       { label: "Log audit", to: "/admin/audit", icon: "shield" },
       { label: "Pengumuman", to: "/admin/broadcast", icon: "send" },
+      { label: "Laporan", to: "/admin/reports", icon: "alert" },
     ],
   },
 ];
@@ -203,6 +204,7 @@ export function AppShell({
   const path = useRoute();
   const admin = group === "admin";
   const [sheet, setSheet] = useState(false);
+  const [notifTick, setNotifTick] = useState(0);
   const { toast } = useApp();
   const { user, profile } = useAuth();
   // Dipakai di efek badge "Pesanan", `storeSlug`, dan pemilih toko di
@@ -256,7 +258,13 @@ export function AppShell({
     return () => {
       cancelled = true;
     };
-  }, [admin, user?.id, activeStore?.id]);
+  }, [admin, user?.id, activeStore?.id, notifTick]);
+
+  useEffect(() => {
+    const onRead = () => setNotifTick((t) => t + 1);
+    window.addEventListener("tl_notif_read", onRead);
+    return () => window.removeEventListener("tl_notif_read", onRead);
+  }, []);
 
   // Badge antrean admin: hitung asli (premium + withdrawal menunggu).
   useEffect(() => {

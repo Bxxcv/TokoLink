@@ -2114,6 +2114,7 @@ export function Cart() {
                     className="h-10"
                   />
                   <Button
+                    type="button"
                     variant="secondary"
                     size="sm"
                     className="h-10"
@@ -2520,6 +2521,21 @@ export function Checkout() {
 export function Qris({ orderId, token }: { orderId: string; token: string }) {
   const { toast } = useApp();
   const { order, loading, notFound } = useOrderStatus(orderId, token);
+  const [storeLogo, setStoreLogo] = useState<string | null>(null);
+  const [storePremium, setStorePremium] = useState(false);
+  useEffect(() => {
+    const slug = order?.slug;
+    if (!slug) return;
+    (async () => {
+      const { data: st } = await supabase.from("public_stores_v2").select("owner_id,avatar_url").eq("store_slug", slug).maybeSingle();
+      const row = st as { owner_id: string | null; avatar_url: string | null } | null;
+      if (row?.avatar_url) setStoreLogo(row.avatar_url);
+      if (row?.owner_id) {
+        const { data: prof } = await supabase.from("profiles").select("plan").eq("id", row.owner_id).maybeSingle();
+        setStorePremium((prof as { plan: string } | null)?.plan === "premium");
+      }
+    })();
+  }, [order?.slug]);
   const store = orderStore(order);
   const [cancelling, setCancelling] = useState(false);
   const merchant = order?.store ?? store?.store_name ?? "Toko";
@@ -2626,8 +2642,12 @@ export function Qris({ orderId, token }: { orderId: string; token: string }) {
                   className="h-auto w-full max-w-[260px] rounded-lg border border-line object-contain"
                   onError={() => setImgOk(false)}
                 />
-                <span className="absolute left-1/2 top-1/2 flex h-14 w-14 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-md border-2 border-white bg-white shadow-xs">
-                  <LogoMark size={42} />
+                <span className="absolute left-1/2 top-1/2 flex h-14 w-14 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-md border-2 border-white bg-white shadow-xs overflow-hidden">
+                  {storePremium && storeLogo ? (
+                    <img src={storeLogo} alt="" className="h-full w-full object-cover" />
+                  ) : (
+                    <LogoMark size={42} />
+                  )}
                 </span>
               </div>
             ) : (
