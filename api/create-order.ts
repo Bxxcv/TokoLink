@@ -308,17 +308,18 @@ export default async function handler(req: any, res: any) {
     .select("id")
     .single();
 
+  const rawTest = (process.env.BUATQRIS_TEST ?? "1").toLowerCase().trim();
+  const testMode = (rawTest === "1" || rawTest === "true" || rawTest === "yes" || rawTest === "test" || rawTest === "test=1") ? "1" : "0";
+
   const base = { order_id: oid, access_token: otoken };
 
   if (channel === "Transfer manual") {
-    return json(res, { ...base, qr: null, qr_pending: false, channel, _testMode: testMode });
+    return json(res, { ...base, qr: null, qr_pending: false, channel });
   }
 
   // 6) BuatQris generate QRIS (hanya QRIS).
   const accountId = process.env.BUATQRIS_ACCOUNT_ID;
   const secretToken = process.env.BUATQRIS_SECRET_TOKEN;
-  const rawTest = (process.env.BUATQRIS_TEST ?? "1").toLowerCase().trim();
-  const testMode = (rawTest === "1" || rawTest === "true" || rawTest === "yes" || rawTest === "test" || rawTest === "test=1") ? "1" : "0";
   if (!accountId || !secretToken) {
     return json(res, { ...base, qr_pending: true, error: "Kredensial BuatQris belum dipasang di server." });
   }
