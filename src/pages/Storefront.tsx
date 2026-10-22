@@ -38,6 +38,7 @@ import { ENGINE_COMPONENTS } from "../storefront/themes";
 /* ------------------------------ shared chrome ----------------------------- */
 export type StoreProfile = {
   id: string;
+  owner_id?: string | null;
   store_name: string | null;
   store_slug: string | null;
   city: string | null;
@@ -2220,13 +2221,21 @@ export function Checkout() {
     name: "",
     phone: "",
     addr: "",
-    city: "Bandung",
+    city: "",
     postal: "",
     note: "",
     pay: "QRIS",
   });
   const { items, subtotal, discount, total, loadError } = useTotals(promo);
   const store = useCartStore(items);
+  const [hasBank, setHasBank] = useState(true);
+  useEffect(() => {
+    if (!store?.owner_id) return;
+    (async () => {
+      const { count } = await supabase.from("seller_bank_accounts").select("id", { count: "exact", head: true }).eq("seller_id", store.owner_id);
+      setHasBank((count ?? 0) > 0);
+    })();
+  }, [store?.owner_id]);
   // Aksen toko (dari store_theme) dipakai tombol bayar + total supaya
   // checkout terasa bagian dari tokonya. Logic & validasi tidak berubah.
   const payAccent = useStoreAccent(store?.id);
@@ -2393,6 +2402,15 @@ export function Checkout() {
                     value={form.addr}
                     invalid={!!err.addr}
                     onChange={(e) => set("addr", e.target.value)}
+                    onBlur={async () => {
+                      if (form.addr.trim().length < 10 || form.postal.trim()) return;
+                      try {
+                        const r = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(form.addr.trim())}&format=json&addressdetails=1&limit=1`, { headers: { "Accept-Language": "id" } });
+                        const d = await r.json();
+                        const pc = d?.[0]?.address?.postcode;
+                        if (pc) set("postal", String(pc));
+                      } catch { /* abaikan */ }
+                    }}
                     placeholder="Jl. Merdeka No. 12, RT 03/RW 05"
                     rows={3}
                   />
@@ -2428,13 +2446,14 @@ export function Checkout() {
               <div className="micro mb-4 text-brand-600">03 / Pembayaran</div>
               <div className="grid gap-2.5 sm:grid-cols-2">
                 {[
-                  ["QRIS", "qr", "Semua e-wallet & m-banking", "Biaya 0,7%"],
-                  ["Transfer manual", "receipt", "Upload bukti pembayaran, admin review", "Tanpa biaya"],
+                  ["QRIS", "qr", "Bayar dengan QRIS (semua e-wallet & m-banking)", "Biaya layanan BuatQris"],
+                  ["Transfer manual", "receipt", hasBank ? "Transfer ke rekening seller, upload bukti" : "Pembayaran Manual Tidak Tersedia", hasBank ? "Tanpa biaya tambahan" : ""],
                 ].map(([name, icon, note, fee]) => (
                   <label
                     key={name}
                     className={cx(
-                      "flex cursor-pointer items-start gap-3 rounded-lg border p-3.5 transition-colors duration-150",
+                      "flex items-start gap-3 rounded-lg border p-3.5 transition-colors duration-150",
+                      !hasBank && name === "Transfer manual" ? "cursor-not-allowed opacity-50" : "cursor-pointer",
                       form.pay === name ? "border-brand-500 bg-brand-50" : "border-line hover:border-brand-200",
                     )}
                   >
@@ -2442,7 +2461,8 @@ export function Checkout() {
                       type="radio"
                       name="pay"
                       checked={form.pay === name}
-                      onChange={() => set("pay", name)}
+                      disabled={!hasBank && name === "Transfer manual"}
+                      onChange={() => { if (hasBank || name !== "Transfer manual") set("pay", name); }}
                       className="mt-1 h-4 w-4 accent-[#0A69C4]"
                     />
                     <span className="flex-1">
