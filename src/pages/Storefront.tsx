@@ -2910,30 +2910,7 @@ export function PaymentStatus({ orderId, token }: { orderId: string; token: stri
                 </span>
               </div>
             </div>
-            {!finished && (
-              <Button
-                size="sm"
-                variant="secondary"
-                className="mt-4 w-full"
-                onClick={async () => {
-                  try {
-                    const { data: sess } = await supabase.auth.getSession();
-                    const tok = sess.session?.access_token;
-                    if (!tok) return;
-                    const r = await fetch("/api/check-payment-status", {
-                      method: "POST",
-                      headers: { "content-type": "application/json", "x-supabase-auth": `Bearer ${tok}` },
-                      body: JSON.stringify({ order_id: orderId }),
-                    });
-                    const out = await r.json();
-                    if (out.status === "berhasil") window.location.reload();
-                    else toast(out.message ?? "Belum ada update.", out.status === "gagal" || out.status === "perlu_cek" ? "bad" : "info");
-                  } catch { toast("Gagal cek status.", "bad"); }
-                }}
-              >
-                Cek status pembayaran
-              </Button>
-            )}
+
           </div>
           )}
 
