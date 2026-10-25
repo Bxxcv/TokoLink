@@ -17,6 +17,7 @@
 - **Chat**: /chat buyer+seller, bot FAQ, widget floating, polling 5s.
 - **Reports**: tabel reports + admin queue /admin/reports.
 - **Status page**: /status.
+- **Maintenance mode**: AKTIF (commit 5e17d84). Semua halaman (publik/seller/admin) menampilkan halaman maintenance. Untuk mengaktifkan kembali: ubah `MAINTENANCE_MODE = false` di `src/App.tsx`, lalu commit & push ke main (Vercel rebuild otomatis).
 - **Export CSV**: di AccountSettings.
 - **Security hotfix**: IDOR store_members, chat impersonation, freemium bypass, PII leak profiles, force_open grant.
 
