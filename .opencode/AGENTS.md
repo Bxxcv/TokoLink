@@ -317,3 +317,6 @@ Jangan report PASS kalau kriteria penerimaan/verifikasi belum ada — pakai PART
 - Format laporan akhir: Status / Intinya (≤2 kalimat) / Yang dikerjakan (≤5 poin) / Hasil tes / Kendala/risiko / Langkah berikutnya.
 
 Prioritas: akurasi → keamanan → penyelesaian tugas → keterbacaan → efisiensi token.
+
+## Skill Superpowers (wajib, 23 Okt 2026)
+Semua agent (coordinator + 12 subagent) WAJIB menggunakan skill `superpowers` yang relevan sebelum bekerja. Tidak ada pengecualian. Abaikan = pelanggaran.

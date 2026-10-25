@@ -6,6 +6,9 @@ import { ToastHost, ButtonLink } from "./components/ui";
 import Landing from "./pages/Landing";
 import { Login, Register, Forgot, ResetPassword, BuyerLogin, BuyerRegister } from "./pages/Auth";
 import { SystemPage } from "./pages/System";
+import Maintenance from "./pages/Maintenance";
+
+const MAINTENANCE_MODE = true;
 import Chat from "./pages/Chat";
 import { StoreHome, ProductDetail, Cart, Checkout, Qris, PaymentStatus, OrderSuccess, OrderTracking, LegalPrivacy, LegalTerms, About, StatusPage, BuyerOrders } from "./pages/Storefront";
 import {
@@ -241,6 +244,7 @@ export default function App() {
 
 function Shell() {
   const path = useRoute();
+  if (MAINTENANCE_MODE) return <Maintenance />;
   const seg = path.split("/").filter(Boolean);
   let view = <RouteView path={path} />;
   // Fase 1: /app/* wajib login, /admin/* wajib login + role admin.
